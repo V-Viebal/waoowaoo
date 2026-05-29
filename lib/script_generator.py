@@ -24,11 +24,6 @@ from lib.prompt_builders_script import (
     build_drama_prompt,
     build_narration_prompt,
 )
-from lib.reference_video.limits import (
-    DEFAULT_MAX_REFS,
-    PROVIDER_MAX_REFS,
-    normalize_provider_id,
-)
 from lib.script_models import (
     DramaEpisodeScript,
     NarrationEpisodeScript,
@@ -334,16 +329,28 @@ class ScriptGenerator:
             return self.project_json["aspect_ratio"]
         return "9:16" if self.content_mode == "narration" else "16:9"
 
-    def _resolve_max_refs(self, caps: dict | None = None) -> int:
-        """按 provider 粗粒度解析最大参考图数。数值来源：`lib.reference_video.limits`。"""
+    def _resolve_max_refs(self, caps: dict | None = None) -> int | None:
+        """解析当前视频模型的最大参考图数；caps → project.json.video_backend → registry 两级回退。
+
+        语义约定：仅 None 视为「未声明上限」（上层不在 prompt 写硬性数量约束，且 executor 跳过裁剪）；
+        caps 来源的 0 是显式上限（如不接受参考图的 endpoint），会原样下传触发裁剪为 0 张。
+        caps 解析失败（DB/migration 故障等）时退到 registry 的 ModelInfo.max_reference_images——
+        与 _resolve_supported_durations 同构，避免丢失上限导致后端按多张参考图发出而被上游拒。
+        registry 里 0 是字段默认值（图像/文本模型或视频模型未声明），用 truthy 守卫当作未声明跳过。
+        """
         if caps:
             cached = caps.get("max_reference_images")
             if cached is not None:
                 return int(cached)
-        video_backend = self.project_json.get("video_backend") or ""
-        raw_provider = video_backend.split("/", 1)[0] if "/" in video_backend else ""
-        provider_id = normalize_provider_id(raw_provider)
-        return PROVIDER_MAX_REFS.get(provider_id, DEFAULT_MAX_REFS)
+        video_backend = self.project_json.get("video_backend")
+        if video_backend and isinstance(video_backend, str) and "/" in video_backend:
+            provider_id, model_id = video_backend.split("/", 1)
+            provider_meta = PROVIDER_REGISTRY.get(provider_id)
+            if provider_meta:
+                model_info = provider_meta.models.get(model_id)
+                if model_info and model_info.max_reference_images:
+                    return int(model_info.max_reference_images)
+        return None
 
     def _load_project_json(self) -> dict:
         """加载 project.json"""
