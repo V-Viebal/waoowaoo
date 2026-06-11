@@ -72,7 +72,7 @@ class CapacityTable:
     """
 
     _limits: dict[str, dict[str, int]]  # provider_id → {media_type → 上限}
-    _defaults: dict[str, int]  # {"image": 5, "video": 3}，未知 provider 懒默认
+    _defaults: dict[str, int]  # {"image": 5, "video": 3, "audio": 10}，未知 provider 懒默认
 
     def get(self, provider_id: str, media_type: str) -> int:
         """返回 ``(provider, media)`` 的并发上限。
@@ -91,14 +91,15 @@ class CapacityTable:
         self._limits = new_limits
 
     @staticmethod
-    def _lane_limits(media_types: Any, image: int, video: int) -> dict[str, int]:
+    def _lane_limits(media_types: Any, image: int, video: int, audio: int) -> dict[str, int]:
         """按 provider 支持的 media_types 把上限投影成 lane 字典；不支持的 lane → 0。
 
-        容量装载的单一映射点：未来接入 audio lane 时在这里加一行即可。
+        容量装载的单一映射点：新增 lane 时在这里加一行即可。
         """
         return {
             "image": image if "image" in media_types else 0,
             "video": video if "video" in media_types else 0,
+            "audio": audio if "audio" in media_types else 0,
         }
 
     @classmethod
@@ -108,10 +109,12 @@ class CapacityTable:
 
         image_max = _read_int_env("IMAGE_MAX_WORKERS", 5, minimum=1)
         video_max = _read_int_env("VIDEO_MAX_WORKERS", 3, minimum=1)
+        audio_max = _read_int_env("AUDIO_MAX_WORKERS", 10, minimum=1)
         limits = {
-            pid: cls._lane_limits(meta.media_types, image_max, video_max) for pid, meta in PROVIDER_REGISTRY.items()
+            pid: cls._lane_limits(meta.media_types, image_max, video_max, audio_max)
+            for pid, meta in PROVIDER_REGISTRY.items()
         }
-        return cls(_limits=limits, _defaults={"image": image_max, "video": video_max})
+        return cls(_limits=limits, _defaults={"image": image_max, "video": video_max, "audio": audio_max})
 
     @classmethod
     async def from_db(cls) -> CapacityTable:
@@ -124,6 +127,7 @@ class CapacityTable:
 
         default_image = _read_int_env("IMAGE_MAX_WORKERS", 5, minimum=1)
         default_video = _read_int_env("VIDEO_MAX_WORKERS", 3, minimum=1)
+        default_audio = _read_int_env("AUDIO_MAX_WORKERS", 10, minimum=1)
 
         limits: dict[str, dict[str, int]] = {}
         async with safe_session_factory() as session:
@@ -133,17 +137,21 @@ class CapacityTable:
                 config = all_configs.get(provider_id, {})
                 image_max = max(0, int(config.get("image_max_workers", str(default_image))))
                 video_max = max(0, int(config.get("video_max_workers", str(default_video))))
+                audio_max = max(0, int(config.get("audio_max_workers", str(default_audio))))
                 # _lane_limits 统一负责"不支持的 lane → 0"，三个装载路径共用同一投影点
-                limits[provider_id] = cls._lane_limits(meta.media_types, image_max, video_max)
+                limits[provider_id] = cls._lane_limits(meta.media_types, image_max, video_max, audio_max)
 
             repo = CustomProviderRepository(session)
             for provider, models in await repo.list_providers_with_models():
                 pid = provider.provider_id  # "custom-{id}"
                 media_types = {endpoint_to_media_type(m.endpoint) for m in models if m.is_enabled}
-                limits[pid] = cls._lane_limits(media_types, default_image, default_video)
+                limits[pid] = cls._lane_limits(media_types, default_image, default_video, default_audio)
 
         logger.info("从 DB 加载供应商容量表: %s", limits)
-        return cls(_limits=limits, _defaults={"image": default_image, "video": default_video})
+        return cls(
+            _limits=limits,
+            _defaults={"image": default_image, "video": default_video, "audio": default_audio},
+        )
 
 
 @dataclass
@@ -151,8 +159,8 @@ class _Occupant:
     """一条占用：执行体 + phase 标志。
 
     ``pending=True`` 仅由 video 的 sem-throttled dispatcher 在 sub-task 排队期产生；
-    image 无 sem dispatcher，一律 ``pending=False``。promote 只翻这个标志（天然原子），
-    避免"两层容器间瞬时既不在 pending 也不在 inflight"的窗口。
+    image / audio 无 sem dispatcher（audio 后端同步），一律 ``pending=False``。promote
+    只翻这个标志（天然原子），避免"两层容器间瞬时既不在 pending 也不在 inflight"的窗口。
     """
 
     task: asyncio.Future[Any]
@@ -267,8 +275,9 @@ async def _extract_provider(task: dict[str, Any]) -> str:
     """
     project_name = task.get("project_name")
     payload = task.get("payload") or {}
-    # 以 media lane 区分 video / image：reference_video 等 task_type 同属 video lane。
+    # 以 media lane 区分 video / audio / image：reference_video 等 task_type 同属 video lane。
     is_video = task.get("media_type") == "video" or task.get("task_type") in ("video", "reference_video")
+    is_audio = task.get("media_type") == "audio" or task.get("task_type") == "tts"
 
     # 整体兜底：含项目加载（队列里可能有指向已删除/不可读项目的历史任务，load_project 会抛
     # FileNotFoundError）在内的任何失败都回退 DEFAULT_PROVIDER，绝不冒泡阻断认领循环（见 docstring）。
@@ -285,6 +294,8 @@ async def _extract_provider(task: dict[str, Any]) -> str:
         resolver = ConfigResolver(async_session_factory)
         if is_video:
             resolved = await resolver.resolve_video_backend(project, payload)
+        elif is_audio:
+            resolved = await resolver.resolve_audio_backend(project, payload)
         else:
             resolved = await resolver.resolve_image_backend(project, payload, capability="t2i")
     except Exception:
@@ -294,7 +305,7 @@ async def _extract_provider(task: dict[str, Any]) -> str:
 
 
 class GenerationWorker:
-    """Queue worker with per-provider image/video lanes and single-active lease."""
+    """Queue worker with per-provider image/video/audio lanes and single-active lease."""
 
     def __init__(
         self,
@@ -452,7 +463,7 @@ class GenerationWorker:
         """
         claimed_any = False
 
-        for media_type in ("image", "video"):
+        for media_type in ("image", "video", "audio"):
             while True:
                 # 每轮重算池满集合：刚 claim 的任务可能让某 provider 进入满状态
                 pool_full = self._pool_full_providers(media_type)
@@ -779,9 +790,15 @@ class GenerationWorker:
                 continue
 
             # status == "running"
-            media_type = task.get("media_type") or (
-                "video" if task.get("task_type") in ("video", "reference_video") else "image"
-            )
+            task_type = task.get("task_type")
+            if task.get("media_type"):
+                media_type = task["media_type"]
+            elif task_type in ("video", "reference_video"):
+                media_type = "video"
+            elif task_type == "tts":
+                media_type = "audio"
+            else:
+                media_type = "image"
 
             # image 任务不持久化 job_id 也无 resume 入口——已提交给供应商的请求无法回收，
             # 主动 requeue 会双重扣费。直接丢弃，等用户决定是否手动重试。
@@ -790,6 +807,18 @@ class GenerationWorker:
                 rows = await self.queue.mark_task_failed(
                     task_id,
                     "[restart_lost] image 任务无法接续，需手动重试以避免重复计费",
+                )
+                if rows == 0:
+                    await self.queue.mark_task_cancelled(task_id, cancelled_by="user")
+                continue
+
+            # audio（TTS）同步、不持久化 job_id、无 resume 入口——与 image 同样降级为
+            # [restart_lost]，不重新提交以免重复计费。
+            if media_type == "audio":
+                logger.warning("孤儿 audio running → [restart_lost]: %s", task_id)
+                rows = await self.queue.mark_task_failed(
+                    task_id,
+                    "[restart_lost] audio 任务无法接续，需手动重试以避免重复计费",
                 )
                 if rows == 0:
                     await self.queue.mark_task_cancelled(task_id, cancelled_by="user")

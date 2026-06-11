@@ -62,6 +62,7 @@ class DataValidator:
         "reference_videos",
         "storyboards",
         "videos",
+        "audio",
         "thumbnails",
         "output",
         "versions",
@@ -354,6 +355,13 @@ class DataValidator:
             f"{prefix}.generated_assets.video_uri",
             default_dir="videos",
             allow_external=True,
+        )
+        self._validate_local_reference(
+            project_dir,
+            assets.get("narration_audio"),
+            errors,
+            f"{prefix}.generated_assets.narration_audio",
+            default_dir="audio",
         )
 
     def _validate_segments(

@@ -95,6 +95,22 @@ class PerTokenVideo:
 
 
 @dataclass(frozen=True)
+class PerCharacter:
+    """按字符计费（TTS），费率单位为每万字符。
+
+    - ``rates``：``{model_id: 每万字符价}``，价格以 ``currency`` 计
+      （如 ``{"qwen3-tts-flash": 0.8}`` 表示每万字符 0.8）。
+    - ``default_model``：``rates`` 未命中请求 model 时回落到此 model 的费率。
+    - ``currency``：费率币种（如 ``"CNY"``）。
+    """
+
+    rates: dict[str, float]
+    default_model: str
+    currency: str
+    kind: Literal["per_character"] = "per_character"
+
+
+@dataclass(frozen=True)
 class ViduDelegate:
     """委托标记：实际费率在 ``lib.vidu_shared.calculate_vidu_cost``（依赖响应 credits）。
 
@@ -113,5 +129,6 @@ Pricing = (
     | PerImageOpenAIToken
     | PerSecondMatrix
     | PerTokenVideo
+    | PerCharacter
     | ViduDelegate
 )
