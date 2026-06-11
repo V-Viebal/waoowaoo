@@ -22,7 +22,7 @@ import portalocker
 from pydantic import BaseModel, Field
 
 from lib.agent_profile import agent_profile_dir
-from lib.asset_types import ASSET_SPECS
+from lib.asset_types import ASSET_SPECS, validate_asset_name
 from lib.json_io import atomic_write_json, load_json, load_json_or_none
 from lib.profile_manifest import (
     VALID_CONTENT_MODES,
@@ -1607,6 +1607,7 @@ class ProjectManager:
         通过 update_project 在单一文件锁内完成 read-modify-write，避免并发新增时的
         lost-update 竞态。
         """
+        name = validate_asset_name(name)
         spec = ASSET_SPECS[asset_type]
         added = False
 
@@ -1631,6 +1632,20 @@ class ProjectManager:
         的 lost-update 竞态。
         """
         spec = ASSET_SPECS[asset_type]
+        # 与 upsert_assets 同口径：strip 后等价的 key（{"李白", "  李白  "}）不允许静默
+        # 互相覆盖，整批 fail-loud 不落盘，让调用方感知 collision 并去重。
+        normalized_entries: dict[str, dict] = {}
+        raw_keys_by_normalized: dict[str, str] = {}
+        for raw_name, entry in entries.items():
+            name = validate_asset_name(raw_name)
+            if name in normalized_entries:
+                raise ValueError(
+                    f"{spec.bucket_key} 的 entries 含规范化后冲突的 name {name!r}："
+                    f"原始键 {raw_keys_by_normalized[name]!r} 与 {raw_name!r} 在 strip 后等价"
+                )
+            normalized_entries[name] = entry
+            raw_keys_by_normalized[name] = raw_name
+        entries = normalized_entries
         added = 0
 
         def _mutate(project):
@@ -1676,16 +1691,18 @@ class ProjectManager:
             raise ValueError(f"entries 必须是对象（dict），当前为 {type(entries).__name__}")
         if not entries:
             raise ValueError("entries 不能为空（至少需要一个 name → attrs 条目）")
-        # 规范化 name：strip 空白后非空。agent 误传 "  李白  " 这种带空格的 name 会让后续按
-        # name 索引查找（角色生成等）因空格差异 mismatch。空白 name 全空 fail-loud。
+        # 规范化 name：strip 空白后非空，且须是路径安全的单段组件（validate_asset_name，
+        # 名称会被拼进文件路径与单段路由参数）。agent 误传 "  李白  " 这种带空格的 name 会让
+        # 后续按 name 索引查找（角色生成等）因空格差异 mismatch。非法 name fail-loud。
         # 同时检测 strip 后冲突：{"李白": {...}, "  李白  ": {...}} 规范化后 key 相同 →
         # 后者会 silent overwrite 前者；fail-loud 让 agent 明确感知 collision 并去重。
         normalized_entries: dict[str, dict] = {}
         raw_keys_by_normalized: dict[str, str] = {}
         for raw_name, attrs in entries.items():
-            name = raw_name.strip() if isinstance(raw_name, str) else raw_name
-            if not isinstance(name, str) or not name:
-                raise ValueError(f"{table} 的名称不能为空或仅含空白字符")
+            try:
+                name = validate_asset_name(raw_name)
+            except ValueError as exc:
+                raise ValueError(f"{table}: {exc}") from None
             if not isinstance(attrs, dict):
                 raise ValueError(f"{table} '{name}' 的内容必须是对象")
             if name in normalized_entries:
@@ -1855,6 +1872,7 @@ class ProjectManager:
         Returns:
             更新后的项目元数据
         """
+        name = validate_asset_name(name)
 
         def _mutate(project: dict) -> None:
             project["characters"][name] = {

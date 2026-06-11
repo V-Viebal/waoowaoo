@@ -73,3 +73,39 @@ ASSET_TYPES: frozenset[str] = frozenset(ASSET_SPECS.keys())
 BUCKET_KEY: dict[str, str] = {t: s.bucket_key for t, s in ASSET_SPECS.items()}
 
 SHEET_KEY: dict[str, str] = {t: s.sheet_field for t, s in ASSET_SPECS.items()}
+
+ILLEGAL_ASSET_NAME_CHARS: tuple[str, ...] = ("/", "\\", "\0", ":", "*", "?", '"', "<", ">", "|")
+
+WINDOWS_RESERVED_BASENAMES: frozenset[str] = frozenset(
+    {"CON", "PRN", "AUX", "NUL", *(f"COM{i}" for i in range(1, 10)), *(f"LPT{i}" for i in range(1, 10))}
+)
+
+
+def validate_asset_name(name: object) -> str:
+    """校验并规范化（strip）资产名，非法时抛 ValueError，合法时返回 strip 后的名字。
+
+    资产名全链路被当作单段路径组件使用：文件名（``characters/{name}.png``、
+    ``versions/{type}/{name}_v{n}_{ts}.png``）与 REST 路由的单段路径参数。含路径
+    分隔符、控制字符或 ``..`` 的名字会产生嵌套路径与无法匹配的 URL；Windows 还会
+    拒绝 ``: * ? " < > |``、尾随点与保留设备名（CON / COM1 等，按首个点段判定，
+    ``CON.backup`` 同样保留）。项目目录须可跨平台迁移，这些约束在所有平台统一执行，
+    并在创建入口拒绝。
+    """
+    if not isinstance(name, str):
+        raise ValueError(f"资产名称必须是字符串，当前为 {type(name).__name__}")
+    cleaned = name.strip()
+    if not cleaned:
+        raise ValueError("资产名称不能为空或仅含空白字符")
+    if (
+        ".." in cleaned
+        or any(c in cleaned for c in ILLEGAL_ASSET_NAME_CHARS)
+        or any(ord(c) < 32 or ord(c) == 127 for c in cleaned)
+    ):
+        raise ValueError(
+            f'资产名称 {cleaned!r} 含非法字符：不允许路径分隔符（/ \\）、Windows 保留字符（: * ? " < > |）、控制字符或 ..'
+        )
+    if cleaned.endswith("."):
+        raise ValueError(f"资产名称 {cleaned!r} 不能以点结尾（Windows 文件名约束）")
+    if cleaned.split(".", 1)[0].upper() in WINDOWS_RESERVED_BASENAMES:
+        raise ValueError(f"资产名称 {cleaned!r} 是 Windows 保留设备名（CON/PRN/AUX/NUL/COM1-9/LPT1-9）")
+    return cleaned
