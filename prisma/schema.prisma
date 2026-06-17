@@ -254,6 +254,8 @@ model NovelPromotionProject {
   ttsRate         String                    @default("+50%")
   globalAssetText String?                   @db.Text
   artStyle        String                    @default("american-comic")
+  artStyleId      String?
+  artStyleRef     ArtStyle?                 @relation("NovelPromotionProjectArtStyle", fields: [artStyleId], references: [id], onDelete: SetNull)
   artStylePrompt  String?                   @db.Text
   characterModel  String? // 用户配置的角色图片模型
   locationModel   String? // 用户配置的场景图片模型
@@ -270,6 +272,7 @@ model NovelPromotionProject {
   locations       NovelPromotionLocation[]
   project         Project                   @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
+  @@index([artStyleId])
   @@map("novel_promotion_projects")
 }
 
@@ -322,6 +325,7 @@ model NovelPromotionStoryboard {
   panels              NovelPromotionPanel[]
   clip                NovelPromotionClip    @relation(fields: [clipId], references: [id], onDelete: Cascade)
   episode             NovelPromotionEpisode @relation(fields: [episodeId], references: [id], onDelete: Cascade)
+  imageVersions       StoryboardImageVersion[]
   supplementaryPanels SupplementaryPanel[]
 
   @@index([clipId])
@@ -360,6 +364,7 @@ model Project {
   lastAccessedAt     DateTime?
   novelPromotionData NovelPromotionProject?
   user               User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  promptOverrides    ProjectPromptOverride[]
   usageCosts         UsageCost[]
 
   @@index([userId])
@@ -406,6 +411,7 @@ model User {
   emailVerified DateTime?
   image         String?
   password      String?
+  role          String          @default("user")
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @default(now()) @updatedAt
   accounts      Account[]
@@ -414,6 +420,12 @@ model User {
   usageCosts    UsageCost[]
   balance       UserBalance?
   preferences   UserPreference?
+  promptVersionsCreated   PromptVersion[]          @relation("PromptVersionCreatedBy")
+  promptVersionsPublished PromptVersion[]          @relation("PromptVersionPublishedBy")
+  projectPromptOverrides  ProjectPromptOverride[]
+  artStylesCreated        ArtStyle[]               @relation("ArtStyleCreatedBy")
+  artStylesUpdated        ArtStyle[]               @relation("ArtStyleUpdatedBy")
+  storyboardImageVersions StoryboardImageVersion[]
 
   // 资产中心
   globalAssetFolders GlobalAssetFolder[]
@@ -446,6 +458,8 @@ model UserPreference {
   videoRatio      String   @default("9:16")
   videoResolution String   @default("720p")
   artStyle        String   @default("american-comic")
+  artStyleId      String?
+  artStyleRef     ArtStyle? @relation("UserPreferenceArtStyle", fields: [artStyleId], references: [id], onDelete: SetNull)
   ttsRate         String   @default("+50%")
   createdAt       DateTime @default(now())
   updatedAt       DateTime @default(now()) @updatedAt
@@ -468,7 +482,139 @@ model UserPreference {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([artStyleId])
   @@map("user_preferences")
+}
+
+model BrandConfig {
+  id                  String   @id @default(uuid())
+  brandName           String
+  logoPath            String
+  faviconPath         String?
+  metadataTitle       String
+  metadataDescription String?  @db.Text
+  updatedByUserId     String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @default(now()) @updatedAt
+
+  @@map("brand_configs")
+}
+
+model PromptDefinition {
+  id           String                  @id @default(uuid())
+  promptId     String                  @unique
+  pathStem     String
+  category     String
+  name         String
+  description  String?                 @db.Text
+  variableKeys String                  @db.Text
+  isRegistered Boolean                 @default(true)
+  createdAt    DateTime                @default(now())
+  updatedAt    DateTime                @default(now()) @updatedAt
+  versions     PromptVersion[]
+  overrides    ProjectPromptOverride[]
+
+  @@index([category])
+  @@map("prompt_definitions")
+}
+
+model PromptVersion {
+  id                 String                  @id @default(uuid())
+  promptDefinitionId String
+  locale             String
+  version            Int
+  status             String
+  content            String                  @db.Text
+  createdByUserId    String?
+  publishedByUserId  String?
+  publishedAt        DateTime?
+  disabledAt         DateTime?
+  changeNote         String?                 @db.Text
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @default(now()) @updatedAt
+  promptDefinition   PromptDefinition        @relation(fields: [promptDefinitionId], references: [id], onDelete: Cascade)
+  createdBy          User?                   @relation("PromptVersionCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  publishedBy        User?                   @relation("PromptVersionPublishedBy", fields: [publishedByUserId], references: [id], onDelete: SetNull)
+  overrides          ProjectPromptOverride[]
+
+  @@unique([promptDefinitionId, locale, version])
+  @@index([promptDefinitionId, locale, status, publishedAt])
+  @@index([createdByUserId])
+  @@index([publishedByUserId])
+  @@map("prompt_versions")
+}
+
+model ProjectPromptOverride {
+  id                 String           @id @default(uuid())
+  projectId          String
+  promptDefinitionId String
+  locale             String
+  promptVersionId    String
+  createdByUserId    String
+  reason             String?          @db.Text
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @default(now()) @updatedAt
+  project            Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  promptDefinition   PromptDefinition @relation(fields: [promptDefinitionId], references: [id], onDelete: Cascade)
+  promptVersion      PromptVersion    @relation(fields: [promptVersionId], references: [id], onDelete: Cascade)
+  createdBy          User             @relation(fields: [createdByUserId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, promptDefinitionId, locale])
+  @@index([promptVersionId])
+  @@index([createdByUserId])
+  @@map("project_prompt_overrides")
+}
+
+model ArtStyle {
+  id                    String                    @id @default(uuid())
+  scope                 String
+  ownerUserId           String?
+  name                  String
+  description           String?                   @db.Text
+  prompt                String                    @db.Text
+  previewImageUrl       String?                   @db.Text
+  previewMediaId        String?
+  enabled               Boolean                   @default(true)
+  sortOrder             Int                       @default(0)
+  createdByUserId       String?
+  updatedByUserId       String?
+  createdAt             DateTime                  @default(now())
+  updatedAt             DateTime                  @default(now()) @updatedAt
+  previewMedia          MediaObject?              @relation("ArtStylePreviewMedia", fields: [previewMediaId], references: [id], onDelete: SetNull)
+  createdBy             User?                     @relation("ArtStyleCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  updatedBy             User?                     @relation("ArtStyleUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+  novelPromotionProjects NovelPromotionProject[]  @relation("NovelPromotionProjectArtStyle")
+  userPreferences       UserPreference[]          @relation("UserPreferenceArtStyle")
+
+  @@index([scope, enabled, sortOrder])
+  @@index([ownerUserId])
+  @@index([previewMediaId])
+  @@index([createdByUserId])
+  @@index([updatedByUserId])
+  @@map("art_styles")
+}
+
+model StoryboardImageVersion {
+  id                   String                   @id @default(uuid())
+  storyboardId         String
+  mode                 String
+  imageUrl             String                   @db.Text
+  imageMediaId         String?
+  gridPreset           String?
+  gridConfig           Json?
+  promptSnapshot       String?                  @db.Text
+  sourcePanelsSnapshot Json?
+  inputSnapshot        Json?
+  createdByUserId      String
+  createdAt            DateTime                 @default(now())
+  storyboard           NovelPromotionStoryboard @relation(fields: [storyboardId], references: [id], onDelete: Cascade)
+  imageMedia           MediaObject?             @relation("StoryboardImageVersionMedia", fields: [imageMediaId], references: [id], onDelete: SetNull)
+  createdBy            User                     @relation(fields: [createdByUserId], references: [id], onDelete: Cascade)
+
+  @@index([storyboardId, createdAt])
+  @@index([createdByUserId])
+  @@index([imageMediaId])
+  @@map("storyboard_image_versions")
 }
 
 model VerificationToken {
@@ -980,6 +1126,8 @@ model MediaObject {
   globalLocationImageImages             GlobalLocationImage[]       @relation("GlobalLocationImageMedia")
   globalLocationImagePreviousImages     GlobalLocationImage[]       @relation("GlobalLocationImagePreviousImageMedia")
   globalVoiceCustomVoices               GlobalVoice[]               @relation("GlobalVoiceCustomVoiceMedia")
+  artStylePreviewMedias                 ArtStyle[]                  @relation("ArtStylePreviewMedia")
+  storyboardImageVersionMedia           StoryboardImageVersion[]     @relation("StoryboardImageVersionMedia")
 
   @@index([createdAt])
   @@map("media_objects")
