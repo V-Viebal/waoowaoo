@@ -10,6 +10,14 @@ export const PROMPT_CATALOG: Record<PromptId, PromptCatalogEntry> = {
     pathStem: 'character-reference/character_reference_to_sheet',
     variableKeys: [],
   },
+  [PROMPT_IDS.SKILL_API_CONFIG_TEMPLATE_SYSTEM]: {
+    pathStem: 'skills/api-config-template.system',
+    variableKeys: ['providerId'],
+  },
+  [PROMPT_IDS.SKILL_TUTORIAL_SYSTEM]: {
+    pathStem: 'skills/tutorial.system',
+    variableKeys: [],
+  },
   [PROMPT_IDS.NP_AGENT_ACTING_DIRECTION]: {
     pathStem: 'novel-promotion/agent_acting_direction',
     variableKeys: ['panels_json', 'panel_count', 'characters_info'],

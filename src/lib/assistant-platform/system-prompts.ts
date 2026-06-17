@@ -1,32 +1,31 @@
-import fs from 'fs'
-import path from 'path'
+import { getPromptTemplate, PROMPT_IDS, type PromptId } from '@/lib/prompt-i18n'
 
 export type AssistantPromptId = 'api-config-template' | 'tutorial'
 
-const PROMPT_FILE_BY_ID: Record<AssistantPromptId, string> = {
-  'api-config-template': 'api-config-template.system.txt',
-  tutorial: 'tutorial.system.txt',
+const PROMPT_ID_BY_ASSISTANT_ID: Record<AssistantPromptId, PromptId> = {
+  'api-config-template': PROMPT_IDS.SKILL_API_CONFIG_TEMPLATE_SYSTEM,
+  tutorial: PROMPT_IDS.SKILL_TUTORIAL_SYSTEM,
 }
 
 const promptCache = new Map<AssistantPromptId, string>()
 
+function normalizePromptTemplate(promptI18nId: PromptId, content: string): string {
+  const trimmed = content.trim()
+  if (!trimmed) {
+    throw new Error(`ASSISTANT_SYSTEM_PROMPT_EMPTY: ${promptI18nId}`)
+  }
+  return trimmed
+}
+
 function loadPromptTemplate(promptId: AssistantPromptId): string {
+  const promptI18nId = PROMPT_ID_BY_ASSISTANT_ID[promptId]
   const cached = promptCache.get(promptId)
-  if (cached) return cached
+  if (cached) return normalizePromptTemplate(promptI18nId, cached)
 
-  const fileName = PROMPT_FILE_BY_ID[promptId]
-  const filePath = path.resolve(process.cwd(), 'lib', 'prompts', 'skills', fileName)
-  if (!fs.existsSync(filePath)) {
-    throw new Error(`ASSISTANT_SYSTEM_PROMPT_FILE_MISSING: ${filePath}`)
-  }
-
-  const content = fs.readFileSync(filePath, 'utf8').trim()
-  if (!content) {
-    throw new Error(`ASSISTANT_SYSTEM_PROMPT_EMPTY: ${filePath}`)
-  }
+  const content = getPromptTemplate(promptI18nId, 'zh')
 
   promptCache.set(promptId, content)
-  return content
+  return normalizePromptTemplate(promptI18nId, content)
 }
 
 function replacePromptVariables(template: string, vars: Record<string, string>): string {
