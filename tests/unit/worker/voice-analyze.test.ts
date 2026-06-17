@@ -56,6 +56,7 @@ vi.mock('@/lib/workers/handlers/voice-analyze-helpers', () => ({
 vi.mock('@/lib/prompt-i18n', () => ({
   PROMPT_IDS: { NP_VOICE_ANALYSIS: 'np_voice_analysis' },
   buildPrompt: vi.fn(() => 'voice-analysis-prompt'),
+  buildPromptAsync: vi.fn(async () => 'voice-analysis-prompt'),
 }))
 
 import { handleVoiceAnalyzeTask } from '@/lib/workers/handlers/voice-analyze'

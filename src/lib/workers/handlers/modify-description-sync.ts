@@ -1,7 +1,7 @@
 import { executeAiTextStep, executeAiVisionStep } from '@/lib/ai-runtime'
 import { removeCharacterPromptSuffix, removeLocationPromptSuffix, removePropPromptSuffix } from '@/lib/constants'
 import { safeParseJsonObject } from '@/lib/json-repair'
-import { buildPrompt, PROMPT_IDS } from '@/lib/prompt-i18n'
+import { buildPromptAsync, PROMPT_IDS } from '@/lib/prompt-i18n'
 import type { PromptLocale } from '@/lib/prompt-i18n/types'
 import {
   buildCharacterDescriptionFields,
@@ -63,9 +63,10 @@ export async function generateModifiedAssetDescription(params: {
 }> {
   const hasReferenceImages = Array.isArray(params.referenceImages) && params.referenceImages.length > 0
   const finalPrompt = params.type === 'character'
-    ? buildPrompt({
+    ? await buildPromptAsync({
       promptId: PROMPT_IDS.NP_CHARACTER_DESCRIPTION_UPDATE,
       locale: params.locale,
+      projectId: params.projectId ?? null,
       variables: {
         original_description: removeCharacterPromptSuffix(params.currentDescription),
         modify_instruction: params.modifyInstruction,
@@ -73,9 +74,10 @@ export async function generateModifiedAssetDescription(params: {
       },
     })
     : params.type === 'prop'
-      ? buildPrompt({
+      ? await buildPromptAsync({
         promptId: PROMPT_IDS.NP_PROP_DESCRIPTION_UPDATE,
         locale: params.locale,
+        projectId: params.projectId ?? null,
         variables: {
           prop_name: trimText(params.propName) || '道具',
           original_description: removePropPromptSuffix(params.currentDescription),
@@ -83,9 +85,10 @@ export async function generateModifiedAssetDescription(params: {
           image_context: buildImageContext('prop', hasReferenceImages),
         },
       })
-    : buildPrompt({
+    : await buildPromptAsync({
       promptId: PROMPT_IDS.NP_LOCATION_DESCRIPTION_UPDATE,
       locale: params.locale,
+      projectId: params.projectId ?? null,
       variables: {
         location_name: trimText(params.locationName) || '场景',
         original_description: removeLocationPromptSuffix(params.currentDescription),

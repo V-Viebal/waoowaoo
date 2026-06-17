@@ -9,7 +9,7 @@ import { reportTaskProgress } from '@/lib/workers/shared'
 import { assertTaskActive } from '@/lib/workers/utils'
 import { createWorkerLLMStreamCallbacks, createWorkerLLMStreamContext } from './llm-stream'
 import type { TaskJobData } from '@/lib/task/types'
-import { buildPrompt, PROMPT_IDS } from '@/lib/prompt-i18n'
+import { buildPromptAsync, PROMPT_IDS } from '@/lib/prompt-i18n'
 import { resolveAnalysisModel } from './resolve-analysis-model'
 
 function readAssetKind(value: Record<string, unknown>): string {
@@ -101,9 +101,10 @@ export async function handleClipsBuildTask(job: Job<TaskJobData>) {
     ? novelData.locations.filter((item) => readAssetKind(item as unknown as Record<string, unknown>) === 'prop').map((item) => item.name).join('、')
     : '无'
   const charactersIntroduction = buildCharactersIntroduction(novelData.characters)
-  const promptTemplateBase = buildPrompt({
+  const promptTemplateBase = await buildPromptAsync({
     promptId: PROMPT_IDS.NP_AGENT_CLIP,
     locale: job.data.locale,
+    projectId,
     variables: {
       input: contentToProcess,
       locations_lib_name: locationsLibName,

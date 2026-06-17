@@ -1,6 +1,6 @@
 import { buildCharactersLibInfo, type CharacterBrief } from './analyze-global-parse'
 import type { Locale } from '@/i18n/routing'
-import { getPromptTemplate, PROMPT_IDS } from '@/lib/prompt-i18n'
+import { getPromptTemplateAsync, PROMPT_IDS } from '@/lib/prompt-i18n'
 
 export type AnalyzeGlobalPromptTemplates = {
   characterPromptTemplate: string
@@ -8,11 +8,24 @@ export type AnalyzeGlobalPromptTemplates = {
   propPromptTemplate: string
 }
 
-export function loadAnalyzeGlobalPromptTemplates(locale: Locale): AnalyzeGlobalPromptTemplates {
+export async function loadAnalyzeGlobalPromptTemplates(
+  locale: Locale,
+  projectId: string,
+): Promise<AnalyzeGlobalPromptTemplates> {
+  const [
+    characterPromptTemplate,
+    locationPromptTemplate,
+    propPromptTemplate,
+  ] = await Promise.all([
+    getPromptTemplateAsync(PROMPT_IDS.NP_AGENT_CHARACTER_PROFILE, locale, { projectId }),
+    getPromptTemplateAsync(PROMPT_IDS.NP_SELECT_LOCATION, locale, { projectId }),
+    getPromptTemplateAsync(PROMPT_IDS.NP_SELECT_PROP, locale, { projectId }),
+  ])
+
   return {
-    characterPromptTemplate: getPromptTemplate(PROMPT_IDS.NP_AGENT_CHARACTER_PROFILE, locale),
-    locationPromptTemplate: getPromptTemplate(PROMPT_IDS.NP_SELECT_LOCATION, locale),
-    propPromptTemplate: getPromptTemplate(PROMPT_IDS.NP_SELECT_PROP, locale),
+    characterPromptTemplate,
+    locationPromptTemplate,
+    propPromptTemplate,
   }
 }
 

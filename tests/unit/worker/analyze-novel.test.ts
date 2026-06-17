@@ -60,6 +60,7 @@ vi.mock('@/lib/prompt-i18n', () => ({
     NP_SELECT_PROP: 'prop',
   },
   buildPrompt: vi.fn(() => 'analysis-prompt'),
+  buildPromptAsync: vi.fn(async () => 'analysis-prompt'),
 }))
 
 import { handleAnalyzeNovelTask } from '@/lib/workers/handlers/analyze-novel'

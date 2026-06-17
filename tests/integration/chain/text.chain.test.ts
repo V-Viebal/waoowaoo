@@ -82,6 +82,7 @@ vi.mock('@/lib/workers/handlers/llm-stream', () => ({
 vi.mock('@/lib/prompt-i18n', () => ({
   PROMPT_IDS: { NP_EPISODE_SPLIT: 'np_episode_split' },
   buildPrompt: vi.fn(() => 'episode-split-prompt'),
+  buildPromptAsync: vi.fn(async () => 'episode-split-prompt'),
 }))
 vi.mock('@/lib/novel-promotion/story-to-script/clip-matching', () => ({
   createTextMarkerMatcher: (content: string) => ({

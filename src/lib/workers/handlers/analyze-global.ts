@@ -74,7 +74,7 @@ export async function handleAnalyzeGlobalTask(job: Job<TaskJobData>) {
   }
 
   const chunks = chunkContent(allContent, CHUNK_SIZE)
-  const templates = loadAnalyzeGlobalPromptTemplates(job.data.locale)
+  const templates = await loadAnalyzeGlobalPromptTemplates(job.data.locale, projectId)
   const existingCharacters: CharacterBrief[] = novelData.characters.map((item) => ({
     id: item.id,
     name: item.name,

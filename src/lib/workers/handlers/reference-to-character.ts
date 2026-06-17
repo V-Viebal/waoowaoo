@@ -18,7 +18,7 @@ import { initializeFonts, createLabelSVG } from '@/lib/fonts'
 import { reportTaskProgress } from '@/lib/workers/shared'
 import { assertTaskActive } from '@/lib/workers/utils'
 import { TASK_TYPE, type TaskJobData } from '@/lib/task/types'
-import { buildPrompt, PROMPT_IDS } from '@/lib/prompt-i18n'
+import { buildPromptAsync, PROMPT_IDS } from '@/lib/prompt-i18n'
 import { normalizeImageGenerationCount } from '@/lib/image-generation/count'
 import {
   parseReferenceImages,
@@ -143,6 +143,7 @@ export async function handleReferenceToCharacterTask(job: Job<TaskJobData>) {
   const customDescription = readString(payload.customDescription)
   const characterName = readString(payload.characterName) || '新角色 - 初始形象'
   const artStyle = readString(payload.artStyle)
+  const promptProjectId = isProject ? job.data.projectId : null
 
   if (isBackgroundJob && (!characterId || !appearanceId)) {
     throw new Error('Missing characterId or appearanceId for background job')
@@ -174,13 +175,15 @@ export async function handleReferenceToCharacterTask(job: Job<TaskJobData>) {
       stageLabel: '提取参考图描述',
       displayMode: 'detail',
     })
+    const analysisPrompt = await buildPromptAsync({
+      promptId: PROMPT_IDS.CHARACTER_IMAGE_TO_DESCRIPTION,
+      locale: job.data.locale,
+      projectId: promptProjectId,
+    })
     const completion = await executeAiVisionStep({
       userId: job.data.userId,
       model: analysisModel,
-      prompt: buildPrompt({
-        promptId: PROMPT_IDS.CHARACTER_IMAGE_TO_DESCRIPTION,
-        locale: job.data.locale,
-      }),
+      prompt: analysisPrompt,
       imageUrls: allReferenceImages,
       temperature: 0.3,
       ...(isProject ? { projectId: job.data.projectId } : {}),
@@ -199,9 +202,10 @@ export async function handleReferenceToCharacterTask(job: Job<TaskJobData>) {
 
   const artStylePrompt = getArtStylePrompt(artStyle, job.data.locale)
 
-  const basePrompt = customDescription || buildPrompt({
+  const basePrompt = customDescription || await buildPromptAsync({
     promptId: PROMPT_IDS.CHARACTER_REFERENCE_TO_SHEET,
     locale: job.data.locale,
+    projectId: promptProjectId,
   })
   let prompt = addCharacterPromptSuffix(basePrompt)
   if (artStylePrompt) {
@@ -235,9 +239,10 @@ export async function handleReferenceToCharacterTask(job: Job<TaskJobData>) {
 
   let description: string | null = null
   if (analysisModel) {
-    const analysisPrompt = buildPrompt({
+    const analysisPrompt = await buildPromptAsync({
       promptId: PROMPT_IDS.CHARACTER_IMAGE_TO_DESCRIPTION,
       locale: job.data.locale,
+      projectId: promptProjectId,
     })
     const completion = await executeAiVisionStep({
       userId: job.data.userId,

@@ -44,6 +44,7 @@ const outboundMock = vi.hoisted(() => ({
 
 const promptMock = vi.hoisted(() => ({
   buildPrompt: vi.fn(() => 'panel-image-prompt'),
+  buildPromptAsync: vi.fn(async () => 'panel-image-prompt'),
 }))
 
 vi.mock('@/lib/prisma', () => ({ prisma: prismaMock }))
@@ -74,6 +75,7 @@ vi.mock('@/lib/workers/handlers/image-task-handler-shared', async () => {
 vi.mock('@/lib/prompt-i18n', () => ({
   PROMPT_IDS: { NP_SINGLE_PANEL_IMAGE: 'np_single_panel_image' },
   buildPrompt: promptMock.buildPrompt,
+  buildPromptAsync: promptMock.buildPromptAsync,
 }))
 
 import { handlePanelImageTask } from '@/lib/workers/handlers/panel-image-task-handler'
@@ -152,12 +154,14 @@ describe('worker panel-image-task-handler behavior', () => {
         }),
       }),
     )
-    expect(promptMock.buildPrompt).toHaveBeenCalledWith(expect.objectContaining({
+    expect(promptMock.buildPromptAsync).toHaveBeenCalledWith(expect.objectContaining({
+      projectId: 'project-1',
       variables: expect.objectContaining({
         storyboard_text_json_input: expect.stringContaining('"slot": "街道左侧靠墙的留白位置"'),
       }),
     }))
-    expect(promptMock.buildPrompt).toHaveBeenCalledWith(expect.objectContaining({
+    expect(promptMock.buildPromptAsync).toHaveBeenCalledWith(expect.objectContaining({
+      projectId: 'project-1',
       variables: expect.objectContaining({
         storyboard_text_json_input: expect.stringContaining('"available_slots"'),
       }),

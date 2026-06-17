@@ -6,7 +6,7 @@ import type { TaskJobData } from '@/lib/task/types'
 import { resolveAnalysisModel } from './shot-ai-persist'
 import { runShotPromptCompletion } from './shot-ai-prompt-runtime'
 import { parseJsonObject, readRequiredString, type AnyObj } from './shot-ai-prompt-utils'
-import { buildPrompt, PROMPT_IDS } from '@/lib/prompt-i18n'
+import { buildPromptAsync, PROMPT_IDS } from '@/lib/prompt-i18n'
 
 export async function handleModifyAppearanceTask(job: Job<TaskJobData>, payload: AnyObj) {
   const characterId = readRequiredString(payload.characterId, 'characterId')
@@ -15,9 +15,10 @@ export async function handleModifyAppearanceTask(job: Job<TaskJobData>, payload:
   const modifyInstruction = readRequiredString(payload.modifyInstruction, 'modifyInstruction')
   const novelData = await resolveAnalysisModel(job.data.projectId, job.data.userId)
 
-  const finalPrompt = buildPrompt({
+  const finalPrompt = await buildPromptAsync({
     promptId: PROMPT_IDS.NP_CHARACTER_MODIFY,
     locale: job.data.locale,
+    projectId: job.data.projectId,
     variables: {
       character_input: removeCharacterPromptSuffix(currentDescription),
       user_input: modifyInstruction,

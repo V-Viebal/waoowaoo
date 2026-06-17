@@ -152,6 +152,8 @@ vi.mock('@/lib/prompt-i18n', () => ({
   },
   getPromptTemplate: vi.fn(() => 'prompt-template'),
   buildPrompt: vi.fn(() => 'voice-analysis-prompt'),
+  getPromptTemplateAsync: vi.fn(async () => 'prompt-template'),
+  buildPromptAsync: vi.fn(async () => 'voice-analysis-prompt'),
 }))
 
 vi.mock('@/lib/workers/handlers/script-to-storyboard-helpers', () => ({

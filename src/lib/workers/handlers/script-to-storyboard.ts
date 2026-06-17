@@ -28,7 +28,7 @@ import {
   persistStoryboardOutputs,
   type JsonRecord,
 } from './script-to-storyboard-helpers'
-import { buildPrompt, getPromptTemplate, PROMPT_IDS } from '@/lib/prompt-i18n'
+import { buildPromptAsync, getPromptTemplateAsync, PROMPT_IDS } from '@/lib/prompt-i18n'
 import { resolveAnalysisModel } from './resolve-analysis-model'
 import { createArtifact } from '@/lib/run-runtime/service'
 import { assertWorkflowRunActive, withWorkflowRunLease } from '@/lib/run-runtime/workflow-lease'
@@ -144,10 +144,17 @@ export async function handleScriptToStoryboardTask(job: Job<TaskJobData>) {
   const reasoningEffort = requestedReasoningEffort
     || (isReasoningEffort(capabilityReasoningEffort) ? capabilityReasoningEffort : 'high')
 
-  const phase1PlanTemplate = getPromptTemplate(PROMPT_IDS.NP_AGENT_STORYBOARD_PLAN, job.data.locale)
-  const phase2CinematographyTemplate = getPromptTemplate(PROMPT_IDS.NP_AGENT_CINEMATOGRAPHER, job.data.locale)
-  const phase2ActingTemplate = getPromptTemplate(PROMPT_IDS.NP_AGENT_ACTING_DIRECTION, job.data.locale)
-  const phase3DetailTemplate = getPromptTemplate(PROMPT_IDS.NP_AGENT_STORYBOARD_DETAIL, job.data.locale)
+  const [
+    phase1PlanTemplate,
+    phase2CinematographyTemplate,
+    phase2ActingTemplate,
+    phase3DetailTemplate,
+  ] = await Promise.all([
+    getPromptTemplateAsync(PROMPT_IDS.NP_AGENT_STORYBOARD_PLAN, job.data.locale, { projectId }),
+    getPromptTemplateAsync(PROMPT_IDS.NP_AGENT_CINEMATOGRAPHER, job.data.locale, { projectId }),
+    getPromptTemplateAsync(PROMPT_IDS.NP_AGENT_ACTING_DIRECTION, job.data.locale, { projectId }),
+    getPromptTemplateAsync(PROMPT_IDS.NP_AGENT_STORYBOARD_DETAIL, job.data.locale, { projectId }),
+  ])
   const payloadMeta = typeof payload.meta === 'object' && payload.meta !== null
     ? (payload.meta as AnyObj)
     : {}
@@ -458,9 +465,10 @@ export async function handleScriptToStoryboardTask(job: Job<TaskJobData>) {
         throw new Error('No novel text to analyze')
       }
 
-      const voicePrompt = buildPrompt({
+      const voicePrompt = await buildPromptAsync({
         promptId: PROMPT_IDS.NP_VOICE_ANALYSIS,
         locale: job.data.locale,
+        projectId,
         variables: {
           input: episode.novelText,
           characters_lib_name: (novelData.characters || []).length > 0

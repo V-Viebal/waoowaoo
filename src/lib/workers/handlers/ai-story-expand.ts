@@ -1,7 +1,7 @@
 import type { Job } from 'bullmq'
 import { executeAiTextStep } from '@/lib/ai-runtime'
 import { withInternalLLMStreamCallbacks } from '@/lib/llm-observe/internal-stream-context'
-import { buildPrompt, PROMPT_IDS } from '@/lib/prompt-i18n'
+import { buildPromptAsync, PROMPT_IDS } from '@/lib/prompt-i18n'
 import type { TaskJobData } from '@/lib/task/types'
 import { reportTaskProgress } from '@/lib/workers/shared'
 import { assertTaskActive } from '@/lib/workers/utils'
@@ -23,9 +23,10 @@ export async function handleAiStoryExpandTask(job: Job<TaskJobData>) {
     throw new Error('analysisModel is required')
   }
 
-  const prompt = buildPrompt({
+  const prompt = await buildPromptAsync({
     promptId: PROMPT_IDS.NP_AI_STORY_EXPAND,
     locale: job.data.locale,
+    projectId: job.data.projectId === 'home-ai-write' ? null : job.data.projectId || null,
     variables: {
       input: promptInput,
     },

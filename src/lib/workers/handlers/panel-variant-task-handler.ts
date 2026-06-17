@@ -23,10 +23,11 @@ import {
   pickFirstString,
   resolveNovelData,
 } from './image-task-handler-shared'
-import { buildPrompt, PROMPT_IDS } from '@/lib/prompt-i18n'
+import { buildPromptAsync, PROMPT_IDS } from '@/lib/prompt-i18n'
 
 // ── 构建变体提示词 ──────────────────────────────────────
 interface VariantPromptParams {
+  projectId: string
   locale: TaskJobData['locale']
   originalDescription: string
   originalShotType: string
@@ -44,10 +45,11 @@ interface VariantPromptParams {
   style: string
 }
 
-function buildVariantPrompt(params: VariantPromptParams): string {
-  return buildPrompt({
+function buildVariantPrompt(params: VariantPromptParams): Promise<string> {
+  return buildPromptAsync({
     promptId: PROMPT_IDS.NP_AGENT_SHOT_VARIANT_GENERATE,
     locale: params.locale,
+    projectId: params.projectId,
     variables: {
       original_description: params.originalDescription,
       original_shot_type: params.originalShotType,
@@ -242,7 +244,8 @@ export async function handlePanelVariantTask(job: Job<TaskJobData>) {
     : (job.data.locale === 'en' ? 'Character reference images disabled' : '未使用角色参考图')
   const locationName = newPanel.location || sourcePanel.location || ''
 
-  const prompt = buildVariantPrompt({
+  const prompt = await buildVariantPrompt({
+    projectId: job.data.projectId,
     locale: job.data.locale,
     originalDescription: sourcePanel.description || '',
     originalShotType: sourcePanel.shotType || '',

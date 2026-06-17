@@ -27,6 +27,7 @@ vi.mock('@/lib/workers/utils', () => ({
 vi.mock('@/lib/prompt-i18n', () => ({
   PROMPT_IDS: { NP_LOCATION_MODIFY: 'np_location_modify' },
   buildPrompt: vi.fn(() => 'location-final-prompt'),
+  buildPromptAsync: vi.fn(async () => 'location-final-prompt'),
 }))
 
 import { handleModifyLocationTask } from '@/lib/workers/handlers/shot-ai-prompt-location'
