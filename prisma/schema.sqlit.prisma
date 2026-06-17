@@ -417,6 +417,8 @@ model User {
   promptVersionsCreated   PromptVersion[]          @relation("PromptVersionCreatedBy")
   promptVersionsPublished PromptVersion[]          @relation("PromptVersionPublishedBy")
   projectPromptOverrides  ProjectPromptOverride[]
+  brandConfigsUpdated     BrandConfig[]            @relation("BrandConfigUpdatedBy")
+  artStylesOwned          ArtStyle[]               @relation("ArtStyleOwner")
   artStylesCreated        ArtStyle[]               @relation("ArtStyleCreatedBy")
   artStylesUpdated        ArtStyle[]               @relation("ArtStyleUpdatedBy")
   storyboardImageVersions StoryboardImageVersion[]
@@ -488,7 +490,9 @@ model BrandConfig {
   updatedByUserId     String?
   createdAt           DateTime @default(now())
   updatedAt           DateTime @default(now()) @updatedAt
+  updatedBy           User?    @relation("BrandConfigUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
 
+  @@index([updatedByUserId])
   @@map("brand_configs")
 }
 
@@ -530,6 +534,7 @@ model PromptVersion {
   overrides          ProjectPromptOverride[]
 
   @@unique([promptDefinitionId, locale, version])
+  @@unique([id, promptDefinitionId, locale], map: "prompt_versions_id_promptDefinitionId_locale_key")
   @@index([promptDefinitionId, locale, status, publishedAt])
   @@index([createdByUserId])
   @@index([publishedByUserId])
@@ -548,11 +553,12 @@ model ProjectPromptOverride {
   updatedAt          DateTime         @default(now()) @updatedAt
   project            Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
   promptDefinition   PromptDefinition @relation(fields: [promptDefinitionId], references: [id], onDelete: Cascade)
-  promptVersion      PromptVersion    @relation(fields: [promptVersionId], references: [id], onDelete: Cascade)
-  createdBy          User             @relation(fields: [createdByUserId], references: [id], onDelete: Cascade)
+  promptVersion      PromptVersion    @relation(fields: [promptVersionId, promptDefinitionId, locale], references: [id, promptDefinitionId, locale], onDelete: Cascade)
+  createdBy          User             @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
 
   @@unique([projectId, promptDefinitionId, locale])
   @@index([promptVersionId])
+  @@index([promptVersionId, promptDefinitionId, locale], map: "project_prompt_overrides_promptVersion_scope_idx")
   @@index([createdByUserId])
   @@map("project_prompt_overrides")
 }
@@ -572,6 +578,7 @@ model ArtStyle {
   updatedByUserId        String?
   createdAt              DateTime                  @default(now())
   updatedAt              DateTime                  @default(now()) @updatedAt
+  owner                  User?                     @relation("ArtStyleOwner", fields: [ownerUserId], references: [id], onDelete: Cascade)
   previewMedia           MediaObject?              @relation("ArtStylePreviewMedia", fields: [previewMediaId], references: [id], onDelete: SetNull)
   createdBy              User?                     @relation("ArtStyleCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
   updatedBy              User?                     @relation("ArtStyleUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
@@ -601,7 +608,7 @@ model StoryboardImageVersion {
   createdAt            DateTime                 @default(now())
   storyboard           NovelPromotionStoryboard @relation(fields: [storyboardId], references: [id], onDelete: Cascade)
   imageMedia           MediaObject?             @relation("StoryboardImageVersionMedia", fields: [imageMediaId], references: [id], onDelete: SetNull)
-  createdBy            User                     @relation(fields: [createdByUserId], references: [id], onDelete: Cascade)
+  createdBy            User                     @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
 
   @@index([storyboardId, createdAt])
   @@index([createdByUserId])

@@ -58,6 +58,13 @@ describe('requireAdminAuth', () => {
     await expect(requireAdminAuth()).rejects.toMatchObject({ code: 'FORBIDDEN' })
   })
 
+  it('登录用户在数据库不存在时抛出 FORBIDDEN', async () => {
+    authMock.requireUserAuth.mockResolvedValue({ session })
+    prismaMock.user.findUnique.mockResolvedValue(null)
+
+    await expect(requireAdminAuth()).rejects.toMatchObject({ code: 'FORBIDDEN' })
+  })
+
   it('管理员用户返回 session 和包含 role 的用户信息', async () => {
     const adminSession = {
       user: {

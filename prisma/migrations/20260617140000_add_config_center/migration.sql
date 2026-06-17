@@ -16,9 +16,11 @@ CREATE TABLE `brand_configs` (
   `metadataDescription` TEXT NULL,
   `updatedByUserId` VARCHAR(191) NULL,
   `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-  `updatedAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  `updatedAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
 
-  PRIMARY KEY (`id`)
+  INDEX `brand_configs_updatedByUserId_idx` (`updatedByUserId`),
+  PRIMARY KEY (`id`),
+  CONSTRAINT `brand_configs_updatedByUserId_fkey` FOREIGN KEY (`updatedByUserId`) REFERENCES `user`(`id`) ON DELETE SET NULL ON UPDATE CASCADE
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 CREATE TABLE `prompt_definitions` (
@@ -31,7 +33,7 @@ CREATE TABLE `prompt_definitions` (
   `variableKeys` TEXT NOT NULL,
   `isRegistered` BOOLEAN NOT NULL DEFAULT true,
   `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-  `updatedAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  `updatedAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
 
   UNIQUE INDEX `prompt_definitions_promptId_key` (`promptId`),
   INDEX `prompt_definitions_category_idx` (`category`),
@@ -51,9 +53,10 @@ CREATE TABLE `prompt_versions` (
   `disabledAt` DATETIME(3) NULL,
   `changeNote` TEXT NULL,
   `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-  `updatedAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  `updatedAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
 
   UNIQUE INDEX `prompt_versions_promptDefinitionId_locale_version_key` (`promptDefinitionId`, `locale`, `version`),
+  UNIQUE INDEX `prompt_versions_id_promptDefinitionId_locale_key` (`id`, `promptDefinitionId`, `locale`),
   INDEX `prompt_versions_promptDefinitionId_locale_status_publishedAt_idx` (`promptDefinitionId`, `locale`, `status`, `publishedAt`),
   INDEX `prompt_versions_createdByUserId_idx` (`createdByUserId`),
   INDEX `prompt_versions_publishedByUserId_idx` (`publishedByUserId`),
@@ -72,16 +75,17 @@ CREATE TABLE `project_prompt_overrides` (
   `createdByUserId` VARCHAR(191) NOT NULL,
   `reason` TEXT NULL,
   `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-  `updatedAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  `updatedAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
 
   UNIQUE INDEX `project_prompt_overrides_projectId_promptDefinitionId_locale_key` (`projectId`, `promptDefinitionId`, `locale`),
   INDEX `project_prompt_overrides_promptVersionId_idx` (`promptVersionId`),
+  INDEX `project_prompt_overrides_promptVersion_scope_idx` (`promptVersionId`, `promptDefinitionId`, `locale`),
   INDEX `project_prompt_overrides_createdByUserId_idx` (`createdByUserId`),
   PRIMARY KEY (`id`),
   CONSTRAINT `project_prompt_overrides_projectId_fkey` FOREIGN KEY (`projectId`) REFERENCES `projects`(`id`) ON DELETE CASCADE ON UPDATE CASCADE,
   CONSTRAINT `project_prompt_overrides_promptDefinitionId_fkey` FOREIGN KEY (`promptDefinitionId`) REFERENCES `prompt_definitions`(`id`) ON DELETE CASCADE ON UPDATE CASCADE,
-  CONSTRAINT `project_prompt_overrides_promptVersionId_fkey` FOREIGN KEY (`promptVersionId`) REFERENCES `prompt_versions`(`id`) ON DELETE CASCADE ON UPDATE CASCADE,
-  CONSTRAINT `project_prompt_overrides_createdByUserId_fkey` FOREIGN KEY (`createdByUserId`) REFERENCES `user`(`id`) ON DELETE CASCADE ON UPDATE CASCADE
+  CONSTRAINT `project_prompt_overrides_prompt_version_scope_fkey` FOREIGN KEY (`promptVersionId`, `promptDefinitionId`, `locale`) REFERENCES `prompt_versions`(`id`, `promptDefinitionId`, `locale`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `project_prompt_overrides_createdByUserId_fkey` FOREIGN KEY (`createdByUserId`) REFERENCES `user`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 CREATE TABLE `art_styles` (
@@ -98,7 +102,7 @@ CREATE TABLE `art_styles` (
   `createdByUserId` VARCHAR(191) NULL,
   `updatedByUserId` VARCHAR(191) NULL,
   `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-  `updatedAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  `updatedAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
 
   INDEX `art_styles_scope_enabled_sortOrder_idx` (`scope`, `enabled`, `sortOrder`),
   INDEX `art_styles_ownerUserId_idx` (`ownerUserId`),
@@ -106,6 +110,7 @@ CREATE TABLE `art_styles` (
   INDEX `art_styles_createdByUserId_idx` (`createdByUserId`),
   INDEX `art_styles_updatedByUserId_idx` (`updatedByUserId`),
   PRIMARY KEY (`id`),
+  CONSTRAINT `art_styles_ownerUserId_fkey` FOREIGN KEY (`ownerUserId`) REFERENCES `user`(`id`) ON DELETE CASCADE ON UPDATE CASCADE,
   CONSTRAINT `art_styles_previewMediaId_fkey` FOREIGN KEY (`previewMediaId`) REFERENCES `media_objects`(`id`) ON DELETE SET NULL ON UPDATE CASCADE,
   CONSTRAINT `art_styles_createdByUserId_fkey` FOREIGN KEY (`createdByUserId`) REFERENCES `user`(`id`) ON DELETE SET NULL ON UPDATE CASCADE,
   CONSTRAINT `art_styles_updatedByUserId_fkey` FOREIGN KEY (`updatedByUserId`) REFERENCES `user`(`id`) ON DELETE SET NULL ON UPDATE CASCADE
@@ -131,7 +136,7 @@ CREATE TABLE `storyboard_image_versions` (
   PRIMARY KEY (`id`),
   CONSTRAINT `storyboard_image_versions_storyboardId_fkey` FOREIGN KEY (`storyboardId`) REFERENCES `novel_promotion_storyboards`(`id`) ON DELETE CASCADE ON UPDATE CASCADE,
   CONSTRAINT `storyboard_image_versions_imageMediaId_fkey` FOREIGN KEY (`imageMediaId`) REFERENCES `media_objects`(`id`) ON DELETE SET NULL ON UPDATE CASCADE,
-  CONSTRAINT `storyboard_image_versions_createdByUserId_fkey` FOREIGN KEY (`createdByUserId`) REFERENCES `user`(`id`) ON DELETE CASCADE ON UPDATE CASCADE
+  CONSTRAINT `storyboard_image_versions_createdByUserId_fkey` FOREIGN KEY (`createdByUserId`) REFERENCES `user`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 CREATE INDEX `novel_promotion_projects_artStyleId_idx` ON `novel_promotion_projects`(`artStyleId`);
