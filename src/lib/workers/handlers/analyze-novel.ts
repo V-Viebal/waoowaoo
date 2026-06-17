@@ -100,33 +100,35 @@ export async function handleAnalyzeNovelTask(job: Job<TaskJobData>) {
     .filter((item) => readAssetKind(item as unknown as Record<string, unknown>) === 'prop')
     .map((item) => item.name)
     .join(', ')
-  const characterPromptTemplate = await buildPromptAsync({
-    promptId: PROMPT_IDS.NP_AGENT_CHARACTER_PROFILE,
-    locale: job.data.locale,
-    projectId,
-    variables: {
-      input: contentToAnalyze,
-      characters_lib_info: charactersLibName || '无',
-    },
-  })
-  const locationPromptTemplate = await buildPromptAsync({
-    promptId: PROMPT_IDS.NP_SELECT_LOCATION,
-    locale: job.data.locale,
-    projectId,
-    variables: {
-      input: contentToAnalyze,
-      locations_lib_name: locationsLibName || '无',
-    },
-  })
-  const propPromptTemplate = await buildPromptAsync({
-    promptId: PROMPT_IDS.NP_SELECT_PROP,
-    locale: job.data.locale,
-    projectId,
-    variables: {
-      input: contentToAnalyze,
-      props_lib_name: propsLibName || '无',
-    },
-  })
+  const [characterPromptTemplate, locationPromptTemplate, propPromptTemplate] = await Promise.all([
+    buildPromptAsync({
+      promptId: PROMPT_IDS.NP_AGENT_CHARACTER_PROFILE,
+      locale: job.data.locale,
+      projectId,
+      variables: {
+        input: contentToAnalyze,
+        characters_lib_info: charactersLibName || '无',
+      },
+    }),
+    buildPromptAsync({
+      promptId: PROMPT_IDS.NP_SELECT_LOCATION,
+      locale: job.data.locale,
+      projectId,
+      variables: {
+        input: contentToAnalyze,
+        locations_lib_name: locationsLibName || '无',
+      },
+    }),
+    buildPromptAsync({
+      promptId: PROMPT_IDS.NP_SELECT_PROP,
+      locale: job.data.locale,
+      projectId,
+      variables: {
+        input: contentToAnalyze,
+        props_lib_name: propsLibName || '无',
+      },
+    }),
+  ])
 
   await reportTaskProgress(job, 20, {
     stage: 'analyze_novel_prepare',

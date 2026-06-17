@@ -7,10 +7,19 @@ import type { PromptLocale } from './types'
 import { PromptI18nError } from './errors'
 
 const templateCache = new Map<string, string>()
+const dbMissFallbackLogKeys = new Set<string>()
 const logger = createScopedLogger({ module: 'prompt-i18n.template-store' })
 
 function buildCacheKey(promptId: PromptId, locale: PromptLocale) {
   return `${promptId}:${locale}`
+}
+
+function buildDbMissFallbackLogKey(input: {
+  promptId: PromptId
+  locale: PromptLocale
+  projectId?: string | null
+}) {
+  return JSON.stringify([input.promptId, input.locale, input.projectId ?? null])
 }
 
 function readFilePromptTemplate(promptId: PromptId, locale: PromptLocale): string {
@@ -62,14 +71,18 @@ export async function getPromptTemplateAsync(
 
   if (databaseTemplate !== null) return databaseTemplate
 
-  logger.warn({
-    action: 'prompt_template_db_miss_fallback',
-    message: 'prompt_template_db_miss_fallback',
-    details: {
-      promptId,
-      locale,
-      projectId: options.projectId ?? null,
-    },
-  })
+  const fallbackLogKey = buildDbMissFallbackLogKey({ promptId, locale, projectId: options.projectId })
+  if (!dbMissFallbackLogKeys.has(fallbackLogKey)) {
+    dbMissFallbackLogKeys.add(fallbackLogKey)
+    logger.warn({
+      action: 'prompt_template_db_miss_fallback',
+      message: 'prompt_template_db_miss_fallback',
+      details: {
+        promptId,
+        locale,
+        projectId: options.projectId ?? null,
+      },
+    })
+  }
   return readFilePromptTemplate(promptId, locale)
 }

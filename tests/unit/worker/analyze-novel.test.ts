@@ -27,6 +27,16 @@ const workerMock = vi.hoisted(() => ({
   assertTaskActive: vi.fn(async () => undefined),
 }))
 
+const promptI18nMock = vi.hoisted(() => ({
+  PROMPT_IDS: {
+    NP_AGENT_CHARACTER_PROFILE: 'char',
+    NP_SELECT_LOCATION: 'loc',
+    NP_SELECT_PROP: 'prop',
+  },
+  buildPrompt: vi.fn(() => 'analysis-prompt'),
+  buildPromptAsync: vi.fn(async (_input: { promptId: string }) => 'analysis-prompt'),
+}))
+
 vi.mock('@/lib/prisma', () => ({ prisma: prismaMock }))
 vi.mock('@/lib/llm-client', () => llmMock)
 vi.mock('@/lib/llm-observe/internal-stream-context', () => ({
@@ -54,13 +64,9 @@ vi.mock('@/lib/workers/handlers/llm-stream', () => ({
   })),
 }))
 vi.mock('@/lib/prompt-i18n', () => ({
-  PROMPT_IDS: {
-    NP_AGENT_CHARACTER_PROFILE: 'char',
-    NP_SELECT_LOCATION: 'loc',
-    NP_SELECT_PROP: 'prop',
-  },
-  buildPrompt: vi.fn(() => 'analysis-prompt'),
-  buildPromptAsync: vi.fn(async () => 'analysis-prompt'),
+  PROMPT_IDS: promptI18nMock.PROMPT_IDS,
+  buildPrompt: promptI18nMock.buildPrompt,
+  buildPromptAsync: promptI18nMock.buildPromptAsync,
 }))
 
 import { handleAnalyzeNovelTask } from '@/lib/workers/handlers/analyze-novel'
@@ -212,6 +218,20 @@ describe('worker analyze-novel behavior', () => {
       data: { artStylePrompt: 'cinematic style' },
     })
 
+    expect(promptI18nMock.buildPromptAsync).toHaveBeenCalledTimes(3)
+    expect(promptI18nMock.buildPromptAsync).toHaveBeenCalledWith(expect.objectContaining({
+      promptId: 'char',
+      projectId: 'project-1',
+    }))
+    expect(promptI18nMock.buildPromptAsync).toHaveBeenCalledWith(expect.objectContaining({
+      promptId: 'loc',
+      projectId: 'project-1',
+    }))
+    expect(promptI18nMock.buildPromptAsync).toHaveBeenCalledWith(expect.objectContaining({
+      promptId: 'prop',
+      projectId: 'project-1',
+    }))
+
     expect(workerMock.reportTaskProgress).toHaveBeenCalledWith(
       expect.anything(),
       60,
@@ -231,5 +251,23 @@ describe('worker analyze-novel behavior', () => {
         output: expect.stringContaining('"locations"'),
       }),
     )
+  })
+
+  it('starts character, location, and prop prompt rendering concurrently', async () => {
+    const resolvers: Array<() => void> = []
+    promptI18nMock.buildPromptAsync.mockImplementation((input: { promptId: string }) =>
+      new Promise<string>((resolve) => {
+        resolvers.push(() => resolve(`analysis-prompt-${input.promptId}`))
+      }),
+    )
+
+    const pending = handleAnalyzeNovelTask(buildJob())
+
+    await vi.waitFor(() => {
+      expect(promptI18nMock.buildPromptAsync).toHaveBeenCalledTimes(3)
+    })
+
+    for (const resolve of resolvers) resolve()
+    await pending
   })
 })

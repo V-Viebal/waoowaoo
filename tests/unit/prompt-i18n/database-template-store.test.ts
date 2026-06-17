@@ -89,6 +89,40 @@ describe('database prompt template store', () => {
     })
   })
 
+  it('deduplicates database miss fallback logs by prompt, locale, and project', async () => {
+    mockedResolvePromptTemplate.mockResolvedValue(null)
+
+    await getPromptTemplateAsync(PROMPT_IDS.NP_SELECT_PROP, 'zh', {
+      projectId: 'project-dedupe-1',
+    })
+    await getPromptTemplateAsync(PROMPT_IDS.NP_SELECT_PROP, 'zh', {
+      projectId: 'project-dedupe-1',
+    })
+    await getPromptTemplateAsync(PROMPT_IDS.NP_SELECT_PROP, 'zh', {
+      projectId: 'project-dedupe-2',
+    })
+
+    expect(loggerWarnMock).toHaveBeenCalledTimes(2)
+    expect(loggerWarnMock).toHaveBeenNthCalledWith(1, {
+      action: 'prompt_template_db_miss_fallback',
+      message: 'prompt_template_db_miss_fallback',
+      details: {
+        promptId: PROMPT_IDS.NP_SELECT_PROP,
+        locale: 'zh',
+        projectId: 'project-dedupe-1',
+      },
+    })
+    expect(loggerWarnMock).toHaveBeenNthCalledWith(2, {
+      action: 'prompt_template_db_miss_fallback',
+      message: 'prompt_template_db_miss_fallback',
+      details: {
+        promptId: PROMPT_IDS.NP_SELECT_PROP,
+        locale: 'zh',
+        projectId: 'project-dedupe-2',
+      },
+    })
+  })
+
   it('returns empty database template without file fallback or miss log', async () => {
     mockedResolvePromptTemplate.mockResolvedValue('')
 
