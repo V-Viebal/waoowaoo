@@ -13,6 +13,7 @@ export const PROMPT_CATALOG: Record<PromptId, PromptCatalogEntry> = {
   [PROMPT_IDS.SKILL_API_CONFIG_TEMPLATE_SYSTEM]: {
     pathStem: 'skills/api-config-template.system',
     variableKeys: ['providerId'],
+    literalVariableKeys: ['task_id', 'model', 'prompt', 'duration', 'size', 'image'],
   },
   [PROMPT_IDS.SKILL_TUTORIAL_SYSTEM]: {
     pathStem: 'skills/tutorial.system',

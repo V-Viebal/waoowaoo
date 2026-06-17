@@ -11,8 +11,7 @@ const { prismaMock } = vi.hoisted(() => ({
       upsert: vi.fn(),
     },
     promptVersion: {
-      findUnique: vi.fn(),
-      create: vi.fn(),
+      upsert: vi.fn(),
     },
   },
 }))
@@ -38,10 +37,9 @@ describe('prompt config seed', () => {
       ...args.create,
       ...args.update,
     }))
-    prismaMock.promptVersion.findUnique.mockResolvedValue(null)
-    prismaMock.promptVersion.create.mockImplementation(async (args) => ({
-      id: `version:${args.data.promptDefinitionId}:${args.data.locale}`,
-      ...args.data,
+    prismaMock.promptVersion.upsert.mockImplementation(async (args) => ({
+      id: `version:${args.create.promptDefinitionId}:${args.create.locale}`,
+      ...args.create,
     }))
   })
 
@@ -84,31 +82,41 @@ describe('prompt config seed', () => {
       category: 'custom',
       name: 'custom.unregistered_prompt',
       description: null,
-      variableKeys: '[]',
+      variableKeys: '["input"]',
       isRegistered: false,
     })
-    expect(prismaMock.promptVersion.create).toHaveBeenCalledTimes(2)
+    expect(prismaMock.promptVersion.upsert).toHaveBeenCalledTimes(2)
   })
 
-  it('does not recreate existing version 1 for the same definition and locale', async () => {
+  it('upserts version 1 with an empty update for the same definition and locale', async () => {
     await writePrompt(rootDir, 'novel-promotion/storyboard_grid_image', 'zh', 'registered zh')
     await writePrompt(rootDir, 'novel-promotion/storyboard_grid_image', 'en', 'registered en')
-    prismaMock.promptVersion.findUnique.mockImplementation(async (args) => (
-      args.where.promptDefinitionId_locale_version.locale === 'zh'
-        ? { id: 'existing-version' }
-        : null
-    ))
 
     await seedPromptConfig({ rootDir })
 
-    expect(prismaMock.promptVersion.findUnique).toHaveBeenCalledTimes(2)
-    expect(prismaMock.promptVersion.create).toHaveBeenCalledTimes(1)
-    expect(prismaMock.promptVersion.create).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({
-        locale: 'en',
+    expect(prismaMock.promptVersion.upsert).toHaveBeenCalledTimes(2)
+    expect(prismaMock.promptVersion.upsert).toHaveBeenCalledWith(expect.objectContaining({
+      where: {
+        promptDefinitionId_locale_version: {
+          promptDefinitionId: `definition:${PROMPT_IDS.NP_STORYBOARD_GRID_IMAGE}`,
+          locale: 'zh',
+          version: 1,
+        },
+      },
+      create: expect.objectContaining({
+        locale: 'zh',
         version: 1,
-        content: 'registered en',
+        content: 'registered zh',
       }),
+      update: {},
     }))
+  })
+
+  it('rejects registered templates with undeclared non-literal variables', async () => {
+    await writePrompt(rootDir, 'novel-promotion/storyboard_grid_image', 'zh', 'registered {unexpected}')
+
+    await expect(seedPromptConfig({ rootDir })).rejects.toThrow(
+      'PROMPT_SEED_VARIABLE_MISMATCH: novel-promotion/storyboard_grid_image:unexpected',
+    )
   })
 })

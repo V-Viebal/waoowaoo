@@ -46,9 +46,10 @@ export function buildPrompt(input: BuildPromptInput): string {
 
   const templatePlaceholders = extractPlaceholders(template)
   const defined = new Set(entry.variableKeys)
+  const literalKeys = new Set(entry.literalVariableKeys ?? [])
 
   for (const key of templatePlaceholders) {
-    if (!defined.has(key)) {
+    if (!defined.has(key) && !literalKeys.has(key)) {
       throw new PromptI18nError(
         'PROMPT_PLACEHOLDER_MISMATCH',
         promptId,

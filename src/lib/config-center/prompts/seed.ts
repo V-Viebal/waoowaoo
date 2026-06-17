@@ -5,6 +5,7 @@ import { PROMPT_CATALOG } from '@/lib/prompt-i18n/catalog'
 import type { PromptId } from '@/lib/prompt-i18n'
 import type { PromptLocale } from '@/lib/prompt-i18n/types'
 import { PROMPT_VERSION_STATUS } from './types'
+import { extractPromptPlaceholders } from './validation'
 
 const PROMPT_FILE_PATTERN = /^(.*)\.(zh|en)\.txt$/
 const INITIAL_IMPORT_CHANGE_NOTE = 'Initial import from lib/prompts'
@@ -29,6 +30,7 @@ export interface SeedPromptConfigResult {
 interface CatalogPathEntry {
   promptId: PromptId
   variableKeys: readonly string[]
+  literalVariableKeys: readonly string[]
 }
 
 async function walkPromptFiles(dir: string): Promise<string[]> {
@@ -89,6 +91,7 @@ function buildCatalogByPathStem(): Map<string, CatalogPathEntry> {
     {
       promptId,
       variableKeys: entry.variableKeys,
+      literalVariableKeys: entry.literalVariableKeys ?? [],
     },
   ]))
 }
@@ -103,6 +106,31 @@ function groupPromptFiles(files: PromptSeedFile[]): Map<string, PromptSeedFile[]
   return grouped
 }
 
+function collectPromptVariableKeys(files: PromptSeedFile[]): string[] {
+  const keys = new Set<string>()
+  for (const file of files) {
+    for (const key of extractPromptPlaceholders(file.content)) {
+      keys.add(key)
+    }
+  }
+  return Array.from(keys).sort((left, right) => left.localeCompare(right))
+}
+
+function resolveSeedVariableKeys(pathStem: string, promptFiles: PromptSeedFile[], catalogEntry?: CatalogPathEntry): string[] {
+  const templateVariableKeys = collectPromptVariableKeys(promptFiles)
+  if (!catalogEntry) return templateVariableKeys
+
+  const declared = new Set(catalogEntry.variableKeys)
+  const literal = new Set(catalogEntry.literalVariableKeys)
+  for (const key of templateVariableKeys) {
+    if (!declared.has(key) && !literal.has(key)) {
+      throw new Error(`PROMPT_SEED_VARIABLE_MISMATCH: ${pathStem}:${key}`)
+    }
+  }
+
+  return Array.from(catalogEntry.variableKeys)
+}
+
 export async function seedPromptConfig(options: SeedPromptConfigOptions = {}): Promise<SeedPromptConfigResult> {
   const rootDir = options.rootDir || process.cwd()
   const now = options.now || (() => new Date())
@@ -114,7 +142,7 @@ export async function seedPromptConfig(options: SeedPromptConfigOptions = {}): P
     const catalogEntry = catalogByPathStem.get(pathStem)
     const promptId = catalogEntry?.promptId || fallbackPromptIdFromPathStem(pathStem)
     const category = categoryFromPathStem(pathStem)
-    const variableKeys = JSON.stringify(catalogEntry?.variableKeys || [])
+    const variableKeys = JSON.stringify(resolveSeedVariableKeys(pathStem, promptFiles, catalogEntry))
     const isRegistered = Boolean(catalogEntry)
 
     const definition = await prisma.promptDefinition.upsert({
@@ -138,7 +166,7 @@ export async function seedPromptConfig(options: SeedPromptConfigOptions = {}): P
     })
 
     for (const file of promptFiles.sort((left, right) => left.locale.localeCompare(right.locale))) {
-      const existingVersion = await prisma.promptVersion.findUnique({
+      await prisma.promptVersion.upsert({
         where: {
           promptDefinitionId_locale_version: {
             promptDefinitionId: definition.id,
@@ -146,12 +174,7 @@ export async function seedPromptConfig(options: SeedPromptConfigOptions = {}): P
             version: 1,
           },
         },
-      })
-
-      if (existingVersion) continue
-
-      await prisma.promptVersion.create({
-        data: {
+        create: {
           promptDefinitionId: definition.id,
           locale: file.locale,
           version: 1,
@@ -160,6 +183,7 @@ export async function seedPromptConfig(options: SeedPromptConfigOptions = {}): P
           publishedAt: now(),
           changeNote: INITIAL_IMPORT_CHANGE_NOTE,
         },
+        update: {},
       })
     }
   }
