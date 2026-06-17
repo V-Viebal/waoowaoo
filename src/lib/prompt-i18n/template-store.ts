@@ -1,5 +1,6 @@
 import fs from 'fs'
 import path from 'path'
+import { resolvePromptTemplate } from '@/lib/config-center/prompts/service'
 import { PROMPT_CATALOG } from './catalog'
 import type { PromptId } from './prompt-ids'
 import type { PromptLocale } from './types'
@@ -11,7 +12,7 @@ function buildCacheKey(promptId: PromptId, locale: PromptLocale) {
   return `${promptId}:${locale}`
 }
 
-export function getPromptTemplate(promptId: PromptId, locale: PromptLocale): string {
+function readFilePromptTemplate(promptId: PromptId, locale: PromptLocale): string {
   const entry = PROMPT_CATALOG[promptId]
   if (!entry) {
     throw new PromptI18nError(
@@ -40,4 +41,23 @@ export function getPromptTemplate(promptId: PromptId, locale: PromptLocale): str
 
   templateCache.set(cacheKey, template)
   return template
+}
+
+export function getPromptTemplate(promptId: PromptId, locale: PromptLocale): string {
+  return readFilePromptTemplate(promptId, locale)
+}
+
+export async function getPromptTemplateAsync(
+  promptId: PromptId,
+  locale: PromptLocale,
+  options: { projectId?: string | null } = {},
+): Promise<string> {
+  const databaseTemplate = await resolvePromptTemplate({
+    promptId,
+    locale,
+    projectId: options.projectId,
+  })
+
+  if (databaseTemplate) return databaseTemplate
+  return readFilePromptTemplate(promptId, locale)
 }
