@@ -18,6 +18,7 @@ export type RouteContractGroup =
   | 'task-infra-routes'
   | 'user-project-routes'
   | 'auth-routes'
+  | 'admin-config-center-prompts'
   | 'infra-routes'
 
 export type RouteCatalogEntry = {
@@ -27,6 +28,10 @@ export type RouteCatalogEntry = {
 }
 
 const ROUTE_FILES = [
+  'src/app/api/admin/config-center/projects/[projectId]/prompt-overrides/route.ts',
+  'src/app/api/admin/config-center/prompts/[promptId]/versions/[versionId]/route.ts',
+  'src/app/api/admin/config-center/prompts/[promptId]/versions/route.ts',
+  'src/app/api/admin/config-center/prompts/route.ts',
   'src/app/api/admin/download-logs/route.ts',
   'src/app/api/asset-hub/ai-design-character/route.ts',
   'src/app/api/asset-hub/ai-design-location/route.ts',
@@ -189,6 +194,7 @@ function resolveCategory(routeFile: string): RouteCategory {
 }
 
 function resolveContractGroup(routeFile: string): RouteContractGroup {
+  if (routeFile.startsWith('src/app/api/admin/config-center/')) return 'admin-config-center-prompts'
   if (
     routeFile.includes('/ai-')
     || routeFile.includes('/analyze')

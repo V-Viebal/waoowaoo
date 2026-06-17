@@ -1,0 +1,72 @@
+{
+  "title": "Config Center",
+  "loading": "Loading prompt config...",
+  "promptCount": "{count} prompts",
+  "filters": {
+    "locale": "Locale",
+    "status": "Status",
+    "allLocales": "All locales",
+    "allStatuses": "All statuses"
+  },
+  "locales": {
+    "zh": "Chinese",
+    "en": "English"
+  },
+  "status": {
+    "draft": "Draft",
+    "published": "Published",
+    "disabled": "Disabled"
+  },
+  "statusCount": {
+    "draft": "Draft {count}",
+    "published": "Published {count}",
+    "disabled": "Disabled {count}"
+  },
+  "empty": {
+    "prompts": "No prompt definitions",
+    "filtered": "No matching prompts"
+  },
+  "variables": {
+    "none": "No variables"
+  },
+  "versions": {
+    "title": "Versions",
+    "count": "{count} versions",
+    "empty": "No versions",
+    "versionLabel": "{locale} v{version}",
+    "noChangeNote": "No change note",
+    "updatedAt": "Updated at {value}"
+  },
+  "draft": {
+    "title": "New Draft",
+    "changeNote": "Change note",
+    "content": "Prompt content"
+  },
+  "override": {
+    "title": "Project Override",
+    "projectId": "Project ID",
+    "version": "Version",
+    "reason": "Reason"
+  },
+  "actions": {
+    "retry": "Retry",
+    "publish": "Publish",
+    "disable": "Disable",
+    "createDraft": "Create draft",
+    "saveOverride": "Save override"
+  },
+  "messages": {
+    "draftCreated": "Draft created",
+    "published": "Version published",
+    "disabled": "Version disabled",
+    "overrideSaved": "Project override saved"
+  },
+  "errors": {
+    "loadFailed": "Failed to load prompts",
+    "createFailed": "Failed to create draft",
+    "actionFailed": "Failed to update version status",
+    "overrideFailed": "Failed to save project override",
+    "emptyContent": "Prompt content is required",
+    "overrideRequired": "Enter a project ID and choose a version"
+  }
+}

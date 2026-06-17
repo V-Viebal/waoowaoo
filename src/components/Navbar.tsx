@@ -118,6 +118,13 @@ export default function Navbar() {
                     {t('assetHub')}
                   </Link>
                   <Link
+                    href={{ pathname: '/admin/config-center' }}
+                    className="text-sm text-[var(--glass-text-secondary)] hover:text-[var(--glass-text-primary)] font-medium transition-colors flex items-center gap-1"
+                  >
+                    <AppIcon name="settingsHex" className="w-4 h-4" />
+                    {t('configCenter')}
+                  </Link>
+                  <Link
                     href={{ pathname: '/profile' }}
                     className="text-sm text-[var(--glass-text-secondary)] hover:text-[var(--glass-text-primary)] font-medium transition-colors flex items-center gap-1"
                     title={t('profile')}

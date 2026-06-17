@@ -25,6 +25,7 @@ export const PUBLIC_ROUTE_ALLOWLIST = new Set([
 
 const AUTH_CALL_PATTERNS = [
   /\brequireUserAuth\s*\(/,
+  /\brequireAdminAuth\s*\(/,
   /\brequireProjectAuth\s*\(/,
   /\brequireProjectAuthLight\s*\(/,
 ]

@@ -1,0 +1,72 @@
+{
+  "title": "配置中心",
+  "loading": "加载提示词配置中...",
+  "promptCount": "{count} 个提示词",
+  "filters": {
+    "locale": "语言",
+    "status": "状态",
+    "allLocales": "全部语言",
+    "allStatuses": "全部状态"
+  },
+  "locales": {
+    "zh": "中文",
+    "en": "英文"
+  },
+  "status": {
+    "draft": "草稿",
+    "published": "已发布",
+    "disabled": "已停用"
+  },
+  "statusCount": {
+    "draft": "草稿 {count}",
+    "published": "发布 {count}",
+    "disabled": "停用 {count}"
+  },
+  "empty": {
+    "prompts": "暂无提示词定义",
+    "filtered": "没有匹配的提示词"
+  },
+  "variables": {
+    "none": "无变量"
+  },
+  "versions": {
+    "title": "版本",
+    "count": "{count} 个版本",
+    "empty": "暂无版本",
+    "versionLabel": "{locale} v{version}",
+    "noChangeNote": "无变更说明",
+    "updatedAt": "更新于 {value}"
+  },
+  "draft": {
+    "title": "新建草稿",
+    "changeNote": "变更说明",
+    "content": "提示词内容"
+  },
+  "override": {
+    "title": "项目覆盖",
+    "projectId": "项目 ID",
+    "version": "版本",
+    "reason": "原因"
+  },
+  "actions": {
+    "retry": "重试",
+    "publish": "发布",
+    "disable": "停用",
+    "createDraft": "创建草稿",
+    "saveOverride": "保存覆盖"
+  },
+  "messages": {
+    "draftCreated": "草稿已创建",
+    "published": "版本已发布",
+    "disabled": "版本已停用",
+    "overrideSaved": "项目覆盖已保存"
+  },
+  "errors": {
+    "loadFailed": "加载提示词失败",
+    "createFailed": "创建草稿失败",
+    "actionFailed": "更新版本状态失败",
+    "overrideFailed": "保存项目覆盖失败",
+    "emptyContent": "提示词内容不能为空",
+    "overrideRequired": "请填写项目 ID 并选择版本"
+  }
+}
