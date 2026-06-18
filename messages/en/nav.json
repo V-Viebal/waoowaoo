@@ -1,6 +1,7 @@
 {
   "workspace": "Workspace",
   "assetHub": "Asset Hub",
+  "configCenter": "Config Center",
   "profile": "Settings",
   "downloadLogs": "Download Logs",
   "signin": "Sign In",

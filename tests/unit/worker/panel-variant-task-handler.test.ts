@@ -11,7 +11,11 @@ const prismaMock = vi.hoisted(() => ({
 
 const utilsMock = vi.hoisted(() => ({
   assertTaskActive: vi.fn(async () => undefined),
-  getProjectModels: vi.fn(async () => ({ storyboardModel: 'storyboard-model-1', artStyle: 'realistic' })),
+  getProjectModels: vi.fn(async () => ({
+    storyboardModel: 'storyboard-model-1',
+    artStyle: 'realistic',
+    artStylePrompt: null as string | null,
+  })),
   resolveImageSourceFromGeneration: vi.fn(async () => 'generated-variant-source'),
   toSignedUrlIfCos: vi.fn((url: string | null | undefined) => (url ? `https://signed.example/${url}` : null)),
   uploadImageSourceToCos: vi.fn(async () => 'cos/panel-variant-new.png'),
@@ -49,6 +53,7 @@ const outboundMock = vi.hoisted(() => ({
 
 const promptMock = vi.hoisted(() => ({
   buildPrompt: vi.fn(() => 'panel-variant-prompt'),
+  buildPromptAsync: vi.fn(async () => 'panel-variant-prompt'),
 }))
 
 vi.mock('@/lib/prisma', () => ({ prisma: prismaMock }))
@@ -68,6 +73,7 @@ vi.mock('@/lib/workers/handlers/image-task-handler-shared', async () => {
 vi.mock('@/lib/prompt-i18n', () => ({
   PROMPT_IDS: { NP_AGENT_SHOT_VARIANT_GENERATE: 'np_agent_shot_variant_generate' },
   buildPrompt: promptMock.buildPrompt,
+  buildPromptAsync: promptMock.buildPromptAsync,
 }))
 
 import { handlePanelVariantTask } from '@/lib/workers/handlers/panel-variant-task-handler'
@@ -157,7 +163,8 @@ describe('worker panel-variant-task-handler behavior', () => {
       where: { id: 'panel-new' },
       data: { imageUrl: 'cos/panel-variant-new.png' },
     })
-    expect(promptMock.buildPrompt).toHaveBeenCalledWith(expect.objectContaining({
+    expect(promptMock.buildPromptAsync).toHaveBeenCalledWith(expect.objectContaining({
+      projectId: 'project-1',
       variables: expect.objectContaining({
         characters_info: expect.stringContaining('固定位置：街道左侧靠墙的留白位置'),
         location_asset: expect.stringContaining('街道左侧靠墙的留白位置'),
@@ -189,10 +196,36 @@ describe('worker panel-variant-task-handler behavior', () => {
     expect(outboundMock.normalizeReferenceImagesForGeneration).toHaveBeenCalledWith([
       'https://signed.example/cos/panel-source.png',
     ])
-    expect(promptMock.buildPrompt).toHaveBeenCalledWith(expect.objectContaining({
+    expect(promptMock.buildPromptAsync).toHaveBeenCalledWith(expect.objectContaining({
+      projectId: 'project-1',
       variables: expect.objectContaining({
         character_assets: '未使用角色参考图',
         location_asset: '未使用场景参考图',
+      }),
+    }))
+  })
+
+  it('uses resolved artStylePrompt when building variant prompt', async () => {
+    utilsMock.getProjectModels.mockResolvedValueOnce({
+      storyboardModel: 'storyboard-model-1',
+      artStyle: 'realistic',
+      artStylePrompt: 'custom variant line art style',
+    })
+    const payload = {
+      newPanelId: 'panel-new',
+      sourcePanelId: 'panel-source',
+      variant: {
+        title: '线稿版本',
+        description: '强化线条',
+      },
+    }
+
+    await handlePanelVariantTask(buildJob(payload))
+
+    expect(promptMock.buildPromptAsync).toHaveBeenCalledWith(expect.objectContaining({
+      projectId: 'project-1',
+      variables: expect.objectContaining({
+        style: 'custom variant line art style',
       }),
     }))
   })
@@ -210,13 +243,15 @@ describe('worker panel-variant-task-handler behavior', () => {
 
     await handlePanelVariantTask(buildJob(payload, 'en'))
 
-    expect(promptMock.buildPrompt).toHaveBeenCalledWith(expect.objectContaining({
+    expect(promptMock.buildPromptAsync).toHaveBeenCalledWith(expect.objectContaining({
+      projectId: 'project-1',
       locale: 'en',
       variables: expect.objectContaining({
         location_asset: expect.stringContaining('Available character slots:'),
       }),
     }))
-    expect(promptMock.buildPrompt).toHaveBeenCalledWith(expect.objectContaining({
+    expect(promptMock.buildPromptAsync).toHaveBeenCalledWith(expect.objectContaining({
+      projectId: 'project-1',
       variables: expect.objectContaining({
         location_asset: expect.not.stringContaining('可站位置：'),
       }),

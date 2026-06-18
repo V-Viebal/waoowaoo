@@ -5,7 +5,11 @@ import { TASK_TYPE, type TaskJobData } from '@/lib/task/types'
 
 const utilsMock = vi.hoisted(() => ({
   assertTaskActive: vi.fn(async () => undefined),
-  getProjectModels: vi.fn(async () => ({ locationModel: 'location-model-1', artStyle: 'japanese-anime' })),
+  getProjectModels: vi.fn(async () => ({
+    locationModel: 'location-model-1',
+    artStyle: 'japanese-anime',
+    artStylePrompt: null as string | null,
+  })),
 }))
 
 const prismaMock = vi.hoisted(() => ({
@@ -87,7 +91,7 @@ describe('worker location-image-task-handler behavior', () => {
   })
 
   it('locationModel missing -> explicit error', async () => {
-    utilsMock.getProjectModels.mockResolvedValueOnce({ locationModel: '', artStyle: 'japanese-anime' })
+    utilsMock.getProjectModels.mockResolvedValueOnce({ locationModel: '', artStyle: 'japanese-anime', artStylePrompt: null })
     await expect(handleLocationImageTask(buildJob({}))).rejects.toThrow('Location model not configured')
   })
 
@@ -143,6 +147,22 @@ describe('worker location-image-task-handler behavior', () => {
         prompt: expect.stringContaining(getArtStylePrompt('realistic', 'zh')),
       }),
     )
+  })
+
+  it('uses resolved artStylePrompt when payload artStyle is not provided', async () => {
+    utilsMock.getProjectModels.mockResolvedValueOnce({
+      locationModel: 'location-model-1',
+      artStyle: 'japanese-anime',
+      artStylePrompt: 'custom location gouache style',
+    })
+
+    await handleLocationImageTask(buildJob({ imageIndex: 0 }))
+
+    const generationCall = sharedMock.generateProjectLabeledImageToStorage.mock.calls[0] as unknown as [{ prompt: string }] | undefined
+    expect(generationCall).toBeTruthy()
+    if (!generationCall) throw new Error('expected generateProjectLabeledImageToStorage call')
+    expect(generationCall[0].prompt).toContain('custom location gouache style')
+    expect(generationCall[0].prompt).not.toContain(getArtStylePrompt('japanese-anime', 'zh'))
   })
 
   it('invalid payload artStyle -> explicit error', async () => {

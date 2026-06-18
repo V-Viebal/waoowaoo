@@ -10,6 +10,15 @@ export const PROMPT_CATALOG: Record<PromptId, PromptCatalogEntry> = {
     pathStem: 'character-reference/character_reference_to_sheet',
     variableKeys: [],
   },
+  [PROMPT_IDS.SKILL_API_CONFIG_TEMPLATE_SYSTEM]: {
+    pathStem: 'skills/api-config-template.system',
+    variableKeys: ['providerId'],
+    literalVariableKeys: ['task_id', 'model', 'prompt', 'duration', 'size', 'image'],
+  },
+  [PROMPT_IDS.SKILL_TUTORIAL_SYSTEM]: {
+    pathStem: 'skills/tutorial.system',
+    variableKeys: [],
+  },
   [PROMPT_IDS.NP_AGENT_ACTING_DIRECTION]: {
     pathStem: 'novel-promotion/agent_acting_direction',
     variableKeys: ['panels_json', 'panel_count', 'characters_info'],
@@ -144,6 +153,17 @@ export const PROMPT_CATALOG: Record<PromptId, PromptCatalogEntry> = {
   [PROMPT_IDS.NP_SINGLE_PANEL_IMAGE]: {
     pathStem: 'novel-promotion/single_panel_image',
     variableKeys: ['storyboard_text_json_input', 'source_text', 'aspect_ratio', 'style'],
+  },
+  [PROMPT_IDS.NP_STORYBOARD_GRID_IMAGE]: {
+    pathStem: 'novel-promotion/storyboard_grid_image',
+    variableKeys: [
+      'storyboard_text_json_input',
+      'source_text',
+      'aspect_ratio',
+      'style',
+      'grid_layout',
+      'panel_count',
+    ],
   },
   [PROMPT_IDS.NP_STORYBOARD_EDIT]: {
     pathStem: 'novel-promotion/storyboard_edit',

@@ -8,7 +8,7 @@ import { assertTaskActive } from '@/lib/workers/utils'
 import type { TaskJobData } from '@/lib/task/types'
 import { TASK_TYPE } from '@/lib/task/types'
 import { createWorkerLLMStreamCallbacks, createWorkerLLMStreamContext } from './llm-stream'
-import { buildPrompt, PROMPT_IDS } from '@/lib/prompt-i18n'
+import { buildPromptAsync, PROMPT_IDS } from '@/lib/prompt-i18n'
 import { normalizeLocationAvailableSlots } from '@/lib/location-available-slots'
 
 function readRequiredString(value: unknown, field: string): string {
@@ -55,18 +55,20 @@ export async function handleAssetHubAIModifyTask(job: Job<TaskJobData>) {
   const currentDescriptionRaw = readRequiredString(payload.currentDescription, 'currentDescription')
 
   const finalPrompt = isCharacter
-    ? buildPrompt({
+    ? await buildPromptAsync({
       promptId: PROMPT_IDS.NP_CHARACTER_MODIFY,
       locale: job.data.locale,
+      projectId: null,
       variables: {
         character_input: removeCharacterPromptSuffix(currentDescriptionRaw),
         user_input: modifyInstruction,
       },
     })
     : isProp
-      ? buildPrompt({
+      ? await buildPromptAsync({
         promptId: PROMPT_IDS.NP_PROP_DESCRIPTION_UPDATE,
         locale: job.data.locale,
+        projectId: null,
         variables: {
           prop_name: readRequiredString(payload.propName || '道具', 'propName'),
           original_description: removePropPromptSuffix(currentDescriptionRaw),
@@ -74,9 +76,10 @@ export async function handleAssetHubAIModifyTask(job: Job<TaskJobData>) {
           image_context: '',
         },
       })
-    : buildPrompt({
+    : await buildPromptAsync({
       promptId: PROMPT_IDS.NP_LOCATION_MODIFY,
       locale: job.data.locale,
+      projectId: null,
       variables: {
         location_name: readRequiredString(payload.locationName || '场景', 'locationName'),
         location_input: removeLocationPromptSuffix(currentDescriptionRaw),

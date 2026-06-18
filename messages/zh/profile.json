@@ -6,6 +6,7 @@
     "frozen": "冻结",
     "totalSpent": "已消费",
     "apiConfig": "API 配置",
+    "artStyleLibrary": "画风库",
     "rechargeRecords": "充值记录",
     "billingRecords": "扣费记录",
     "logout": "退出登录",
@@ -42,6 +43,32 @@
         "seconds": "{count}秒",
         "calls": "{count}次"
     },
+    "artStyleLibraryTab": {
+        "title": "画风库",
+        "loading": "加载中...",
+        "loadFailed": "画风加载失败",
+        "saveFailed": "画风保存失败",
+        "refresh": "刷新",
+        "create": "新建画风",
+        "edit": "编辑",
+        "delete": "删除",
+        "save": "保存",
+        "cancel": "取消",
+        "name": "名称",
+        "description": "描述",
+        "prompt": "提示词",
+        "previewImageUrl": "预览图 URL",
+        "sortOrder": "排序",
+        "systemStyles": "系统画风",
+        "userStyles": "个人画风",
+        "systemScope": "系统",
+        "userScope": "个人",
+        "noDescription": "暂无描述",
+        "emptyUserStyles": "暂无个人画风",
+        "deleteConfirm": "确认删除这个个人画风？",
+        "previewAlt": "{name} 预览图",
+        "sortOrderValue": "排序 {value}"
+    },
     "apiTypes": {
         "image": "图片生成",
         "video": "视频生成",
@@ -52,6 +79,7 @@
         "lip_sync": "口型同步"
     },
     "actionTypes": {
+        "storyboard_image": "故事板图",
         "image_panel": "分镜生图",
         "image_character": "角色生图",
         "image_location": "场景生图",

@@ -1,6 +1,7 @@
 import { TASK_EVENT_TYPE, TASK_TYPE } from './types'
 
 const TASK_TYPE_LABELS: Record<string, string> = {
+  [TASK_TYPE.STORYBOARD_IMAGE]: 'progress.taskType.storyboardImage',
   [TASK_TYPE.IMAGE_PANEL]: 'progress.taskType.imagePanel',
   [TASK_TYPE.IMAGE_CHARACTER]: 'progress.taskType.imageCharacter',
   [TASK_TYPE.IMAGE_LOCATION]: 'progress.taskType.imageLocation',
@@ -45,6 +46,8 @@ const TASK_TYPE_LABELS: Record<string, string> = {
 
 const STAGE_LABELS: Record<string, string> = {
   received: 'progress.stage.received',
+  generate_storyboard_image: 'progress.stage.generateStoryboardImage',
+  persist_storyboard_image: 'progress.stage.persistStoryboardImage',
   generate_character_image: 'progress.stage.generateCharacterImage',
   generate_location_image: 'progress.stage.generateLocationImage',
   generate_panel_candidate: 'progress.stage.generatePanelCandidate',

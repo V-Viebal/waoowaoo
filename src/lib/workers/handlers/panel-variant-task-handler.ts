@@ -1,8 +1,8 @@
 import { type Job } from 'bullmq'
 import { prisma } from '@/lib/prisma'
-import { getArtStylePrompt } from '@/lib/constants'
 import { logInfo as _ulogInfo } from '@/lib/logging/core'
 import { type TaskJobData } from '@/lib/task/types'
+import { resolveWorkerArtStylePrompt } from '@/lib/workers/art-style'
 import {
   assertTaskActive,
   getProjectModels,
@@ -23,10 +23,11 @@ import {
   pickFirstString,
   resolveNovelData,
 } from './image-task-handler-shared'
-import { buildPrompt, PROMPT_IDS } from '@/lib/prompt-i18n'
+import { buildPromptAsync, PROMPT_IDS } from '@/lib/prompt-i18n'
 
 // ── 构建变体提示词 ──────────────────────────────────────
 interface VariantPromptParams {
+  projectId: string
   locale: TaskJobData['locale']
   originalDescription: string
   originalShotType: string
@@ -44,10 +45,11 @@ interface VariantPromptParams {
   style: string
 }
 
-function buildVariantPrompt(params: VariantPromptParams): string {
-  return buildPrompt({
+function buildVariantPrompt(params: VariantPromptParams): Promise<string> {
+  return buildPromptAsync({
     promptId: PROMPT_IDS.NP_AGENT_SHOT_VARIANT_GENERATE,
     locale: params.locale,
+    projectId: params.projectId,
     variables: {
       original_description: params.originalDescription,
       original_shot_type: params.originalShotType,
@@ -235,14 +237,19 @@ export async function handlePanelVariantTask(job: Job<TaskJobData>) {
   const normalizedRefs = await normalizeReferenceImagesForGeneration(refs)
 
   // 使用 agent_shot_variant_generate.txt 提示词模板
-  const artStyle = getArtStylePrompt(modelConfig.artStyle, job.data.locale)
+  const artStyle = resolveWorkerArtStylePrompt({
+    modelConfigArtStyle: modelConfig.artStyle,
+    modelConfigArtStylePrompt: modelConfig.artStylePrompt,
+    locale: job.data.locale,
+  })
   const charactersInfo = buildCharactersInfo(newPanel, projectData)
   const characterAssetsDesc = includeCharacterAssets
     ? buildCharacterAssetsDescription(newPanel, projectData)
     : (job.data.locale === 'en' ? 'Character reference images disabled' : '未使用角色参考图')
   const locationName = newPanel.location || sourcePanel.location || ''
 
-  const prompt = buildVariantPrompt({
+  const prompt = await buildVariantPrompt({
+    projectId: job.data.projectId,
     locale: job.data.locale,
     originalDescription: sourcePanel.description || '',
     originalShotType: sourcePanel.shotType || '',

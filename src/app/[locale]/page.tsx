@@ -7,6 +7,7 @@ import { useSession } from 'next-auth/react'
 import { useRouter } from '@/i18n/navigation'
 import Navbar from '@/components/Navbar'
 import { Link } from '@/i18n/navigation'
+import { BRAND_CONFIG } from '@/lib/brand/config'
 import { buildAuthenticatedHomeTarget } from '@/lib/home/default-route'
 
 export default function Home() {
@@ -27,10 +28,12 @@ export default function Home() {
       <div className="glass-page min-h-screen flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <Image
-            src="/logo-small.png?v=1"
-            alt="waoowaoo"
-            width={80}
+            src={BRAND_CONFIG.logoPath}
+            alt={BRAND_CONFIG.name}
+            width={70}
             height={80}
+            priority
+            style={{ width: 'auto', height: '80px' }}
             className="animate-pulse"
           />
         </div>

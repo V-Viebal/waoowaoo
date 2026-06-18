@@ -5,7 +5,11 @@ import { TASK_TYPE, type TaskJobData } from '@/lib/task/types'
 
 const utilsMock = vi.hoisted(() => ({
   assertTaskActive: vi.fn(async () => undefined),
-  getProjectModels: vi.fn(async () => ({ characterModel: 'image-model-1', artStyle: 'realistic' })),
+  getProjectModels: vi.fn(async () => ({
+    characterModel: 'image-model-1',
+    artStyle: 'realistic',
+    artStylePrompt: null as string | null,
+  })),
   toSignedUrlIfCos: vi.fn((url: string | null | undefined) => (url ? `https://signed.example/${url}` : null)),
 }))
 
@@ -88,7 +92,7 @@ describe('worker character-image-task-handler behavior', () => {
   })
 
   it('characterModel not configured -> explicit error', async () => {
-    utilsMock.getProjectModels.mockResolvedValueOnce({ characterModel: '', artStyle: 'realistic' })
+    utilsMock.getProjectModels.mockResolvedValueOnce({ characterModel: '', artStyle: 'realistic', artStylePrompt: null })
     await expect(handleCharacterImageTask(buildJob({}))).rejects.toThrow('Character model not configured')
   })
 
@@ -136,6 +140,22 @@ describe('worker character-image-task-handler behavior', () => {
       prompt: string
     }
     expect(generationInput.prompt).toContain(getArtStylePrompt('japanese-anime', 'zh'))
+    expect(generationInput.prompt).not.toContain(getArtStylePrompt('realistic', 'zh'))
+  })
+
+  it('uses resolved artStylePrompt when payload artStyle is not provided', async () => {
+    utilsMock.getProjectModels.mockResolvedValueOnce({
+      characterModel: 'image-model-1',
+      artStyle: 'realistic',
+      artStylePrompt: 'custom character watercolor style',
+    })
+
+    await handleCharacterImageTask(buildJob({ imageIndex: 0 }))
+
+    const generationInput = sharedMock.generateProjectLabeledImageToStorage.mock.calls[0]?.[0] as {
+      prompt: string
+    }
+    expect(generationInput.prompt).toContain('custom character watercolor style')
     expect(generationInput.prompt).not.toContain(getArtStylePrompt('realistic', 'zh'))
   })
 

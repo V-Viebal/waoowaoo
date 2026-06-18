@@ -6,7 +6,7 @@ import type { TaskJobData } from '@/lib/task/types'
 import { resolveAnalysisModel } from './shot-ai-persist'
 import { runShotPromptCompletion } from './shot-ai-prompt-runtime'
 import { parseJsonObject, readRequiredString, type AnyObj } from './shot-ai-prompt-utils'
-import { buildPrompt, PROMPT_IDS } from '@/lib/prompt-i18n'
+import { buildPromptAsync, PROMPT_IDS } from '@/lib/prompt-i18n'
 
 export async function handleModifyPropTask(job: Job<TaskJobData>, payload: AnyObj) {
   const propId = readRequiredString(payload.propId, 'propId')
@@ -16,9 +16,10 @@ export async function handleModifyPropTask(job: Job<TaskJobData>, payload: AnyOb
   const modifyInstruction = readRequiredString(payload.modifyInstruction, 'modifyInstruction')
   const novelData = await resolveAnalysisModel(job.data.projectId, job.data.userId)
 
-  const finalPrompt = buildPrompt({
+  const finalPrompt = await buildPromptAsync({
     promptId: PROMPT_IDS.NP_PROP_DESCRIPTION_UPDATE,
     locale: job.data.locale,
+    projectId: job.data.projectId,
     variables: {
       prop_name: propName,
       original_description: removePropPromptSuffix(currentDescription),

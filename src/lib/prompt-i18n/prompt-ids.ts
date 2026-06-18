@@ -1,6 +1,8 @@
 export const PROMPT_IDS = {
   CHARACTER_IMAGE_TO_DESCRIPTION: 'character_image_to_description',
   CHARACTER_REFERENCE_TO_SHEET: 'character_reference_to_sheet',
+  SKILL_API_CONFIG_TEMPLATE_SYSTEM: 'skill_api_config_template_system',
+  SKILL_TUTORIAL_SYSTEM: 'skill_tutorial_system',
   NP_AGENT_ACTING_DIRECTION: 'np_agent_acting_direction',
   NP_AGENT_CHARACTER_PROFILE: 'np_agent_character_profile',
   NP_AGENT_CHARACTER_VISUAL: 'np_agent_character_visual',
@@ -27,6 +29,7 @@ export const PROMPT_IDS = {
   NP_SELECT_PROP: 'np_select_prop',
   NP_SELECT_LOCATION: 'np_select_location',
   NP_SINGLE_PANEL_IMAGE: 'np_single_panel_image',
+  NP_STORYBOARD_GRID_IMAGE: 'np_storyboard_grid_image',
   NP_STORYBOARD_EDIT: 'np_storyboard_edit',
   NP_VOICE_ANALYSIS: 'np_voice_analysis',
 } as const

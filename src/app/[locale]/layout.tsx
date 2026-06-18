@@ -3,11 +3,12 @@ import Script from "next/script";
 import { GeistSans } from 'geist/font/sans';
 import { GeistMono } from 'geist/font/mono';
 import { NextIntlClientProvider } from 'next-intl';
-import { getMessages, getTranslations } from 'next-intl/server';
+import { getMessages } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 import "../globals.css";
 import { Providers } from "./providers";
 
+import { BRAND_CONFIG } from '@/lib/brand/config';
 import { locales } from '@/i18n/routing';
 
 
@@ -16,16 +17,15 @@ type SupportedLocale = (typeof locales)[number]
 
 // 动态元数据生成
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
-    const { locale } = await params;
-    const t = await getTranslations({ locale, namespace: 'layout' })
+    await params;
 
     return {
-        title: t('title'),
-        description: t('description'),
+        title: BRAND_CONFIG.metadataTitle,
+        description: BRAND_CONFIG.metadataDescription,
         icons: {
-            icon: '/logo.ico?v=2',
-            shortcut: '/logo.ico?v=2',
-            apple: '/logo.png?v=2',
+            icon: BRAND_CONFIG.iconPath,
+            shortcut: BRAND_CONFIG.iconPath,
+            apple: BRAND_CONFIG.iconPath,
         },
     };
 }

@@ -1,15 +1,15 @@
 <p align="center">
-  <img src="public/banner.png" alt="waoowaoo" width="600">
+  <img src="public/banner.png" alt="vvicat" width="600">
 </p>
 
-<h1 align="center">waoowaoo AI Video Studio</h1>
+<h1 align="center">vvicat AI Video Studio</h1>
 
 <p align="center">
   An AI-powered tool for creating short drama / comic videos — automatically generates storyboards, characters, and scenes from novel text, then assembles them into complete videos.
 </p>
 
 <p align="center">
-  <a href="README.md">中文文档</a> · <a href="https://www.waoowaoo.com/">Join Waitlist</a> · <a href="https://github.com/saturndec/waoowaoo/issues">Report Bug</a>
+  <a href="README.md">中文文档</a> · <a href="https://www.vvicat.com/">Join Waitlist</a> · <a href="https://github.com/saturndec/waoowaoo/issues">Report Bug</a>
 </p>
 
 > [!IMPORTANT]
@@ -142,7 +142,7 @@ This project is maintained by the core team. You're welcome to contribute by:
 
 ---
 
-**Made with ❤️ by waoowaoo team**
+**Made with ❤️ by vvicat team**
 
 ## Star History
 

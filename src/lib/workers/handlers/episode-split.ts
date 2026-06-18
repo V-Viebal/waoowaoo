@@ -10,7 +10,7 @@ import { getUserModelConfig } from '@/lib/config-service'
 import { createTextMarkerMatcher } from '@/lib/novel-promotion/story-to-script/clip-matching'
 import { createWorkerLLMStreamCallbacks, createWorkerLLMStreamContext } from './llm-stream'
 import type { TaskJobData } from '@/lib/task/types'
-import { buildPrompt, PROMPT_IDS } from '@/lib/prompt-i18n'
+import { buildPromptAsync, PROMPT_IDS } from '@/lib/prompt-i18n'
 
 type EpisodeSplit = {
   number?: number
@@ -87,9 +87,10 @@ export async function handleEpisodeSplitTask(job: Job<TaskJobData>) {
     throw new Error('请先在设置页面配置分析模型')
   }
 
-  const promptBase = buildPrompt({
+  const promptBase = await buildPromptAsync({
     promptId: PROMPT_IDS.NP_EPISODE_SPLIT,
     locale: job.data.locale,
+    projectId,
     variables: {
       CONTENT: content,
     },

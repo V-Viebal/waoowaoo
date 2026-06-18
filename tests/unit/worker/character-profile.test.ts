@@ -68,6 +68,7 @@ vi.mock('@/lib/workers/handlers/character-profile-helpers', async () => {
 vi.mock('@/lib/prompt-i18n', () => ({
   PROMPT_IDS: { NP_AGENT_CHARACTER_VISUAL: 'np_agent_character_visual' },
   buildPrompt: vi.fn(() => 'character-visual-prompt'),
+  buildPromptAsync: vi.fn(async () => 'character-visual-prompt'),
 }))
 
 import { handleCharacterProfileTask } from '@/lib/workers/handlers/character-profile'

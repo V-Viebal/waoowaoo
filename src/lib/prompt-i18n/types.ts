@@ -8,6 +8,7 @@ export type PromptVariables = Record<string, string>
 export type PromptCatalogEntry = {
   pathStem: string
   variableKeys: readonly string[]
+  literalVariableKeys?: readonly string[]
 }
 
 export type BuildPromptInput = {

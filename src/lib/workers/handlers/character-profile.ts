@@ -15,7 +15,7 @@ import {
   resolveProjectModel,
 } from './character-profile-helpers'
 import { createWorkerLLMStreamCallbacks, createWorkerLLMStreamContext } from './llm-stream'
-import { buildPrompt, PROMPT_IDS } from '@/lib/prompt-i18n'
+import { buildPromptAsync, PROMPT_IDS } from '@/lib/prompt-i18n'
 
 type ConfirmProfileOptions = {
   suppressProgress?: boolean
@@ -58,9 +58,10 @@ async function handleConfirmProfile(
   }
 
   const parsedProfile = JSON.parse(finalProfileData) as AnyObj
-  const promptTemplate = buildPrompt({
+  const promptTemplate = await buildPromptAsync({
     promptId: PROMPT_IDS.NP_AGENT_CHARACTER_VISUAL,
     locale: job.data.locale,
+    projectId: job.data.projectId,
     variables: {
       character_profiles: JSON.stringify(
         [

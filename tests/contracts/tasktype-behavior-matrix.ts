@@ -81,6 +81,7 @@ function resolveApiContractByTaskType(taskType: TaskType): string {
     || taskType === 'voice_line'
     || taskType === 'voice_design'
     || taskType === 'asset_hub_voice_design'
+    || taskType === 'storyboard_image'
     || taskType === 'insert_panel'
     || taskType === 'panel_variant'
     || taskType === 'modify_asset_image'

@@ -43,6 +43,7 @@
   },
   "taskType": {
     "generic": "Task",
+    "storyboardImage": "Storyboard image",
     "imagePanel": "Storyboard image",
     "imageCharacter": "Character image",
     "imageLocation": "Location image",
@@ -86,6 +87,8 @@
   },
   "stage": {
     "received": "Task received",
+    "generateStoryboardImage": "Generate storyboard image",
+    "persistStoryboardImage": "Persist storyboard image",
     "generateCharacterImage": "Generate character image",
     "generateLocationImage": "Generate location image",
     "generatePanelCandidate": "Generate panel candidate",

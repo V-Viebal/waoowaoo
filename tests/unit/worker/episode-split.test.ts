@@ -54,6 +54,7 @@ const llmStreamMock = vi.hoisted(() => ({
 const promptMock = vi.hoisted(() => ({
   PROMPT_IDS: { NP_EPISODE_SPLIT: 'np_episode_split' },
   buildPrompt: vi.fn(() => 'EPISODE_SPLIT_PROMPT'),
+  buildPromptAsync: vi.fn(async () => 'EPISODE_SPLIT_PROMPT'),
 }))
 
 vi.mock('@/lib/prisma', () => ({ prisma: prismaMock }))

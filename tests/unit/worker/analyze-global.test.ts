@@ -43,6 +43,19 @@ const persistMock = vi.hoisted(() => ({
   }),
 }))
 
+const promptMock = vi.hoisted(() => ({
+  loadAnalyzeGlobalPromptTemplates: vi.fn(async (_locale: string, _projectId: string) => ({
+    characterPromptTemplate: 'character-template',
+    locationPromptTemplate: 'location-template',
+    propPromptTemplate: 'prop-template',
+  })),
+  buildAnalyzeGlobalPrompts: vi.fn(() => ({
+    characterPrompt: 'character prompt',
+    locationPrompt: 'location prompt',
+    propPrompt: 'prop prompt',
+  })),
+}))
+
 vi.mock('@/lib/prisma', () => ({ prisma: prismaMock }))
 vi.mock('@/lib/llm-client', () => llmMock)
 vi.mock('@/lib/llm-observe/internal-stream-context', () => ({
@@ -70,12 +83,8 @@ vi.mock('@/lib/workers/handlers/analyze-global-parse', () => ({
   safeParsePropsResponse: parseMock.safeParsePropsResponse,
 }))
 vi.mock('@/lib/workers/handlers/analyze-global-prompt', () => ({
-  loadAnalyzeGlobalPromptTemplates: vi.fn(() => ({ characterTemplate: 'c', locationTemplate: 'l', propTemplate: 'p' })),
-  buildAnalyzeGlobalPrompts: vi.fn(() => ({
-    characterPrompt: 'character prompt',
-    locationPrompt: 'location prompt',
-    propPrompt: 'prop prompt',
-  })),
+  loadAnalyzeGlobalPromptTemplates: promptMock.loadAnalyzeGlobalPromptTemplates,
+  buildAnalyzeGlobalPrompts: promptMock.buildAnalyzeGlobalPrompts,
 }))
 vi.mock('@/lib/workers/handlers/analyze-global-persist', () => ({
   createAnalyzeGlobalStats: persistMock.createAnalyzeGlobalStats,
@@ -133,6 +142,7 @@ describe('worker analyze-global behavior', () => {
     const result = await handleAnalyzeGlobalTask(buildJob())
 
     expect(parseMock.chunkContent).toHaveBeenCalled()
+    expect(promptMock.loadAnalyzeGlobalPromptTemplates).toHaveBeenCalledWith('zh', 'project-1')
     expect(persistMock.persistAnalyzeGlobalChunk).toHaveBeenCalledTimes(2)
 
     expect(result).toEqual({

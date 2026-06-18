@@ -76,6 +76,7 @@ vi.mock('@/lib/prompt-i18n', () => ({
     NP_SCREENPLAY_CONVERSION: 'e',
   },
   getPromptTemplate: vi.fn(() => 'prompt-template'),
+  getPromptTemplateAsync: vi.fn(async () => 'prompt-template'),
 }))
 vi.mock('@/lib/workers/handlers/story-to-script-helpers', () => ({
   asString: (value: unknown) => (typeof value === 'string' ? value : ''),

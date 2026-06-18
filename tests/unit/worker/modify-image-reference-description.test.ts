@@ -31,6 +31,7 @@ const promptMock = vi.hoisted(() => ({
     NP_PROP_DESCRIPTION_UPDATE: 'np_prop_description_update',
   },
   buildPrompt: vi.fn(({ promptId }: { promptId: string }) => `${promptId}-prompt`),
+  buildPromptAsync: vi.fn(async ({ promptId }: { promptId: string }) => `${promptId}-prompt`),
 }))
 
 const loggerWarnMock = vi.hoisted(() => vi.fn())

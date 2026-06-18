@@ -47,6 +47,7 @@ vi.mock('@/lib/workers/handlers/llm-stream', () => ({
 vi.mock('@/lib/prompt-i18n', () => ({
   PROMPT_IDS: { NP_AGENT_CLIP: 'np_agent_clip' },
   buildPrompt: vi.fn(() => 'clip-split-prompt'),
+  buildPromptAsync: vi.fn(async () => 'clip-split-prompt'),
 }))
 vi.mock('@/lib/novel-promotion/story-to-script/clip-matching', () => ({
   createClipContentMatcher: (content: string) => ({

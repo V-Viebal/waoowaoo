@@ -10,7 +10,7 @@ import { executeAiTextStep } from '@/lib/ai-runtime'
 import { logAIAnalysis } from '@/lib/logging/semantic'
 import { buildCharactersIntroduction } from '@/lib/constants'
 import type { Locale } from '@/i18n/routing'
-import { getPromptTemplate, PROMPT_IDS } from '@/lib/prompt-i18n'
+import { getPromptTemplateAsync, PROMPT_IDS } from '@/lib/prompt-i18n'
 import {
     buildPromptAssetContext,
     compileAssetPromptFragments,
@@ -256,7 +256,7 @@ export async function executePhase1(
     _ulogInfo(`[Phase 1] Clip ${clipId}: 开始基础分镜规划...`)
 
     // 读取提示词模板
-    const planPromptTemplate = getPromptTemplate(PROMPT_IDS.NP_AGENT_STORYBOARD_PLAN, locale)
+    const planPromptTemplate = await getPromptTemplateAsync(PROMPT_IDS.NP_AGENT_STORYBOARD_PLAN, locale, { projectId })
 
     // 解析clip数据
     const clipCharacters = parseClipCharacters(clip.characters)
@@ -402,7 +402,7 @@ export async function executePhase2(
     _ulogInfo(`[Phase 2] Clip ${clipId}: 开始生成摄影规则...`)
 
     // 读取提示词
-    const cinematographerPromptTemplate = getPromptTemplate(PROMPT_IDS.NP_AGENT_CINEMATOGRAPHER, locale)
+    const cinematographerPromptTemplate = await getPromptTemplateAsync(PROMPT_IDS.NP_AGENT_CINEMATOGRAPHER, locale, { projectId })
 
     // 解析clip数据
     const clipCharacters = parseClipCharacters(clip.characters)
@@ -505,7 +505,7 @@ export async function executePhase2Acting(
     _ulogInfo(`[Phase 2-Acting] projectId: ${projectId}, projectName: ${projectName}`)
 
     // 读取提示词
-    const actingPromptTemplate = getPromptTemplate(PROMPT_IDS.NP_AGENT_ACTING_DIRECTION, locale)
+    const actingPromptTemplate = await getPromptTemplateAsync(PROMPT_IDS.NP_AGENT_ACTING_DIRECTION, locale, { projectId })
 
     // 解析clip数据
     const clipCharacters = parseClipCharacters(clip.characters)
@@ -589,7 +589,7 @@ export async function executePhase3(
     _ulogInfo(`[Phase 3] Clip ${clipId}: 开始补充镜头细节...`)
 
     // 读取提示词
-    const detailPromptTemplate = getPromptTemplate(PROMPT_IDS.NP_AGENT_STORYBOARD_DETAIL, locale)
+    const detailPromptTemplate = await getPromptTemplateAsync(PROMPT_IDS.NP_AGENT_STORYBOARD_DETAIL, locale, { projectId })
 
     // 解析clip数据
     const clipCharacters = parseClipCharacters(clip.characters)

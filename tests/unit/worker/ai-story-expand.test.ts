@@ -21,6 +21,7 @@ vi.mock('@/lib/llm-observe/internal-stream-context', () => ({
 vi.mock('@/lib/prompt-i18n', () => ({
   PROMPT_IDS: { NP_AI_STORY_EXPAND: 'np_ai_story_expand' },
   buildPrompt: vi.fn(() => 'story-expand-prompt'),
+  buildPromptAsync: vi.fn(async () => 'story-expand-prompt'),
 }))
 vi.mock('@/lib/workers/shared', () => ({ reportTaskProgress: workerMock.reportTaskProgress }))
 vi.mock('@/lib/workers/utils', () => ({ assertTaskActive: workerMock.assertTaskActive }))

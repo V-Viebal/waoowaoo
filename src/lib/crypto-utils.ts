@@ -11,7 +11,8 @@ import crypto from 'crypto'
 const ALGORITHM = 'aes-256-gcm'
 const IV_LENGTH = 16
 const KEY_LENGTH = 32
-const SALT = 'waoowaoo-api-key-salt-v1' // 固定盐值
+// 盐值参与已保存 API Key 的密钥派生，品牌更名不能改变历史密文的解密条件。
+const SALT = 'waoowaoo-api-key-salt-v1'
 
 type ApiKeyObject = Record<string, unknown>
 

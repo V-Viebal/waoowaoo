@@ -6,6 +6,7 @@
   "frozen": "Frozen",
   "totalSpent": "Total Spent",
   "apiConfig": "API Configuration",
+  "artStyleLibrary": "Art Style Library",
   "rechargeRecords": "Recharge Records",
   "billingRecords": "Billing Records",
   "logout": "Logout",
@@ -42,6 +43,32 @@
     "seconds": "{count}s",
     "calls": "{count} calls"
   },
+  "artStyleLibraryTab": {
+    "title": "Art Style Library",
+    "loading": "Loading...",
+    "loadFailed": "Failed to load art styles",
+    "saveFailed": "Failed to save art style",
+    "refresh": "Refresh",
+    "create": "New Style",
+    "edit": "Edit",
+    "delete": "Delete",
+    "save": "Save",
+    "cancel": "Cancel",
+    "name": "Name",
+    "description": "Description",
+    "prompt": "Prompt",
+    "previewImageUrl": "Preview Image URL",
+    "sortOrder": "Sort Order",
+    "systemStyles": "System Styles",
+    "userStyles": "Personal Styles",
+    "systemScope": "System",
+    "userScope": "Personal",
+    "noDescription": "No description",
+    "emptyUserStyles": "No personal styles",
+    "deleteConfirm": "Delete this personal style?",
+    "previewAlt": "{name} preview",
+    "sortOrderValue": "Order {value}"
+  },
   "apiTypes": {
     "image": "Image Generation",
     "video": "Video Generation",
@@ -52,6 +79,7 @@
     "lip_sync": "Lip Sync"
   },
   "actionTypes": {
+    "storyboard_image": "Storyboard image",
     "image_panel": "Storyboard Image",
     "image_character": "Character Image",
     "image_location": "Location Image",

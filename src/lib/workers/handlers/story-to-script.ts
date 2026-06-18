@@ -29,7 +29,7 @@ import {
   persistClips,
   resolveClipRecordId,
 } from './story-to-script-helpers'
-import { getPromptTemplate, PROMPT_IDS } from '@/lib/prompt-i18n'
+import { getPromptTemplateAsync, PROMPT_IDS } from '@/lib/prompt-i18n'
 import { resolveAnalysisModel } from './resolve-analysis-model'
 import { createArtifact, listArtifacts } from '@/lib/run-runtime/service'
 import { assertWorkflowRunActive, withWorkflowRunLease } from '@/lib/run-runtime/workflow-lease'
@@ -131,11 +131,19 @@ export async function handleStoryToScriptTask(job: Job<TaskJobData>) {
   if (!mergedContent.trim()) {
     throw new Error('content is required')
   }
-  const characterPromptTemplate = getPromptTemplate(PROMPT_IDS.NP_AGENT_CHARACTER_PROFILE, job.data.locale)
-  const locationPromptTemplate = getPromptTemplate(PROMPT_IDS.NP_SELECT_LOCATION, job.data.locale)
-  const propPromptTemplate = getPromptTemplate(PROMPT_IDS.NP_SELECT_PROP, job.data.locale)
-  const clipPromptTemplate = getPromptTemplate(PROMPT_IDS.NP_AGENT_CLIP, job.data.locale)
-  const screenplayPromptTemplate = getPromptTemplate(PROMPT_IDS.NP_SCREENPLAY_CONVERSION, job.data.locale)
+  const [
+    characterPromptTemplate,
+    locationPromptTemplate,
+    propPromptTemplate,
+    clipPromptTemplate,
+    screenplayPromptTemplate,
+  ] = await Promise.all([
+    getPromptTemplateAsync(PROMPT_IDS.NP_AGENT_CHARACTER_PROFILE, job.data.locale, { projectId }),
+    getPromptTemplateAsync(PROMPT_IDS.NP_SELECT_LOCATION, job.data.locale, { projectId }),
+    getPromptTemplateAsync(PROMPT_IDS.NP_SELECT_PROP, job.data.locale, { projectId }),
+    getPromptTemplateAsync(PROMPT_IDS.NP_AGENT_CLIP, job.data.locale, { projectId }),
+    getPromptTemplateAsync(PROMPT_IDS.NP_SCREENPLAY_CONVERSION, job.data.locale, { projectId }),
+  ])
   const maxLength = 30000
   const content = mergedContent.length > maxLength ? mergedContent.slice(0, maxLength) : mergedContent
   const payloadMeta = typeof payload.meta === 'object' && payload.meta !== null

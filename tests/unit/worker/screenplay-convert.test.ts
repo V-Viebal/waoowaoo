@@ -52,6 +52,7 @@ vi.mock('@/lib/workers/handlers/screenplay-convert-helpers', () => ({
 vi.mock('@/lib/prompt-i18n', () => ({
   PROMPT_IDS: { NP_SCREENPLAY_CONVERSION: 'np_screenplay_conversion' },
   getPromptTemplate: vi.fn(() => 'screenplay-template-{clip_content}-{clip_id}'),
+  getPromptTemplateAsync: vi.fn(async () => 'screenplay-template-{clip_content}-{clip_id}'),
 }))
 
 import { handleScreenplayConvertTask } from '@/lib/workers/handlers/screenplay-convert'

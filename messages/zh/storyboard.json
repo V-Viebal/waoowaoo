@@ -49,6 +49,18 @@
         "addAtStart": "在开头添加新分镜组",
         "insertHere": "在此插入新分镜组"
     },
+    "storyboardImage": {
+        "finalImage": "最终故事板图",
+        "preview": "预览",
+        "gridPreset": "宫格",
+        "grid3": "3宫格",
+        "grid6": "6宫格",
+        "grid9": "9宫格",
+        "gridAuto": "n宫格",
+        "aiGenerate": "AI生成故事板",
+        "compose": "拼接故事板",
+        "missingPanelImages": "请先生成所有分镜图"
+    },
     "header": {
         "title": "分镜编辑",
         "panels": "个镜头",

@@ -3,10 +3,11 @@ import { queueRedis } from '@/lib/redis'
 import { QueueType, TaskType, TASK_TYPE, type TaskJobData } from './types'
 
 export const QUEUE_NAME = {
-  IMAGE: 'waoowaoo-image',
-  VIDEO: 'waoowaoo-video',
-  VOICE: 'waoowaoo-voice',
-  TEXT: 'waoowaoo-text',
+  // 队列名承载 BullMQ 历史任务数据，品牌更名不直接迁移默认队列；如需新队列可通过环境变量覆盖。
+  IMAGE: process.env.QUEUE_IMAGE_NAME || 'waoowaoo-image',
+  VIDEO: process.env.QUEUE_VIDEO_NAME || 'waoowaoo-video',
+  VOICE: process.env.QUEUE_VOICE_NAME || 'waoowaoo-voice',
+  TEXT: process.env.QUEUE_TEXT_NAME || 'waoowaoo-text',
 } as const
 
 const defaultJobOptions: JobsOptions = {
@@ -42,6 +43,7 @@ export const textQueue = new Queue<TaskJobData>(QUEUE_NAME.TEXT, {
 const ALL_QUEUES = [imageQueue, videoQueue, voiceQueue, textQueue]
 
 const IMAGE_TYPES = new Set<TaskType>([
+  TASK_TYPE.STORYBOARD_IMAGE,
   TASK_TYPE.IMAGE_PANEL,
   TASK_TYPE.IMAGE_CHARACTER,
   TASK_TYPE.IMAGE_LOCATION,

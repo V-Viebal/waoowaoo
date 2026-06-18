@@ -15,6 +15,7 @@ import {
 } from '@/lib/model-config-contract'
 import { findBuiltinCapabilities } from '@/lib/model-capabilities/catalog'
 import { resolveGenerationOptionsForModel } from '@/lib/model-capabilities/lookup'
+import { resolveArtStylePrompt } from '@/lib/config-center/art-styles/service'
 import {
   type WorkflowConcurrencyConfig,
   normalizeWorkflowConcurrencyConfig,
@@ -107,6 +108,8 @@ export interface ProjectModelConfig {
   audioModel: string | null
   videoRatio: string | null
   artStyle: string | null
+  artStyleId: string | null
+  artStylePrompt: string | null
   capabilityDefaults: CapabilitySelections
   capabilityOverrides: CapabilitySelections
 }
@@ -152,6 +155,13 @@ export async function getProjectModelConfig(
     prisma.novelPromotionProject.findUnique({ where: { projectId } }),
     prisma.userPreference.findUnique({ where: { userId } }),
   ])
+  const resolvedArtStyle = await resolveArtStylePrompt({
+    artStyleId: projectData?.artStyleId || userPref?.artStyleId || null,
+    legacyArtStyle: projectData?.artStyle || userPref?.artStyle || null,
+    legacyArtStylePrompt: projectData?.artStylePrompt || null,
+    userId,
+    locale: 'zh',
+  })
 
   return {
     analysisModel: extractModelKey(projectData?.analysisModel) || extractModelKey(userPref?.analysisModel) || null,
@@ -162,7 +172,9 @@ export async function getProjectModelConfig(
     videoModel: extractModelKey(projectData?.videoModel) || null,
     audioModel: extractModelKey(projectData?.audioModel) || extractModelKey(userPref?.audioModel) || null,
     videoRatio: projectData?.videoRatio || '16:9',
-    artStyle: projectData?.artStyle || null,
+    artStyle: projectData?.artStyle || userPref?.artStyle || null,
+    artStyleId: resolvedArtStyle.artStyleId,
+    artStylePrompt: resolvedArtStyle.prompt || null,
     capabilityDefaults: parseCapabilitySelections(userPref?.capabilityDefaults),
     capabilityOverrides: parseCapabilitySelections(projectData?.capabilityOverrides),
   }

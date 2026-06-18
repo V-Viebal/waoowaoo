@@ -25,6 +25,7 @@ vi.mock('@/lib/workers/utils', () => ({
 vi.mock('@/lib/prompt-i18n', () => ({
   PROMPT_IDS: { NP_IMAGE_PROMPT_MODIFY: 'np_image_prompt_modify' },
   buildPrompt: vi.fn(() => 'shot-final-prompt'),
+  buildPromptAsync: vi.fn(async () => 'shot-final-prompt'),
 }))
 
 import { handleModifyShotPromptTask } from '@/lib/workers/handlers/shot-ai-prompt-shot'

@@ -9,6 +9,7 @@ import { VariantData, VariantOptions } from './hooks/usePanelVariant'
 import type { PanelSaveState } from './hooks/usePanelCrudActions'
 import { AppIcon } from '@/components/ui/icons'
 import { GlassButton } from '@/components/ui/primitives'
+import type { StoryboardGridPreset } from '@/lib/storyboard-images/grid'
 
 interface StoryboardCanvasProps {
   sortedStoryboards: NovelPromotionStoryboard[]
@@ -23,6 +24,7 @@ interface StoryboardCanvasProps {
   hasUnsavedByPanel: Set<string>
   modifyingPanels: Set<string>
   submittingPanelImageIds: Set<string>
+  compositingStoryboardIds: Set<string>
   movingClipId: string | null
   insertingAfterPanelId: string | null
   submittingVariantPanelId: string | null
@@ -39,6 +41,7 @@ interface StoryboardCanvasProps {
   onAddPanel: (storyboardId: string) => Promise<void>
   onDeleteStoryboard: (storyboardId: string, panelCount: number) => Promise<void>
   onGenerateAllIndividually: (storyboardId: string) => Promise<void>
+  onCreateCompositedStoryboardImage: (storyboardId: string, gridPreset: StoryboardGridPreset) => Promise<void>
   onPreviewImage: (url: string) => void
   onCloseStoryboardError: (storyboardId: string) => void
   onPanelUpdate: (panelId: string, panel: StoryboardPanel, updates: Partial<PanelEditData>) => void
@@ -53,6 +56,7 @@ interface StoryboardCanvasProps {
   onRemoveLocation: (panel: StoryboardPanel, storyboardId: string) => void
   onRetryPanelSave: (panelId: string) => void
   onRegeneratePanelImage: (panelId: string, count?: number, force?: boolean) => void
+  onCreateAiStoryboardImage: (storyboardId: string, gridPreset: StoryboardGridPreset) => Promise<void>
   onOpenEditModal: (storyboardId: string, panelIndex: number) => void
   onOpenAIDataModal: (storyboardId: string, panelIndex: number) => void
   getPanelCandidates: (panel: NovelPromotionPanel) => { candidates: string[]; selectedIndex: number } | null
@@ -85,6 +89,7 @@ export default function StoryboardCanvas({
   hasUnsavedByPanel,
   modifyingPanels,
   submittingPanelImageIds,
+  compositingStoryboardIds,
   movingClipId,
   insertingAfterPanelId,
   submittingVariantPanelId,
@@ -101,6 +106,7 @@ export default function StoryboardCanvas({
   onAddPanel,
   onDeleteStoryboard,
   onGenerateAllIndividually,
+  onCreateCompositedStoryboardImage,
   onPreviewImage,
   onCloseStoryboardError,
   onPanelUpdate,
@@ -111,6 +117,7 @@ export default function StoryboardCanvas({
   onRemoveLocation,
   onRetryPanelSave,
   onRegeneratePanelImage,
+  onCreateAiStoryboardImage,
   onOpenEditModal,
   onOpenAIDataModal,
   getPanelCandidates,
@@ -166,6 +173,7 @@ export default function StoryboardCanvas({
               hasUnsavedByPanel={hasUnsavedByPanel}
               modifyingPanels={modifyingPanels}
               submittingPanelImageIds={submittingPanelImageIds}
+              compositingStoryboardIds={compositingStoryboardIds}
               onToggleExpand={() => onToggleExpandedClip(storyboard.id)}
               onMoveUp={() => onMoveStoryboardGroup(storyboard.clipId, 'up')}
               onMoveDown={() => onMoveStoryboardGroup(storyboard.clipId, 'down')}
@@ -173,6 +181,7 @@ export default function StoryboardCanvas({
               onAddPanel={() => onAddPanel(storyboard.id)}
               onDeleteStoryboard={() => onDeleteStoryboard(storyboard.id, textPanels.length)}
               onGenerateAllIndividually={() => onGenerateAllIndividually(storyboard.id)}
+              onCreateCompositedStoryboardImage={onCreateCompositedStoryboardImage}
               onPreviewImage={onPreviewImage}
               onCloseError={() => onCloseStoryboardError(storyboard.id)}
               getPanelEditData={getPanelEditData}
@@ -184,6 +193,7 @@ export default function StoryboardCanvas({
               onRemoveLocation={(panel) => onRemoveLocation(panel, storyboard.id)}
               onRetryPanelSave={onRetryPanelSave}
               onRegeneratePanelImage={onRegeneratePanelImage}
+              onCreateAiStoryboardImage={onCreateAiStoryboardImage}
               onOpenEditModal={(panelIndex) => onOpenEditModal(storyboard.id, panelIndex)}
               onOpenAIDataModal={(panelIndex) => onOpenAIDataModal(storyboard.id, panelIndex)}
               getPanelCandidates={getPanelCandidates}

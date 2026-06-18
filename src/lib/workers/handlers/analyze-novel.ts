@@ -8,7 +8,7 @@ import { reportTaskProgress } from '@/lib/workers/shared'
 import { assertTaskActive } from '@/lib/workers/utils'
 import { createWorkerLLMStreamCallbacks, createWorkerLLMStreamContext } from './llm-stream'
 import type { TaskJobData } from '@/lib/task/types'
-import { buildPrompt, PROMPT_IDS } from '@/lib/prompt-i18n'
+import { buildPromptAsync, PROMPT_IDS } from '@/lib/prompt-i18n'
 import { resolveAnalysisModel } from './resolve-analysis-model'
 import { seedProjectLocationBackedImageSlots } from '@/lib/assets/services/location-backed-assets'
 import { normalizeLocationAvailableSlots } from '@/lib/location-available-slots'
@@ -100,30 +100,35 @@ export async function handleAnalyzeNovelTask(job: Job<TaskJobData>) {
     .filter((item) => readAssetKind(item as unknown as Record<string, unknown>) === 'prop')
     .map((item) => item.name)
     .join(', ')
-  const characterPromptTemplate = buildPrompt({
-    promptId: PROMPT_IDS.NP_AGENT_CHARACTER_PROFILE,
-    locale: job.data.locale,
-    variables: {
-      input: contentToAnalyze,
-      characters_lib_info: charactersLibName || '无',
-    },
-  })
-  const locationPromptTemplate = buildPrompt({
-    promptId: PROMPT_IDS.NP_SELECT_LOCATION,
-    locale: job.data.locale,
-    variables: {
-      input: contentToAnalyze,
-      locations_lib_name: locationsLibName || '无',
-    },
-  })
-  const propPromptTemplate = buildPrompt({
-    promptId: PROMPT_IDS.NP_SELECT_PROP,
-    locale: job.data.locale,
-    variables: {
-      input: contentToAnalyze,
-      props_lib_name: propsLibName || '无',
-    },
-  })
+  const [characterPromptTemplate, locationPromptTemplate, propPromptTemplate] = await Promise.all([
+    buildPromptAsync({
+      promptId: PROMPT_IDS.NP_AGENT_CHARACTER_PROFILE,
+      locale: job.data.locale,
+      projectId,
+      variables: {
+        input: contentToAnalyze,
+        characters_lib_info: charactersLibName || '无',
+      },
+    }),
+    buildPromptAsync({
+      promptId: PROMPT_IDS.NP_SELECT_LOCATION,
+      locale: job.data.locale,
+      projectId,
+      variables: {
+        input: contentToAnalyze,
+        locations_lib_name: locationsLibName || '无',
+      },
+    }),
+    buildPromptAsync({
+      promptId: PROMPT_IDS.NP_SELECT_PROP,
+      locale: job.data.locale,
+      projectId,
+      variables: {
+        input: contentToAnalyze,
+        props_lib_name: propsLibName || '无',
+      },
+    }),
+  ])
 
   await reportTaskProgress(job, 20, {
     stage: 'analyze_novel_prepare',

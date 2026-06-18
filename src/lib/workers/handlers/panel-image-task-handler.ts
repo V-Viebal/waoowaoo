@@ -1,8 +1,8 @@
 import { type Job } from 'bullmq'
 import { prisma } from '@/lib/prisma'
-import { getArtStylePrompt } from '@/lib/constants'
 import { createScopedLogger } from '@/lib/logging/core'
 import { type TaskJobData } from '@/lib/task/types'
+import { resolveWorkerArtStylePrompt } from '@/lib/workers/art-style'
 import { reportTaskProgress } from '../shared'
 import {
   assertTaskActive,
@@ -20,7 +20,7 @@ import {
   pickFirstString,
   resolveNovelData,
 } from './image-task-handler-shared'
-import { buildPrompt, PROMPT_IDS } from '@/lib/prompt-i18n'
+import { buildPromptAsync, PROMPT_IDS } from '@/lib/prompt-i18n'
 import {
   parseLocationAvailableSlots,
 } from '@/lib/location-available-slots'
@@ -139,15 +139,17 @@ function buildPanelPromptContext(params: {
 }
 
 function buildPanelPrompt(params: {
+  projectId: string
   locale: TaskJobData['locale']
   aspectRatio: string
   styleText: string
   sourceText: string
   contextJson: string
-}) {
-  return buildPrompt({
+}): Promise<string> {
+  return buildPromptAsync({
     promptId: PROMPT_IDS.NP_SINGLE_PANEL_IMAGE,
     locale: params.locale,
+    projectId: params.projectId,
     variables: {
       aspect_ratio: params.aspectRatio,
       storyboard_text_json_input: params.contextJson,
@@ -201,7 +203,11 @@ export async function handlePanelImageTask(job: Job<TaskJobData>) {
     },
   })
 
-  const artStyle = getArtStylePrompt(modelConfig.artStyle, job.data.locale)
+  const artStyle = resolveWorkerArtStylePrompt({
+    modelConfigArtStyle: modelConfig.artStyle,
+    modelConfigArtStylePrompt: modelConfig.artStylePrompt,
+    locale: job.data.locale,
+  })
   if (!projectData.videoRatio) throw new Error('Project videoRatio not configured')
   const aspectRatio = projectData.videoRatio
   const promptContext = buildPanelPromptContext({
@@ -221,7 +227,8 @@ export async function handlePanelImageTask(job: Job<TaskJobData>) {
     projectData,
   })
   const contextJson = JSON.stringify(promptContext, null, 2)
-  const prompt = buildPanelPrompt({
+  const prompt = await buildPanelPrompt({
+    projectId: job.data.projectId,
     locale: job.data.locale,
     aspectRatio,
     styleText: artStyle || '与参考图风格一致',

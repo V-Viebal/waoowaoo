@@ -12,7 +12,7 @@ import {
   parseVoiceLinesJson,
   type VoiceLinePayload,
 } from './voice-analyze-helpers'
-import { buildPrompt, PROMPT_IDS } from '@/lib/prompt-i18n'
+import { buildPromptAsync, PROMPT_IDS } from '@/lib/prompt-i18n'
 import { resolveAnalysisModel } from './resolve-analysis-model'
 
 const MAX_VOICE_ANALYZE_ATTEMPTS = 2
@@ -89,9 +89,10 @@ export async function handleVoiceAnalyzeTask(job: Job<TaskJobData>) {
     : '无'
   const charactersIntroduction = buildCharactersIntroduction(novelPromotionData.characters)
   const storyboardJson = buildStoryboardJson(episode.storyboards || [])
-  const promptTemplate = buildPrompt({
+  const promptTemplate = await buildPromptAsync({
     promptId: PROMPT_IDS.NP_VOICE_ANALYSIS,
     locale: job.data.locale,
+    projectId,
     variables: {
       input: novelText,
       characters_lib_name: charactersLibName,

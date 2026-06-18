@@ -25,6 +25,7 @@ vi.mock('@/lib/workers/utils', () => ({
 vi.mock('@/lib/prompt-i18n', () => ({
   PROMPT_IDS: { NP_CHARACTER_MODIFY: 'np_character_modify' },
   buildPrompt: vi.fn(() => 'appearance-final-prompt'),
+  buildPromptAsync: vi.fn(async () => 'appearance-final-prompt'),
 }))
 
 import { handleModifyAppearanceTask } from '@/lib/workers/handlers/shot-ai-prompt-appearance'

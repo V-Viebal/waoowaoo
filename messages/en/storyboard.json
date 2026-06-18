@@ -49,6 +49,18 @@
         "addAtStart": "Add new storyboard group at the start",
         "insertHere": "Insert new storyboard group here"
     },
+    "storyboardImage": {
+        "finalImage": "Final Storyboard Image",
+        "preview": "Preview",
+        "gridPreset": "Grid",
+        "grid3": "3 Grid",
+        "grid6": "6 Grid",
+        "grid9": "9 Grid",
+        "gridAuto": "n Grid",
+        "aiGenerate": "AI Storyboard",
+        "compose": "Compose Storyboard",
+        "missingPanelImages": "Generate every panel image first"
+    },
     "header": {
         "title": "Storyboard Editing",
         "panels": "Panels",

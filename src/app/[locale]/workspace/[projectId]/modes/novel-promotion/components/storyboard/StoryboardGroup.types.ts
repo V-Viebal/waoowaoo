@@ -3,6 +3,7 @@ import type { StoryboardPanel } from './hooks/useStoryboardState'
 import type { PanelEditData } from '../PanelEditForm'
 import type { VariantData, VariantOptions } from './hooks/usePanelVariant'
 import type { PanelSaveState } from './hooks/usePanelCrudActions'
+import type { StoryboardGridPreset } from '@/lib/storyboard-images/grid'
 
 export interface StoryboardGroupProps {
   storyboard: NovelPromotionStoryboard
@@ -24,6 +25,7 @@ export interface StoryboardGroupProps {
   hasUnsavedByPanel: Set<string>
   modifyingPanels: Set<string>
   submittingPanelImageIds: Set<string>
+  compositingStoryboardIds: Set<string>
 
   onToggleExpand: () => void
   onMoveUp: () => void
@@ -32,6 +34,7 @@ export interface StoryboardGroupProps {
   onAddPanel: () => void
   onDeleteStoryboard: () => void
   onGenerateAllIndividually: () => void
+  onCreateCompositedStoryboardImage: (storyboardId: string, gridPreset: StoryboardGridPreset) => Promise<void>
   onPreviewImage: (url: string) => void
   onCloseError: () => void
   getPanelEditData: (panel: StoryboardPanel) => PanelEditData
@@ -43,6 +46,7 @@ export interface StoryboardGroupProps {
   onRemoveLocation: (panel: StoryboardPanel) => void
   onRetryPanelSave: (panelId: string) => void
   onRegeneratePanelImage: (panelId: string, count?: number, force?: boolean) => void
+  onCreateAiStoryboardImage: (storyboardId: string, gridPreset: StoryboardGridPreset) => Promise<void>
   onOpenEditModal: (panelIndex: number) => void
   onOpenAIDataModal: (panelIndex: number) => void
   getPanelCandidates: (panel: NovelPromotionPanel) => { candidates: string[]; selectedIndex: number } | null

@@ -11,7 +11,11 @@ const prismaMock = vi.hoisted(() => ({
 
 const utilsMock = vi.hoisted(() => ({
   assertTaskActive: vi.fn(async () => undefined),
-  getProjectModels: vi.fn(async () => ({ storyboardModel: 'storyboard-model-1', artStyle: 'realistic' })),
+  getProjectModels: vi.fn(async () => ({
+    storyboardModel: 'storyboard-model-1',
+    artStyle: 'realistic',
+    artStylePrompt: null as string | null,
+  })),
   resolveImageSourceFromGeneration: vi.fn(),
   uploadImageSourceToCos: vi.fn(),
 }))
@@ -44,6 +48,7 @@ const outboundMock = vi.hoisted(() => ({
 
 const promptMock = vi.hoisted(() => ({
   buildPrompt: vi.fn(() => 'panel-image-prompt'),
+  buildPromptAsync: vi.fn(async () => 'panel-image-prompt'),
 }))
 
 vi.mock('@/lib/prisma', () => ({ prisma: prismaMock }))
@@ -74,6 +79,7 @@ vi.mock('@/lib/workers/handlers/image-task-handler-shared', async () => {
 vi.mock('@/lib/prompt-i18n', () => ({
   PROMPT_IDS: { NP_SINGLE_PANEL_IMAGE: 'np_single_panel_image' },
   buildPrompt: promptMock.buildPrompt,
+  buildPromptAsync: promptMock.buildPromptAsync,
 }))
 
 import { handlePanelImageTask } from '@/lib/workers/handlers/panel-image-task-handler'
@@ -152,12 +158,14 @@ describe('worker panel-image-task-handler behavior', () => {
         }),
       }),
     )
-    expect(promptMock.buildPrompt).toHaveBeenCalledWith(expect.objectContaining({
+    expect(promptMock.buildPromptAsync).toHaveBeenCalledWith(expect.objectContaining({
+      projectId: 'project-1',
       variables: expect.objectContaining({
         storyboard_text_json_input: expect.stringContaining('"slot": "街道左侧靠墙的留白位置"'),
       }),
     }))
-    expect(promptMock.buildPrompt).toHaveBeenCalledWith(expect.objectContaining({
+    expect(promptMock.buildPromptAsync).toHaveBeenCalledWith(expect.objectContaining({
+      projectId: 'project-1',
       variables: expect.objectContaining({
         storyboard_text_json_input: expect.stringContaining('"available_slots"'),
       }),
@@ -170,6 +178,23 @@ describe('worker panel-image-task-handler behavior', () => {
         candidateImages: JSON.stringify(['cos/panel-candidate-1.png', 'cos/panel-candidate-2.png']),
       },
     })
+  })
+
+  it('uses resolved artStylePrompt when building panel image prompt', async () => {
+    utilsMock.getProjectModels.mockResolvedValueOnce({
+      storyboardModel: 'storyboard-model-1',
+      artStyle: 'realistic',
+      artStylePrompt: 'custom noir storyboard style',
+    })
+
+    await handlePanelImageTask(buildJob({ candidateCount: 1 }))
+
+    expect(promptMock.buildPromptAsync).toHaveBeenCalledWith(expect.objectContaining({
+      projectId: 'project-1',
+      variables: expect.objectContaining({
+        style: 'custom noir storyboard style',
+      }),
+    }))
   })
 
   it('regeneration branch -> keeps old image in previousImageUrl and stores candidates only', async () => {

@@ -9,6 +9,7 @@ import { AppIcon } from '@/components/ui/icons'
 import UpdateNoticeModal from './UpdateNoticeModal'
 import { useGithubReleaseUpdate } from '@/hooks/common/useGithubReleaseUpdate'
 import { Link } from '@/i18n/navigation'
+import { BRAND_CONFIG } from '@/lib/brand/config'
 import { buildAuthenticatedHomeTarget } from '@/lib/home/default-route'
 
 
@@ -44,10 +45,12 @@ export default function Navbar() {
             <div className="flex items-center gap-2">
               <Link href={session ? buildAuthenticatedHomeTarget() : { pathname: '/' }} className="group">
                 <Image
-                  src="/logo-small.png?v=1"
-                  alt={tc('appName')}
-                  width={80}
-                  height={80}
+                  src={BRAND_CONFIG.logoPath}
+                  alt={BRAND_CONFIG.name}
+                  width={35}
+                  height={40}
+                  priority
+                  style={{ width: 'auto', height: '40px' }}
                   className="object-contain transition-transform group-hover:scale-110"
                 />
               </Link>
@@ -116,6 +119,13 @@ export default function Navbar() {
                   >
                     <AppIcon name="folderHeart" className="w-4 h-4" />
                     {t('assetHub')}
+                  </Link>
+                  <Link
+                    href={{ pathname: '/admin/config-center' }}
+                    className="text-sm text-[var(--glass-text-secondary)] hover:text-[var(--glass-text-primary)] font-medium transition-colors flex items-center gap-1"
+                  >
+                    <AppIcon name="settingsHex" className="w-4 h-4" />
+                    {t('configCenter')}
                   </Link>
                   <Link
                     href={{ pathname: '/profile' }}

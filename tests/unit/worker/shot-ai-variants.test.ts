@@ -63,6 +63,7 @@ vi.mock('@/lib/workers/handlers/shot-ai-persist', () => persistMock)
 vi.mock('@/lib/prompt-i18n', () => ({
   PROMPT_IDS: { NP_AGENT_SHOT_VARIANT_ANALYSIS: 'np_agent_shot_variant_analysis' },
   buildPrompt: vi.fn(() => 'shot-variants-prompt'),
+  buildPromptAsync: vi.fn(async () => 'shot-variants-prompt'),
 }))
 
 import { handleAnalyzeShotVariantsTask } from '@/lib/workers/handlers/shot-ai-variants'

@@ -86,6 +86,11 @@ const promptI18nMock = vi.hoisted(() => ({
       ? 'BASE_REFERENCE_PROMPT'
       : 'ANALYSIS_PROMPT'
   )),
+  buildPromptAsync: vi.fn(async (input: { promptId: string }) => (
+    input.promptId === 'character_reference_to_sheet'
+      ? 'BASE_REFERENCE_PROMPT'
+      : 'ANALYSIS_PROMPT'
+  )),
 }))
 
 const prismaMock = vi.hoisted(() => ({
