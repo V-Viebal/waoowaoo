@@ -27,6 +27,10 @@ function assertRegistered(modelId: string): void {
 const STARSTONE_IMAGE_GENERATIONS_ENDPOINT = 'https://starrouter.io/v1/images/generations'
 const STARSTONE_IMAGE_EDITS_ENDPOINT = 'https://starrouter.io/v1/images/edits'
 
+// starrouter 图片是同步出图（单次 fetch 阻塞拿结果），上游卡顿时必须有兜底超时，
+// 否则会一直占住 BullMQ 的 job 槽位，导致 worker 锁续期失败被判 stalled。
+const STARSTONE_IMAGE_FETCH_TIMEOUT_MS = 120_000
+
 // 文档约束：image 必须是 PNG，方形，<4MB
 const STARSTONE_EDIT_TARGET_SIZE = 1024
 const STARSTONE_EDIT_MAX_BYTES = 4 * 1024 * 1024
@@ -48,6 +52,7 @@ interface StarRouterImageSubmitBody {
   prompt: string
   size?: string
   n?: number
+  response_format?: 'url' | 'b64_json'
 }
 
 function readTrimmedString(value: unknown): string {
@@ -99,6 +104,8 @@ function buildGenerationsRequest(params: StarRouterImageGenerateParams): {
   const submitBody: StarRouterImageSubmitBody = {
     model: modelId,
     prompt,
+    // 优先要 URL：避免单次响应里塞十几 MB base64，触发 worker 主线程长 JSON.parse
+    response_format: 'url',
   }
   if (size) {
     submitBody.size = size
@@ -253,27 +260,37 @@ export async function generateStarRouterImage(params: StarRouterImageGeneratePar
   const referenceImages = (params.referenceImages || []).filter((s) => typeof s === 'string' && s.trim().length > 0)
 
   let response: Response
-  if (referenceImages.length > 0) {
-    // 走 /v1/images/edits（multipart/form-data）以传入参考图
-    const formData = await buildEditsFormData(params, referenceImages)
-    response = await fetch(STARSTONE_IMAGE_EDITS_ENDPOINT, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        // 不要手动设置 Content-Type，fetch 会自动加上含 boundary 的 multipart 头
-      },
-      body: formData,
-    })
-  } else {
-    const submitRequest = buildGenerationsRequest(params)
-    response = await fetch(submitRequest.endpoint, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(submitRequest.body),
-    })
+  try {
+    if (referenceImages.length > 0) {
+      // 走 /v1/images/edits（multipart/form-data）以传入参考图
+      const formData = await buildEditsFormData(params, referenceImages)
+      response = await fetch(STARSTONE_IMAGE_EDITS_ENDPOINT, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          // 不要手动设置 Content-Type，fetch 会自动加上含 boundary 的 multipart 头
+        },
+        body: formData,
+        signal: AbortSignal.timeout(STARSTONE_IMAGE_FETCH_TIMEOUT_MS),
+      })
+    } else {
+      const submitRequest = buildGenerationsRequest(params)
+      response = await fetch(submitRequest.endpoint, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(submitRequest.body),
+        signal: AbortSignal.timeout(STARSTONE_IMAGE_FETCH_TIMEOUT_MS),
+      })
+    }
+  } catch (err) {
+    // AbortSignal.timeout 触发会抛 TimeoutError；统一成稳定错误码方便上游重试与日志归类
+    if (err instanceof Error && (err.name === 'TimeoutError' || err.name === 'AbortError')) {
+      throw new Error(`STARSTONE_IMAGE_SUBMIT_TIMEOUT(${STARSTONE_IMAGE_FETCH_TIMEOUT_MS}ms)`)
+    }
+    throw err
   }
 
   const data = await parseSubmitResponse(response)

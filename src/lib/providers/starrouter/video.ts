@@ -26,6 +26,10 @@ function assertRegistered(modelId: string): void {
 
 const STARSTONE_VIDEO_ENDPOINT = 'https://starrouter.io/v1/videos/createVideoGeneration'
 
+// 视频是异步任务，submit 只是创建任务拿 task_id；上游卡住的话也得有兜底，
+// 否则会一直占住 BullMQ 的 job 槽位，影响后续锁续期。
+const STARSTONE_VIDEO_SUBMIT_TIMEOUT_MS = 30_000
+
 interface StarRouterVideoSubmitResponse {
   code?: string
   message?: string
@@ -132,14 +136,23 @@ export async function generateStarRouterVideo(params: StarRouterVideoGeneratePar
 
   const { apiKey } = await getProviderConfig(params.userId, params.options.provider)
   const submitRequest = buildSubmitRequest(params)
-  const response = await fetch(submitRequest.endpoint, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(submitRequest.body),
-  })
+  let response: Response
+  try {
+    response = await fetch(submitRequest.endpoint, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(submitRequest.body),
+      signal: AbortSignal.timeout(STARSTONE_VIDEO_SUBMIT_TIMEOUT_MS),
+    })
+  } catch (err) {
+    if (err instanceof Error && (err.name === 'TimeoutError' || err.name === 'AbortError')) {
+      throw new Error(`STARSTONE_VIDEO_SUBMIT_TIMEOUT(${STARSTONE_VIDEO_SUBMIT_TIMEOUT_MS}ms)`)
+    }
+    throw err
+  }
   const data = await parseSubmitResponse(response)
 
   if (!response.ok) {
