@@ -236,6 +236,11 @@ export default function ArtStyleLibraryPanel() {
           saving={saving}
           onSubmit={handleEditorSubmit}
           onCancel={handleEditorCancel}
+          styleId={editingStyleId}
+          generatePreviewApiPath={editingStyleId
+            ? `/api/admin/config-center/art-styles/${editingStyleId}/generate-preview`
+            : undefined
+          }
         />
       </section>
     )
