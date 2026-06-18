@@ -20,6 +20,7 @@ export interface TestProviderResult {
 type PresetProviderType = 'ark' | 'google' | 'openrouter' | 'minimax' | 'fal' | 'vidu'
   | 'bailian'
   | 'siliconflow'
+  | 'starrouter'
 type CompatibleProviderType = 'openai-compatible' | 'gemini-compatible'
 
 type TestProviderPayload = {
@@ -829,6 +830,107 @@ async function testBailianProvider(apiKey: string): Promise<TestProviderResult> 
 }
 
 // ---------------------------------------------------------------------------
+// StarRouter (zero-inference probes)
+// ---------------------------------------------------------------------------
+
+async function testStarRouterProvider(apiKey: string, baseUrl?: string): Promise<TestProviderResult> {
+  const steps: TestStep[] = []
+  const headers = { Authorization: `Bearer ${apiKey}` }
+  const apiBase = baseUrl?.trim() || 'https://starrouter.io/v1'
+
+  try {
+    const modelResponse = await fetch(`${apiBase}/models`, {
+      method: 'GET',
+      headers,
+      signal: AbortSignal.timeout(20_000),
+    })
+    if (!modelResponse.ok) {
+      const fail = classifyProbeFailure(modelResponse.status)
+      const detail = await modelResponse.text().catch(() => '')
+      steps.push({
+        name: 'models',
+        status: fail.status,
+        message: fail.message,
+        detail: detail.slice(0, 500),
+      })
+      steps.push({
+        name: 'credits',
+        status: 'skip',
+        message: 'Skipped because model probe failed',
+      })
+      return { success: false, steps }
+    }
+    const modelData = await modelResponse.json() as { data?: Array<{ id?: string }> }
+    const count = Array.isArray(modelData.data) ? modelData.data.length : 0
+    steps.push({
+      name: 'models',
+      status: 'pass',
+      message: `Found ${count} models`,
+    })
+  } catch (error) {
+    steps.push({
+      name: 'models',
+      status: 'fail',
+      message: toNetworkErrorMessage(error),
+    })
+    steps.push({
+      name: 'credits',
+      status: 'skip',
+      message: 'Skipped because model probe failed',
+    })
+    return { success: false, steps }
+  }
+
+  try {
+    const infoResponse = await fetch(`${apiBase}/user/info`, {
+      method: 'GET',
+      headers,
+      signal: AbortSignal.timeout(20_000),
+    })
+    if (!infoResponse.ok) {
+      // 404/405/501 表示端点不支持，跳过而不是失败
+      if (infoResponse.status === 404 || infoResponse.status === 405 || infoResponse.status === 501) {
+        steps.push({
+          name: 'credits',
+          status: 'skip',
+          message: 'Credits endpoint not supported by StarRouter',
+        })
+        return { success: true, steps }
+      }
+      const fail = classifyProbeFailure(infoResponse.status)
+      const detail = await infoResponse.text().catch(() => '')
+      steps.push({
+        name: 'credits',
+        status: fail.status,
+        message: fail.message,
+        detail: detail.slice(0, 500),
+      })
+      return { success: false, steps }
+    }
+    const infoData = await infoResponse.json() as { balance?: unknown; data?: { balance?: unknown } }
+    const rawBalance = infoData.balance ?? infoData.data?.balance
+    const balance = typeof rawBalance === 'number'
+      ? String(rawBalance)
+      : typeof rawBalance === 'string' && rawBalance.trim()
+        ? rawBalance.trim()
+        : undefined
+    steps.push({
+      name: 'credits',
+      status: 'pass',
+      message: typeof balance === 'string' ? `Balance: ${balance}` : 'User info reachable',
+    })
+    return { success: true, steps }
+  } catch (error) {
+    steps.push({
+      name: 'credits',
+      status: 'skip',
+      message: 'Credits endpoint not supported by StarRouter',
+    })
+    return { success: true, steps }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
@@ -871,6 +973,8 @@ export async function testProviderConnection(payload: TestProviderPayload): Prom
       return testBailianProvider(apiKey)
     case 'siliconflow':
       return testSiliconFlowProvider(apiKey)
+    case 'starrouter':
+      return testStarRouterProvider(apiKey, baseUrl)
     default:
       return {
         success: false,

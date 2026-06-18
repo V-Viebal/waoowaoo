@@ -7,6 +7,7 @@ const COMPATIBLE_PROVIDER_KEYS = new Set([
 const OFFICIAL_ONLY_PROVIDER_KEYS = new Set([
   'bailian',
   'siliconflow',
+  'starrouter',
 ])
 
 export function isCompatibleProvider(providerId: string): boolean {

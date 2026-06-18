@@ -101,6 +101,7 @@
     "migrate:custom-pricing-v2": "tsx scripts/migrations/migrate-custom-pricing-v2.ts",
     "migrate:graph-artifacts-unique-index": "tsx scripts/migrations/migrate-graph-artifacts-unique-index.ts",
     "migrate:release-blockers": "tsx scripts/migrations/migrate-release-blockers.ts",
+    "admin:create": "tsx --env-file=.env scripts/create-admin.ts",
     "backup:media-safety": "tsx scripts/media-safety-backup.ts",
     "backup:media-restore-dry-run": "tsx scripts/media-restore-dry-run.ts",
     "media:backfill-refs": "tsx scripts/media-backfill-refs.ts",

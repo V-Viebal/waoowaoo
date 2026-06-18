@@ -9,6 +9,7 @@ import {
 } from './base'
 import { generateBailianAudio, generateBailianImage, generateBailianVideo } from '@/lib/providers/bailian'
 import { generateSiliconFlowAudio, generateSiliconFlowImage, generateSiliconFlowVideo } from '@/lib/providers/siliconflow'
+import { generateStarRouterImage, generateStarRouterVideo } from '@/lib/providers/starrouter'
 
 export class BailianImageGenerator extends BaseImageGenerator {
   protected async doGenerate(params: ImageGenerateParams): Promise<GenerateResult> {
@@ -48,6 +49,25 @@ export class SiliconFlowImageGenerator extends BaseImageGenerator {
   }
 }
 
+export class StarRouterImageGenerator extends BaseImageGenerator {
+  protected async doGenerate(params: ImageGenerateParams): Promise<GenerateResult> {
+    const modelId = typeof params.options?.modelId === 'string' ? params.options.modelId : ''
+    const modelKey = typeof params.options?.modelKey === 'string' ? params.options.modelKey : ''
+    const provider = typeof params.options?.provider === 'string' ? params.options.provider : 'starrouter'
+    return await generateStarRouterImage({
+      userId: params.userId,
+      prompt: params.prompt,
+      referenceImages: params.referenceImages,
+      options: {
+        ...params.options,
+        provider,
+        modelId,
+        modelKey,
+      },
+    })
+  }
+}
+
 export class BailianVideoGenerator extends BaseVideoGenerator {
   protected async doGenerate(params: VideoGenerateParams): Promise<GenerateResult> {
     const modelId = typeof params.options?.modelId === 'string' ? params.options.modelId : ''
@@ -73,6 +93,25 @@ export class SiliconFlowVideoGenerator extends BaseVideoGenerator {
     const modelKey = typeof params.options?.modelKey === 'string' ? params.options.modelKey : ''
     const provider = typeof params.options?.provider === 'string' ? params.options.provider : 'siliconflow'
     return await generateSiliconFlowVideo({
+      userId: params.userId,
+      imageUrl: params.imageUrl,
+      prompt: params.prompt,
+      options: {
+        ...params.options,
+        provider,
+        modelId,
+        modelKey,
+      },
+    })
+  }
+}
+
+export class StarRouterVideoGenerator extends BaseVideoGenerator {
+  protected async doGenerate(params: VideoGenerateParams): Promise<GenerateResult> {
+    const modelId = typeof params.options?.modelId === 'string' ? params.options.modelId : ''
+    const modelKey = typeof params.options?.modelKey === 'string' ? params.options.modelKey : ''
+    const provider = typeof params.options?.provider === 'string' ? params.options.provider : 'starrouter'
+    return await generateStarRouterVideo({
       userId: params.userId,
       imageUrl: params.imageUrl,
       prompt: params.prompt,

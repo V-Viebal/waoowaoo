@@ -28,6 +28,8 @@ import {
     SiliconFlowAudioGenerator,
     SiliconFlowImageGenerator,
     SiliconFlowVideoGenerator,
+    StarRouterImageGenerator,
+    StarRouterVideoGenerator,
 } from './official'
 
 /**
@@ -67,6 +69,8 @@ export function createImageGenerator(provider: string, modelId?: string): ImageG
             return new BailianImageGenerator()
         case 'siliconflow':
             return new SiliconFlowImageGenerator()
+        case 'starrouter':
+            return new StarRouterImageGenerator()
         default:
             throw new Error(`Unknown image generator provider: ${provider}`)
     }
@@ -96,6 +100,8 @@ export function createVideoGenerator(provider: string): VideoGenerator {
             return new BailianVideoGenerator()
         case 'siliconflow':
             return new SiliconFlowVideoGenerator()
+        case 'starrouter':
+            return new StarRouterVideoGenerator()
         default:
             throw new Error(`Unknown video generator provider: ${provider}`)
     }

@@ -1,4 +1,4 @@
-export type OfficialProviderKey = 'bailian' | 'siliconflow'
+export type OfficialProviderKey = 'bailian' | 'siliconflow' | 'starrouter'
 export type OfficialModelModality = 'llm' | 'image' | 'video' | 'audio'
 
 interface RegisterOfficialModelInput {

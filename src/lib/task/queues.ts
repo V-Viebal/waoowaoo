@@ -4,10 +4,10 @@ import { QueueType, TaskType, TASK_TYPE, type TaskJobData } from './types'
 
 export const QUEUE_NAME = {
   // 队列名承载 BullMQ 历史任务数据，品牌更名不直接迁移默认队列；如需新队列可通过环境变量覆盖。
-  IMAGE: process.env.QUEUE_IMAGE_NAME || 'waoowaoo-image',
-  VIDEO: process.env.QUEUE_VIDEO_NAME || 'waoowaoo-video',
-  VOICE: process.env.QUEUE_VOICE_NAME || 'waoowaoo-voice',
-  TEXT: process.env.QUEUE_TEXT_NAME || 'waoowaoo-text',
+  IMAGE: process.env.QUEUE_IMAGE_NAME || 'vvicat-image',
+  VIDEO: process.env.QUEUE_VIDEO_NAME || 'vvicat-video',
+  VOICE: process.env.QUEUE_VOICE_NAME || 'vvicat-voice',
+  TEXT: process.env.QUEUE_TEXT_NAME || 'vvicat-text',
 } as const
 
 const defaultJobOptions: JobsOptions = {

@@ -2,7 +2,7 @@
     "user": "用户",
     "personalAccount": "个人账户",
     "availableBalance": "可用余额",
-    "openSourceNoBilling": "开源版本，无需计费",
+    "openSourceNoBilling": "无需计费",
     "frozen": "冻结",
     "totalSpent": "已消费",
     "apiConfig": "API 配置",
