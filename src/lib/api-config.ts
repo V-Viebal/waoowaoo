@@ -64,6 +64,10 @@ function normalizeProviderBaseUrl(providerId: string, rawBaseUrl?: string): stri
   if (providerKey === 'minimax') {
     return 'https://api.minimaxi.com/v1'
   }
+  if (providerKey === 'starrouter') {
+    const baseUrl = readTrimmedString(rawBaseUrl)
+    return baseUrl || 'https://starrouter.io/v1'
+  }
 
   const baseUrl = readTrimmedString(rawBaseUrl)
   if (!baseUrl) return undefined

@@ -15,6 +15,8 @@ export default function Navbar() {
   const t = useTranslations('nav')
   const downloadLogsHref = '/api/admin/download-logs'
 
+  const isAdmin = (session?.user as { role?: string })?.role === 'admin'
+
   return (
     <nav className="glass-nav sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -56,13 +58,15 @@ export default function Navbar() {
                   <AppIcon name="folderHeart" className="w-4 h-4" />
                   {t('assetHub')}
                 </Link>
-                <Link
-                  href={{ pathname: '/admin/config-center' }}
-                  className="text-sm text-[var(--glass-text-secondary)] hover:text-[var(--glass-text-primary)] font-medium transition-colors flex items-center gap-1"
-                >
-                  <AppIcon name="settingsHex" className="w-4 h-4" />
-                  {t('configCenter')}
-                </Link>
+                {isAdmin ? (
+                  <Link
+                    href={{ pathname: '/admin/config-center' }}
+                    className="text-sm text-[var(--glass-text-secondary)] hover:text-[var(--glass-text-primary)] font-medium transition-colors flex items-center gap-1"
+                  >
+                    <AppIcon name="settingsHex" className="w-4 h-4" />
+                    {t('configCenter')}
+                  </Link>
+                ) : null}
                 <Link
                   href={{ pathname: '/profile' }}
                   className="text-sm text-[var(--glass-text-secondary)] hover:text-[var(--glass-text-primary)] font-medium transition-colors flex items-center gap-1"
@@ -72,15 +76,17 @@ export default function Navbar() {
                   {t('profile')}
                 </Link>
                 <LanguageSwitcher />
-                <a
-                  href={downloadLogsHref}
-                  download
-                  className="text-sm text-[var(--glass-text-secondary)] hover:text-[var(--glass-text-primary)] font-medium transition-colors flex items-center gap-1"
-                  title={t('downloadLogs')}
-                >
-                  <AppIcon name="download" className="w-4 h-4" />
-                  {t('downloadLogs')}
-                </a>
+                {isAdmin ? (
+                  <a
+                    href={downloadLogsHref}
+                    download
+                    className="text-sm text-[var(--glass-text-secondary)] hover:text-[var(--glass-text-primary)] font-medium transition-colors flex items-center gap-1"
+                    title={t('downloadLogs')}
+                  >
+                    <AppIcon name="download" className="w-4 h-4" />
+                    {t('downloadLogs')}
+                  </a>
+                ) : null}
               </>
 
             ) : (

@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl'
 import { AppIcon } from '@/components/ui/icons'
 import { apiFetch } from '@/lib/api-fetch'
 import { readApiErrorMessage } from '@/lib/api/read-error-message'
+import { useToast } from '@/contexts/ToastContext'
 import type { PromptDefinition, PromptLocale, PromptVersion } from './PromptLibraryPanel'
 
 interface PromptVersionEditorProps {
@@ -32,6 +33,7 @@ function sortVersions(versions: PromptVersion[]) {
 
 export default function PromptVersionEditor({ prompt, variableKeys, onChanged }: PromptVersionEditorProps) {
   const t = useTranslations('configCenter')
+  const { showToast, showError: showToastError } = useToast()
   const versions = useMemo(() => sortVersions(prompt.versions), [prompt.versions])
   const [draftLocale, setDraftLocale] = useState<PromptLocale>('zh')
   const [draftContent, setDraftContent] = useState('')
@@ -89,10 +91,14 @@ export default function PromptVersionEditor({ prompt, variableKeys, onChanged }:
       if (!response.ok) {
         throw new Error(await readApiErrorMessage(response, t('errors.createFailed')))
       }
-      setMessage(t('messages.draftCreated'))
+      const successMessage = t('messages.draftCreated')
+      setMessage(successMessage)
+      showToast(successMessage, 'success')
       await onChanged()
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('errors.createFailed'))
+      const errorMessage = err instanceof Error ? err.message : t('errors.createFailed')
+      setError(errorMessage)
+      showToastError(errorMessage)
     } finally {
       setSavingDraft(false)
     }
@@ -114,10 +120,14 @@ export default function PromptVersionEditor({ prompt, variableKeys, onChanged }:
       if (!response.ok) {
         throw new Error(await readApiErrorMessage(response, t('errors.actionFailed')))
       }
-      setMessage(action === 'publish' ? t('messages.published') : t('messages.disabled'))
+      const successMessage = action === 'publish' ? t('messages.published') : t('messages.disabled')
+      setMessage(successMessage)
+      showToast(successMessage, 'success')
       await onChanged()
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('errors.actionFailed'))
+      const errorMessage = err instanceof Error ? err.message : t('errors.actionFailed')
+      setError(errorMessage)
+      showToastError(errorMessage)
     } finally {
       setVersionAction(null)
     }
@@ -128,7 +138,9 @@ export default function PromptVersionEditor({ prompt, variableKeys, onChanged }:
     setMessage(null)
     setError(null)
     if (!overrideProjectId.trim() || !selectedOverrideVersion) {
-      setError(t('errors.overrideRequired'))
+      const errorMessage = t('errors.overrideRequired')
+      setError(errorMessage)
+      showToastError(errorMessage)
       return
     }
 
@@ -150,9 +162,13 @@ export default function PromptVersionEditor({ prompt, variableKeys, onChanged }:
       if (!response.ok) {
         throw new Error(await readApiErrorMessage(response, t('errors.overrideFailed')))
       }
-      setMessage(t('messages.overrideSaved'))
+      const successMessage = t('messages.overrideSaved')
+      setMessage(successMessage)
+      showToast(successMessage, 'success')
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('errors.overrideFailed'))
+      const errorMessage = err instanceof Error ? err.message : t('errors.overrideFailed')
+      setError(errorMessage)
+      showToastError(errorMessage)
     } finally {
       setSavingOverride(false)
     }

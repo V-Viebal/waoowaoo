@@ -147,3 +147,10 @@ ALTER TABLE `novel_promotion_projects`
 
 ALTER TABLE `user_preferences`
   ADD CONSTRAINT `user_preferences_artStyleId_fkey` FOREIGN KEY (`artStyleId`) REFERENCES `art_styles`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- 初始化系统画风配置
+INSERT INTO `art_styles` (`id`, `scope`, `ownerUserId`, `name`, `description`, `prompt`, `previewImageUrl`, `sortOrder`, `enabled`, `createdAt`, `updatedAt`) VALUES
+('system-american-comic', 'system', NULL, '漫画风', '日式动漫风格', '日式动漫风格', NULL, 10, true, NOW(), NOW()),
+('system-chinese-comic', 'system', NULL, '精致国漫', '现代高质量漫画风格，动漫风格，细节丰富精致，线条锐利干净，质感饱满，超清，干净的画面风格，2D风格，动漫风格。', '现代高质量漫画风格，动漫风格，细节丰富精致，线条锐利干净，质感饱满，超清，干净的画面风格，2D风格，动漫风格。', NULL, 20, true, NOW(), NOW()),
+('system-japanese-anime', 'system', NULL, '日系动漫风', '现代日系动漫风格，赛璐璐上色，清晰干净的线条，视觉小说CG感。高质量2D风格', '现代日系动漫风格，赛璐璐上色，清晰干净的线条，视觉小说CG感。高质量2D风格', NULL, 30, true, NOW(), NOW()),
+('system-realistic', 'system', NULL, '真人风格', '真实电影级画面质感，真实现实场景，色彩饱满通透，画面干净精致，真实感', '真实电影级画面质感，真实现实场景，色彩饱满通透，画面干净精致，真实感', NULL, 40, true, NOW(), NOW());

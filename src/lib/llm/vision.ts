@@ -226,7 +226,7 @@ export async function chatCompletionWithVision(
       }
 
       const config = providerConfig
-      if (!config.baseUrl) {
+      if (providerKey !== 'starrouter' && !config.baseUrl) {
         throw new Error(`PROVIDER_BASE_URL_MISSING: ${provider} (llm)`)
       }
 

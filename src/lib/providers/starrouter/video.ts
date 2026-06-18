@@ -63,6 +63,9 @@ function assertNoUnsupportedOptions(options: StarRouterGenerateRequestOptions): 
     'duration',
     'aspectRatio',
     'aspect_ratio',
+    'outputFormat',
+    'resolution',
+    'fps',
   ])
   for (const [key, value] of Object.entries(options)) {
     if (value === undefined) continue

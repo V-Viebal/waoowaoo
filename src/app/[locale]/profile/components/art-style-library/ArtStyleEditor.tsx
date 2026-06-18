@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from 'react'
 import { AppIcon } from '@/components/ui/icons'
 import { apiFetch } from '@/lib/api-fetch'
+import { useToast } from '@/contexts/ToastContext'
 
 export type ArtStyleEditorValues = {
   name: string
@@ -62,6 +63,7 @@ export function ArtStyleEditor({
   styleId,
   generatePreviewApiPath,
 }: ArtStyleEditorProps) {
+  const { showToast, showError: showToastError } = useToast()
   const [values, setValues] = useState<ArtStyleEditorValues>({
     ...DEFAULT_VALUES,
     ...initialValues,
@@ -163,8 +165,11 @@ export function ArtStyleEditor({
       if (data.description && !values.description) {
         updateField('description', data.description)
       }
+      showToast(labels.generating?.replace('...', '') || 'Prompt generated', 'success')
     } catch (err) {
-      setGenerateError(err instanceof Error ? err.message : '生成失败，请重试')
+      const message = err instanceof Error ? err.message : '生成失败，请重试'
+      setGenerateError(message)
+      showToastError(message)
     } finally {
       setIsGeneratingPrompt(false)
     }
@@ -192,15 +197,20 @@ export function ArtStyleEditor({
 
         const data = await response.json() as { previewImageUrl: string }
         updateField('previewImageUrl', data.previewImageUrl)
+        showToast(labels.generatingPreview?.replace('...', '') || 'Preview generated', 'success')
       } catch (err) {
-        setGenerateError(err instanceof Error ? err.message : '生成失败，请重试')
+        const message = err instanceof Error ? err.message : '生成失败，请重试'
+        setGenerateError(message)
+        showToastError(message)
       } finally {
         setIsGeneratingPreview(false)
       }
     } else {
       // 用户模式：仅生成预览图 URL，不更新数据库
       if (!values.prompt.trim()) {
-        setGenerateError('请先生成或输入画风提示词')
+        const errorMsg = '请先生成或输入画风提示词'
+        setGenerateError(errorMsg)
+        showToastError(errorMsg)
         return
       }
 
@@ -225,8 +235,11 @@ export function ArtStyleEditor({
 
         const data = await response.json() as { previewImageUrl: string }
         updateField('previewImageUrl', data.previewImageUrl)
+        showToast(labels.generatingPreview?.replace('...', '') || 'Preview generated', 'success')
       } catch (err) {
-        setGenerateError(err instanceof Error ? err.message : '生成失败，请重试')
+        const message = err instanceof Error ? err.message : '生成失败，请重试'
+        setGenerateError(message)
+        showToastError(message)
       } finally {
         setIsGeneratingPreview(false)
       }

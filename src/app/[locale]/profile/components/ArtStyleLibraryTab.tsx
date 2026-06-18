@@ -47,6 +47,12 @@ export default function ArtStyleLibraryTab() {
     sortOrder: t('sortOrder'),
     save: t('save'),
     cancel: t('cancel'),
+    generate: t('generate'),
+    generating: t('generating'),
+    selectModel: t('selectModel'),
+    generatePreview: t('generatePreview'),
+    generatingPreview: t('generatingPreview'),
+    selectImageModel: t('selectImageModel'),
   }), [t])
 
   const systemStyles = useMemo(
@@ -152,7 +158,6 @@ export default function ArtStyleLibraryTab() {
         <div className="flex min-w-0 items-start gap-3">
           <div className="h-14 w-14 flex-shrink-0 overflow-hidden rounded-xl border border-[var(--glass-stroke-base)] bg-[var(--glass-bg-base)]">
             {style.previewImageUrl ? (
-              // 预览图来自用户或管理员配置，失败时保留兜底图标区域，不影响画风文本可读性。
               <img
                 src={style.previewImageUrl}
                 alt={t('previewAlt', { name: style.name })}
@@ -213,6 +218,9 @@ export default function ArtStyleLibraryTab() {
     )
   }
 
+  const showModal = isCreating || editingStyle
+  const modalTitle = isCreating ? t('createArtStyle') : t('editArtStyle')
+
   return (
     <div className="flex h-full flex-col">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--glass-stroke-base)] p-5">
@@ -250,25 +258,7 @@ export default function ArtStyleLibraryTab() {
         </div>
       ) : null}
 
-      {isCreating ? (
-        <ArtStyleEditor
-          labels={editorLabels}
-          saving={saving}
-          onSubmit={handleCreate}
-          onCancel={() => setIsCreating(false)}
-        />
-      ) : null}
-
-      {editingStyle ? (
-        <ArtStyleEditor
-          initialValues={editingValues}
-          labels={editorLabels}
-          saving={saving}
-          onSubmit={handleUpdate}
-          onCancel={() => setEditingStyleId(null)}
-        />
-      ) : null}
-
+      {/* Art Styles List */}
       <div className="flex-1 overflow-y-auto p-5">
         {loading ? (
           <div className="flex h-full items-center justify-center text-[var(--glass-text-tertiary)]">{t('loading')}</div>
@@ -296,6 +286,64 @@ export default function ArtStyleLibraryTab() {
           </div>
         )}
       </div>
+
+      {/* Modal for Create/Edit */}
+      {showModal && (
+        <>
+          {/* Background overlay */}
+          <div
+            className="fixed inset-0 z-50 glass-overlay animate-fade-in"
+            onClick={() => {
+              setIsCreating(false)
+              setEditingStyleId(null)
+            }}
+          />
+
+          {/* Modal */}
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none overflow-hidden">
+            <div
+              className="glass-surface-modal max-w-3xl w-full max-h-[90vh] pointer-events-auto animate-scale-in overflow-hidden flex flex-col"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Modal Header */}
+              <div className="flex items-center justify-between border-b border-[var(--glass-stroke-base)] px-5 py-4">
+                <h3 className="text-lg font-semibold text-[var(--glass-text-primary)]">{modalTitle}</h3>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsCreating(false)
+                    setEditingStyleId(null)
+                  }}
+                  className="glass-btn-base rounded-xl p-2"
+                  aria-label={t('cancel')}
+                >
+                  <AppIcon name="close" className="h-4 w-4" />
+                </button>
+              </div>
+
+              {/* Modal Body - Scrollable */}
+              <div className="flex-1 overflow-y-auto">
+                {isCreating ? (
+                  <ArtStyleEditor
+                    labels={editorLabels}
+                    saving={saving}
+                    onSubmit={handleCreate}
+                    onCancel={() => setIsCreating(false)}
+                  />
+                ) : editingStyle ? (
+                  <ArtStyleEditor
+                    initialValues={editingValues}
+                    labels={editorLabels}
+                    saving={saving}
+                    onSubmit={handleUpdate}
+                    onCancel={() => setEditingStyleId(null)}
+                  />
+                ) : null}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   )
 }

@@ -3,7 +3,8 @@ import { prisma } from '@/lib/prisma'
 import { requireUserAuth, isErrorResponse } from '@/lib/api-auth'
 import { encodeImageUrls } from '@/lib/contracts/image-urls-contract'
 import { ApiError, apiHandler } from '@/lib/api-errors'
-import { PRIMARY_APPEARANCE_INDEX, isArtStyleValue } from '@/lib/constants'
+import { PRIMARY_APPEARANCE_INDEX } from '@/lib/constants'
+import { validateArtStyleValue } from '@/lib/art-styles'
 
 // 更新形象描述
 export const PATCH = apiHandler(async (
@@ -67,7 +68,10 @@ export const PATCH = apiHandler(async (
             })
         }
         const normalizedArtStyle = artStyle.trim()
-        if (!isArtStyleValue(normalizedArtStyle)) {
+        const isValidArtStyle = normalizedArtStyle
+            ? await validateArtStyleValue(normalizedArtStyle, session.user.id)
+            : false
+        if (!isValidArtStyle) {
             throw new ApiError('INVALID_PARAMS', {
                 code: 'INVALID_ART_STYLE',
                 message: 'artStyle must be a supported value',
@@ -122,7 +126,10 @@ export const POST = apiHandler(async (
         const stored = typeof primaryAppearance?.artStyle === 'string' ? primaryAppearance.artStyle.trim() : ''
         return stored
     })()
-    if (!isArtStyleValue(fallbackArtStyle)) {
+    const isValidFallback = fallbackArtStyle
+        ? await validateArtStyleValue(fallbackArtStyle, session.user.id)
+        : false
+    if (!isValidFallback) {
         throw new ApiError('INVALID_PARAMS', {
             code: 'INVALID_ART_STYLE',
             message: 'artStyle is required and must be a supported value',

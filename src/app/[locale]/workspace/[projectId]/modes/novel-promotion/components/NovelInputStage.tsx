@@ -11,7 +11,8 @@ import '@/styles/animations.css'
 import AiWriteModal from '@/components/home/AiWriteModal'
 import LongTextDetectionPrompt from '@/components/story-input/LongTextDetectionPrompt'
 import StoryInputComposer from '@/components/story-input/StoryInputComposer'
-import { ART_STYLES, VIDEO_RATIOS } from '@/lib/constants'
+import { VIDEO_RATIOS } from '@/lib/constants'
+import { useArtStyles } from '@/hooks/useArtStyles'
 import TaskStatusInline from '@/components/task/TaskStatusInline'
 import { resolveTaskPresentationState } from '@/lib/task/presentation'
 import { AppIcon } from '@/components/ui/icons'
@@ -59,12 +60,14 @@ export default function NovelInputStage({
   enableNarration = false,
   onEnableNarrationChange,
   videoRatio = '9:16',
-  artStyle = 'american-comic',
+  artStyle = 'system-realistic',
   onVideoRatioChange,
   onArtStyleChange
 }: NovelInputStageProps) {
   const t = useTranslations('novelPromotion')
   const homeT = useTranslations('home')
+
+  const { artStyles } = useArtStyles()
 
   // ── IME 组合输入处理 ──
   // 中文/日文/韩文输入法在组合（composing）期间会持续触发 onChange，
@@ -191,9 +194,9 @@ export default function NovelInputStage({
           getRatioUsage={getRatioUsageTag}
           artStyle={artStyle}
           onArtStyleChange={(value) => onArtStyleChange?.(value)}
-          styleOptions={ART_STYLES.map((option) => ({
+          styleOptions={artStyles.map((option) => ({
             ...option,
-            recommended: option.value === 'realistic'
+            recommended: option.value === 'system-realistic'
           }))}
           stylePresetValue={stylePresetValue}
           onStylePresetChange={setStylePresetValue}

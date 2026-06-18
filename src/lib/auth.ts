@@ -49,6 +49,7 @@ export const authOptions: any = {
         return {
           id: user.id,
           name: user.name,
+          role: user.role,
         }
       }
     })
@@ -64,13 +65,27 @@ export const authOptions: any = {
     async jwt({ token, user }: any) {
       if (user) {
         token.id = user.id
+        token.role = user.role
       }
+
+      // 每次都从数据库获取最新角色（确保角色变更立即生效）
+      if (token?.id) {
+        const dbUser = await prisma.user.findUnique({
+          where: { id: token.id },
+          select: { role: true },
+        })
+        if (dbUser) {
+          token.role = dbUser.role
+        }
+      }
+
       return token
     },
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     async session({ session, token }: any) {
       if (token && session.user) {
         session.user.id = token.id as string
+        session.user.role = token.role as string
       }
       return session
     }

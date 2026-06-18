@@ -395,7 +395,7 @@ export async function chatCompletion(
         return completion
       }
 
-      if (!providerConfig.baseUrl) {
+      if (providerKey !== 'starrouter' && !providerConfig.baseUrl) {
         throw new Error(`PROVIDER_BASE_URL_MISSING: ${provider} (llm)`)
       }
 

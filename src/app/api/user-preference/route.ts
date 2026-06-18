@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireUserAuth, isErrorResponse } from '@/lib/api-auth'
 import { ApiError, apiHandler } from '@/lib/api-errors'
-import { isArtStyleValue } from '@/lib/constants'
+import { validateArtStyleValue } from '@/lib/art-styles'
 
-function validateArtStyleField(value: unknown): string {
+async function validateArtStyleField(value: unknown, userId: string): Promise<string> {
   if (typeof value !== 'string') {
     throw new ApiError('INVALID_PARAMS', {
       code: 'INVALID_ART_STYLE',
@@ -13,7 +13,16 @@ function validateArtStyleField(value: unknown): string {
     })
   }
   const artStyle = value.trim()
-  if (!isArtStyleValue(artStyle)) {
+  if (!artStyle) {
+    throw new ApiError('INVALID_PARAMS', {
+      code: 'INVALID_ART_STYLE',
+      field: 'artStyle',
+      message: 'artStyle must be a supported value',
+    })
+  }
+  // 异步验证：检查数据库中是否存在该艺术风格
+  const isValid = await validateArtStyleValue(artStyle, userId)
+  if (!isValid) {
     throw new ApiError('INVALID_PARAMS', {
       code: 'INVALID_ART_STYLE',
       field: 'artStyle',
@@ -68,7 +77,7 @@ export const PATCH = apiHandler(async (request: NextRequest) => {
   for (const field of allowedFields) {
     if (body[field] !== undefined) {
       if (field === 'artStyle') {
-        updateData[field] = validateArtStyleField(body[field])
+        updateData[field] = await validateArtStyleField(body[field], session.user.id)
         continue
       }
       updateData[field] = body[field]

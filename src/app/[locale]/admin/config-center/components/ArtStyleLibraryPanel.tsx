@@ -7,6 +7,7 @@ import { AppIcon } from '@/components/ui/icons'
 import { apiFetch } from '@/lib/api-fetch'
 import { readApiErrorMessage } from '@/lib/api/read-error-message'
 import { ArtStyleEditor, type ArtStyleEditorValues } from '@/app/[locale]/profile/components/art-style-library/ArtStyleEditor'
+import { useToast } from '@/contexts/ToastContext'
 
 export type ArtStyleScope = 'system' | 'user'
 export type FilterStatus = 'all' | 'enabled' | 'disabled'
@@ -49,6 +50,7 @@ function buildEditorValues(style: ArtStyle): ArtStyleEditorValues {
 
 export default function ArtStyleLibraryPanel() {
   const t = useTranslations('configCenter.artStyles')
+  const { showToast, showError: showToastError } = useToast()
   const [artStyles, setArtStyles] = useState<ArtStyle[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -57,6 +59,8 @@ export default function ArtStyleLibraryPanel() {
   const [isCreating, setIsCreating] = useState(false)
   const [editingStyleId, setEditingStyleId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const [togglingStyleId, setTogglingStyleId] = useState<string | null>(null)
+  const [deletingStyleId, setDeletingStyleId] = useState<string | null>(null)
 
   const loadArtStyles = useCallback(async () => {
     setLoading(true)
@@ -88,7 +92,7 @@ export default function ArtStyleLibraryPanel() {
   )
 
   const handleToggleEnabled = useCallback(async (style: ArtStyle) => {
-    setSaving(true)
+    setTogglingStyleId(style.id)
     setError(null)
     try {
       const response = await apiFetch(`/api/admin/config-center/art-styles/${style.id}`, {
@@ -102,18 +106,21 @@ export default function ArtStyleLibraryPanel() {
       setArtStyles((current) =>
         current.map((s) => (s.id === style.id ? { ...s, enabled: !s.enabled } : s)),
       )
+      showToast(style.enabled ? t('messages.disabled') : t('messages.enabled'), 'success')
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('toggleFailed'))
+      const message = err instanceof Error ? err.message : t('toggleFailed')
+      setError(message)
+      showToastError(message)
     } finally {
-      setSaving(false)
+      setTogglingStyleId(null)
     }
-  }, [t])
+  }, [t, showToast, showToastError])
 
   const handleDelete = useCallback(async (style: ArtStyle) => {
     if (!window.confirm(t('actions.deleteConfirm'))) {
       return
     }
-    setSaving(true)
+    setDeletingStyleId(style.id)
     setError(null)
     try {
       const response = await apiFetch(`/api/admin/config-center/art-styles/${style.id}`, {
@@ -126,12 +133,15 @@ export default function ArtStyleLibraryPanel() {
       if (editingStyleId === style.id) {
         setEditingStyleId(null)
       }
+      showToast(t('messages.deleted'), 'success')
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('deleteFailed'))
+      const message = err instanceof Error ? err.message : t('deleteFailed')
+      setError(message)
+      showToastError(message)
     } finally {
-      setSaving(false)
+      setDeletingStyleId(null)
     }
-  }, [editingStyleId, t])
+  }, [editingStyleId, t, showToast, showToastError])
 
   const handleEditStart = useCallback((styleId: string) => {
     setEditingStyleId(styleId)
@@ -164,6 +174,7 @@ export default function ArtStyleLibraryPanel() {
         setArtStyles((current) =>
           current.map((s) => (s.id === editingStyleId ? updated.artStyle : s)),
         )
+        showToast(t('messages.updated'), 'success')
       } else {
         const response = await apiFetch('/api/admin/config-center/art-styles', {
           method: 'POST',
@@ -178,15 +189,18 @@ export default function ArtStyleLibraryPanel() {
         }
         const created = await response.json() as { artStyle: ArtStyle }
         setArtStyles((current) => [...current, created.artStyle])
+        showToast(t('messages.created'), 'success')
       }
       setIsCreating(false)
       setEditingStyleId(null)
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('saveFailed'))
+      const message = err instanceof Error ? err.message : t('saveFailed')
+      setError(message)
+      showToastError(message)
     } finally {
       setSaving(false)
     }
-  }, [editingStyleId, artStyles, t])
+  }, [editingStyleId, artStyles, t, showToast, showToastError])
 
   const editingStyle = useMemo(() => {
     if (!editingStyleId) return undefined
@@ -381,16 +395,16 @@ export default function ArtStyleLibraryPanel() {
                       type="button"
                       onClick={() => void handleToggleEnabled(style)}
                       className="glass-btn-base rounded-xl p-2"
-                      disabled={saving}
+                      disabled={saving || togglingStyleId === style.id || deletingStyleId === style.id}
                       aria-label={style.enabled ? t('actions.disable') : t('actions.enable')}
                     >
-                      <AppIcon name={style.enabled ? 'pause' : 'play'} className="h-4 w-4" />
+                      <AppIcon name={togglingStyleId === style.id ? 'loader' : (style.enabled ? 'pause' : 'play')} className={`h-4 w-4 ${togglingStyleId === style.id ? 'animate-spin' : ''}`} />
                     </button>
                     <button
                       type="button"
                       onClick={() => handleEditStart(style.id)}
                       className="glass-btn-base rounded-xl p-2"
-                      disabled={saving}
+                      disabled={saving || togglingStyleId === style.id || deletingStyleId === style.id}
                       aria-label={t('actions.edit')}
                     >
                       <AppIcon name="edit" className="h-4 w-4" />
@@ -399,10 +413,10 @@ export default function ArtStyleLibraryPanel() {
                       type="button"
                       onClick={() => void handleDelete(style)}
                       className="glass-btn-base glass-btn-tone-danger rounded-xl p-2"
-                      disabled={saving}
+                      disabled={saving || togglingStyleId === style.id || deletingStyleId === style.id}
                       aria-label={t('actions.delete')}
                     >
-                      <AppIcon name="trash" className="h-4 w-4" />
+                      <AppIcon name={deletingStyleId === style.id ? 'loader' : 'trash'} className={`h-4 w-4 ${deletingStyleId === style.id ? 'animate-spin' : ''}`} />
                     </button>
                   </div>
                 </div>

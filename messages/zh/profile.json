@@ -67,7 +67,15 @@
         "emptyUserStyles": "暂无个人画风",
         "deleteConfirm": "确认删除这个个人画风？",
         "previewAlt": "{name} 预览图",
-        "sortOrderValue": "排序 {value}"
+        "sortOrderValue": "排序 {value}",
+        "generate": "AI 生成提示词",
+        "generating": "生成中...",
+        "selectModel": "选择模型",
+        "generatePreview": "生成预览图",
+        "generatingPreview": "生成预览图中...",
+        "selectImageModel": "选择图片模型",
+        "createArtStyle": "新建画风",
+        "editArtStyle": "编辑画风"
     },
     "apiTypes": {
         "image": "图片生成",

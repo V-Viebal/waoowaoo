@@ -1,15 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 import { requireAdminAuth } from '@/lib/admin/auth'
-import { apiHandler } from '@/lib/api-errors'
+import { apiHandler, ApiError } from '@/lib/api-errors'
+import { generateImage } from '@/lib/generator-api'
+import { generateUniqueKey, uploadObject, getSignedUrl } from '@/lib/storage'
 import { prisma } from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
 
 /**
  * 为画风生成预览图的管理员 API
- * 使用 picsum.photos 生成随机预览图作为占位实现
- * TODO: 未来替换为实际的 AI 图片生成服务（如 Stable Diffusion API 等）
+ * 根据画风提示词生成真实的 AI 预览图片
  */
 export const POST = apiHandler(async (request: NextRequest, { params }: { params: Promise<{ styleId: string }> }) => {
   const authResult = await requireAdminAuth()
@@ -29,14 +30,56 @@ export const POST = apiHandler(async (request: NextRequest, { params }: { params
     })
   }
 
-  // 解析可选的模型参数
+  // 解析模型参数
   const body = await request.json() as { model?: string }
-  const model = body.model || 'default'
+  const model = body.model?.trim()
 
-  // TODO: 此处为占位实现，使用 picsum.photos 生成随机图片
-  // 未来可以替换为调用实际的 AI 图片生成服务
-  // 参考用户侧实现：src/app/api/art-styles/generate-preview/route.ts
-  const previewImageUrl = `https://picsum.photos/seed/${styleId}-${Date.now()}/400/400`
+  if (!model) {
+    throw new ApiError('INVALID_PARAMS', {
+      code: 'MISSING_MODEL',
+      message: '请选择图片生成模型',
+    })
+  }
+
+  // 使用画风的提示词生成图片
+  const result = await generateImage(
+    authResult.user.id,
+    model,
+    artStyle.prompt,
+    {
+      outputFormat: 'png',
+    },
+  )
+
+  if (!result.success) {
+    throw new ApiError('INTERNAL_ERROR', {
+      code: 'GENERATION_FAILED',
+      message: result.error || '图片生成失败',
+    })
+  }
+
+  let previewImageUrl: string | null = null
+
+  // 优先使用返回的 URL
+  if (result.imageUrl) {
+    previewImageUrl = result.imageUrl
+  } else if (result.imageUrls && result.imageUrls.length > 0) {
+    previewImageUrl = result.imageUrls[0]
+  } else if (result.imageBase64) {
+    // 如果返回 base64，上传到存储
+    const base64Data = result.imageBase64.replace(/^data:image\/\w+;base64,/, '')
+    const buffer = Buffer.from(base64Data, 'base64')
+    const key = generateUniqueKey(`art-style-preview-${artStyle.name}`, 'png')
+    await uploadObject(buffer, key, 3, 'image/png')
+    previewImageUrl = getSignedUrl(key)
+  }
+
+  if (!previewImageUrl) {
+    throw new ApiError('INTERNAL_ERROR', {
+      code: 'GENERATION_FAILED',
+      message: '未能获取图片 URL',
+    })
+  }
 
   // 更新画风的预览图 URL
   const updatedStyle = await prisma.artStyle.update({

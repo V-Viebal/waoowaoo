@@ -433,7 +433,7 @@ export async function chatCompletionStream(
       return completion
     }
 
-    if (providerKey !== 'ark') {
+    if (providerKey !== 'ark' && providerKey !== 'starrouter') {
       if (!providerConfig.baseUrl) {
         throw new Error(`PROVIDER_BASE_URL_MISSING: ${provider} (llm)`)
       }

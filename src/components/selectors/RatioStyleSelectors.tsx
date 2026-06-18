@@ -208,6 +208,22 @@ export function StyleSelector({
 
   const selectedOption = options.find((o) => o.value === value) || options[0]
 
+  if (options.length === 0) {
+    return (
+      <button
+        type="button"
+        disabled
+        className={`${TRIGGER_CLASSNAME} cursor-not-allowed opacity-60`}
+      >
+        <div className="flex min-w-0 items-center gap-2">
+          <AppIcon name="sparklesAlt" className="h-4 w-4 text-[var(--glass-accent-from)]" />
+          <span className={`${TRIGGER_TEXT_CLASSNAME} truncate`}>加载中...</span>
+        </div>
+        <AppIcon name="chevronDown" className="w-4 h-4 text-[var(--glass-text-tertiary)]" />
+      </button>
+    )
+  }
+
   return (
     <>
       <button

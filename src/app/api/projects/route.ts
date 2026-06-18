@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { requireUserAuth, isErrorResponse } from '@/lib/api-auth'
 import { apiHandler, ApiError } from '@/lib/api-errors'
 import { toMoneyNumber } from '@/lib/billing/money'
-import { isArtStyleValue } from '@/lib/constants'
+import { validateArtStyleValue } from '@/lib/art-styles'
 import { resolveTaskLocale } from '@/lib/task/resolve-locale'
 import {
   formatProjectValidationIssue,
@@ -222,6 +222,10 @@ export const POST = apiHandler(async (request: NextRequest) => {
   // - 手动创作 → 创建第一个空白剧集
   // - 智能导入 → AI 分析后批量创建剧集
   // 🔥 artStylePrompt 通过实时查询获取，不再存储到数据库
+  const isValidArtStyle = userPreference?.artStyle
+    ? await validateArtStyleValue(userPreference.artStyle, session.user.id)
+    : false
+
   await prisma.novelPromotionProject.create({
     data: {
       projectId: project.id,
@@ -234,7 +238,7 @@ export const POST = apiHandler(async (request: NextRequest) => {
         videoModel: userPreference.videoModel,
         audioModel: userPreference.audioModel,
         videoRatio: userPreference.videoRatio,
-        artStyle: isArtStyleValue(userPreference.artStyle) ? userPreference.artStyle : 'american-comic',
+        artStyle: isValidArtStyle ? userPreference.artStyle : 'system-american-comic',
         ttsRate: userPreference.ttsRate
       })
     }

@@ -3,8 +3,8 @@ import { prisma } from '@/lib/prisma'
 import { logProjectAction } from '@/lib/logging/semantic'
 import { requireProjectAuthLight, isErrorResponse } from '@/lib/api-auth'
 import { apiHandler, ApiError } from '@/lib/api-errors'
-import { isArtStyleValue } from '@/lib/constants'
 import { attachMediaFieldsToProject } from '@/lib/media/attach'
+import { validateArtStyleValue } from '@/lib/art-styles'
 import {
   parseModelKeyStrict,
   type CapabilitySelections,
@@ -113,7 +113,7 @@ function validateModelKeyField(field: typeof MODEL_FIELDS[number], value: unknow
   }
 }
 
-function validateArtStyleField(value: unknown): string {
+async function validateArtStyleField(value: unknown, userId: string): Promise<string> {
   if (typeof value !== 'string') {
     throw new ApiError('INVALID_PARAMS', {
       code: 'INVALID_ART_STYLE',
@@ -122,7 +122,16 @@ function validateArtStyleField(value: unknown): string {
     })
   }
   const artStyle = value.trim()
-  if (!isArtStyleValue(artStyle)) {
+  if (!artStyle) {
+    throw new ApiError('INVALID_PARAMS', {
+      code: 'INVALID_ART_STYLE',
+      field: 'artStyle',
+      message: 'artStyle must be a supported value',
+    })
+  }
+  // 异步验证：检查数据库中是否存在该艺术风格
+  const isValid = await validateArtStyleValue(artStyle, userId)
+  if (!isValid) {
     throw new ApiError('INVALID_PARAMS', {
       code: 'INVALID_ART_STYLE',
       field: 'artStyle',
@@ -306,7 +315,7 @@ export const PATCH = apiHandler(async (
     }
 
     if (field === 'artStyle') {
-      updateData[field] = validateArtStyleField(body[field])
+      updateData[field] = await validateArtStyleField(body[field], session.user.id)
       continue
     }
 

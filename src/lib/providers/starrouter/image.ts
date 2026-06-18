@@ -26,10 +26,14 @@ function assertRegistered(modelId: string): void {
 const STARSTONE_IMAGE_ENDPOINT = 'https://starrouter.io/v1/images/generations'
 
 interface StarRouterImageSubmitResponse {
-  code?: string
-  message?: string
-  data?: {
-    task_id?: string
+  created?: number
+  data?: Array<{
+    b64_json?: string
+    url?: string
+  }>
+  error?: {
+    message?: string
+    code?: string
   }
 }
 
@@ -59,6 +63,8 @@ function assertNoUnsupportedOptions(options: StarRouterGenerateRequestOptions): 
     'modelKey',
     'size',
     'n',
+    'outputFormat',
+    'resolution',
   ])
   for (const [key, value] of Object.entries(options)) {
     if (value === undefined) continue
@@ -132,20 +138,25 @@ export async function generateStarRouterImage(params: StarRouterImageGeneratePar
   const data = await parseSubmitResponse(response)
 
   if (!response.ok) {
-    const code = readTrimmedString(data.code)
-    const message = readTrimmedString(data.message)
-    throw new Error(`STARSTONE_IMAGE_SUBMIT_FAILED(${response.status}): ${code || message || 'unknown error'}`)
+    const message = readTrimmedString(data.error?.message)
+    const code = readTrimmedString(data.error?.code)
+    throw new Error(`STARSTONE_IMAGE_SUBMIT_FAILED(${response.status}): ${message || code || 'unknown error'}`)
   }
 
-  const taskId = readTrimmedString(data.data?.task_id)
-  if (!taskId) {
-    throw new Error('STARSTONE_IMAGE_TASK_ID_MISSING')
+  // Starstone API 返回同步响应，直接获取图片 URL
+  const imageUrls = (data.data || []).map(item => item.url).filter(Boolean) as string[]
+  const firstImageUrl = imageUrls[0] || null
+  const firstB64Json = data.data?.[0]?.b64_json || null
+
+  if (!firstImageUrl && !firstB64Json) {
+    throw new Error('STARSTONE_IMAGE_NO_RESULT: 未返回图片数据')
   }
 
   return {
     success: true,
-    async: true,
-    requestId: taskId,
-    externalId: `STARSTONE:IMAGE:${taskId}`,
+    async: false,
+    imageUrl: firstImageUrl || undefined,
+    imageUrls: imageUrls.length > 0 ? imageUrls : undefined,
+    imageBase64: firstB64Json || undefined,
   }
 }
