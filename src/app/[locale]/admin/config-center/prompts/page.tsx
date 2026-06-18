@@ -1,9 +1,9 @@
 import { requireAdminServerSide } from '@/lib/admin/auth'
 import Navbar from '@/components/Navbar'
-import ConfigCenterTabs from './components/ConfigCenterTabs'
-import PromptLibraryPanel from './components/PromptLibraryPanel'
+import ConfigCenterTabs from '../components/ConfigCenterTabs'
+import PromptLibraryPanel from '../components/PromptLibraryPanel'
 
-export default async function ConfigCenterPage() {
+export default async function PromptsPage() {
   await requireAdminServerSide()
 
   return (

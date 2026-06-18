@@ -1,5 +1,9 @@
 {
   "title": "Config Center",
+  "tabs": {
+    "prompts": "Prompt Library",
+    "artStyles": "Art Styles"
+  },
   "loading": "Loading prompt config...",
   "promptCount": "{count} prompts",
   "filters": {

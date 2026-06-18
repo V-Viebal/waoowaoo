@@ -1,5 +1,9 @@
 {
   "title": "配置中心",
+  "tabs": {
+    "prompts": "提示词库",
+    "artStyles": "画风库"
+  },
   "loading": "加载提示词配置中...",
   "promptCount": "{count} 个提示词",
   "filters": {
