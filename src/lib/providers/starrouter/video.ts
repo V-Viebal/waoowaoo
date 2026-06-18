@@ -44,6 +44,8 @@ interface StarRouterVideoSubmitBody {
   input_image_url?: string
   duration?: number
   aspect_ratio?: string
+  resolution?: string
+  generate_audio?: boolean
 }
 
 function readTrimmedString(value: unknown): string {
@@ -58,6 +60,10 @@ function readOptionalPositiveInteger(value: unknown, fieldName: string): number 
   return value
 }
 
+function readOptionalBoolean(value: unknown): boolean | undefined {
+  return typeof value === 'boolean' ? value : undefined
+}
+
 function assertNoUnsupportedOptions(options: StarRouterGenerateRequestOptions): void {
   const allowedOptionKeys = new Set([
     'provider',
@@ -70,6 +76,7 @@ function assertNoUnsupportedOptions(options: StarRouterGenerateRequestOptions): 
     'outputFormat',
     'resolution',
     'fps',
+    'generateAudio',
   ])
   for (const [key, value] of Object.entries(options)) {
     if (value === undefined) continue
@@ -95,6 +102,8 @@ function buildSubmitRequest(params: StarRouterVideoGenerateParams): {
   const prompt = readTrimmedString(params.prompt) || readTrimmedString(params.options.prompt)
   const duration = readOptionalPositiveInteger(params.options.duration, 'duration')
   const aspectRatio = readTrimmedString(params.options.aspectRatio) || readTrimmedString(params.options.aspect_ratio)
+  const resolution = readTrimmedString(params.options.resolution)
+  const generateAudio = readOptionalBoolean(params.options.generateAudio)
 
   const submitBody: StarRouterVideoSubmitBody = {
     model: modelId,
@@ -108,6 +117,12 @@ function buildSubmitRequest(params: StarRouterVideoGenerateParams): {
   }
   if (aspectRatio) {
     submitBody.aspect_ratio = aspectRatio
+  }
+  if (resolution) {
+    submitBody.resolution = resolution
+  }
+  if (typeof generateAudio === 'boolean') {
+    submitBody.generate_audio = generateAudio
   }
 
   return {
