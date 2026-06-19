@@ -211,6 +211,14 @@
         "uploadFailed": "Upload failed",
         "uploadSuccess": "Upload successful"
     },
+    "voicePicker": {
+        "badge": {
+            "qwenDesigned": "Bailian",
+            "omnivoiceClone": "OmniVoice Clone",
+            "omnivoiceDesign": "OmniVoice Design",
+            "custom": "Upload"
+        }
+    },
     "voiceDesign": {
         "presets": {
             "maleBroadcaster": "Male Broadcaster",

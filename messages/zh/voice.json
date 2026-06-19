@@ -211,6 +211,14 @@
         "uploadFailed": "上传失败",
         "uploadSuccess": "上传成功"
     },
+    "voicePicker": {
+        "badge": {
+            "qwenDesigned": "百炼",
+            "omnivoiceClone": "OmniVoice 克隆",
+            "omnivoiceDesign": "OmniVoice 设计",
+            "custom": "上传"
+        }
+    },
     "voiceDesign": {
         "presets": {
             "maleBroadcaster": "男播音",
