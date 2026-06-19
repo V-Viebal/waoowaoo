@@ -6,6 +6,10 @@ import {
     collectBailianManagedVoiceIds,
     cleanupUnreferencedBailianVoices,
 } from '@/lib/providers/bailian'
+import {
+    collectOmnivoiceManagedVoiceIds,
+    cleanupUnreferencedOmnivoiceVoices,
+} from '@/lib/providers/omnivoice'
 
 // 获取单个角色
 export const GET = apiHandler(async (
@@ -112,6 +116,20 @@ export const DELETE = apiHandler(async (
     ])
     await cleanupUnreferencedBailianVoices({
         voiceIds: candidateVoiceIds,
+        scope: {
+            userId: session.user.id,
+            excludeGlobalCharacterId: character.id,
+        },
+    })
+
+    const candidateOmnivoiceVoiceIds = collectOmnivoiceManagedVoiceIds([
+        {
+            voiceId: character.voiceId,
+            voiceType: character.voiceType,
+        },
+    ])
+    await cleanupUnreferencedOmnivoiceVoices({
+        voiceIds: candidateOmnivoiceVoiceIds,
         scope: {
             userId: session.user.id,
             excludeGlobalCharacterId: character.id,

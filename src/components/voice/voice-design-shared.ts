@@ -2,11 +2,14 @@ export const DEFAULT_VOICE_SCHEME_COUNT = 3
 export const MIN_VOICE_SCHEME_COUNT = 1
 export const MAX_VOICE_SCHEME_COUNT = 10
 
+export type VoiceDesignProvider = 'bailian' | 'omnivoice'
+
 export type VoiceDesignMutationPayload = {
   voicePrompt: string
   previewText: string
   preferredName: string
   language: 'zh'
+  provider?: VoiceDesignProvider
 }
 
 export type VoiceDesignMutationResult = {
@@ -37,6 +40,7 @@ interface GenerateVoiceDesignOptionsParams {
   previewText: string
   defaultPreviewText: string
   language?: 'zh'
+  provider?: VoiceDesignProvider
   onDesignVoice: (payload: VoiceDesignMutationPayload) => Promise<VoiceDesignMutationResult>
   createPreferredName?: (index: number) => string
 }
@@ -47,6 +51,7 @@ export async function generateVoiceDesignOptions({
   previewText,
   defaultPreviewText,
   language = 'zh',
+  provider,
   onDesignVoice,
   createPreferredName = (index) => createVoiceDesignPreferredName(index),
 }: GenerateVoiceDesignOptionsParams): Promise<GeneratedVoice[]> {
@@ -58,12 +63,16 @@ export async function generateVoiceDesignOptions({
   const voices: GeneratedVoice[] = []
 
   for (let index = 0; index < resolvedCount; index += 1) {
-    const result = await onDesignVoice({
+    const payload: VoiceDesignMutationPayload = {
       voicePrompt: trimmedPrompt,
       previewText: resolvedPreviewText,
       preferredName: createPreferredName(index),
       language,
-    })
+    }
+    if (provider !== undefined) {
+      payload.provider = provider
+    }
+    const result = await onDesignVoice(payload)
 
     if (!result.audioBase64) continue
     if (typeof result.voiceId !== 'string' || result.voiceId.length === 0) {

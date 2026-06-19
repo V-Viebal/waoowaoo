@@ -13,6 +13,7 @@ export default function VoicePreviewSection({ runtime }: VoicePreviewSectionProp
     voicePrompt,
     previewText,
     schemeCount,
+    provider,
     isVoiceCreationSubmitting,
     isSaving,
     error,
@@ -31,6 +32,7 @@ export default function VoicePreviewSection({ runtime }: VoicePreviewSectionProp
     setVoicePrompt,
     setPreviewText,
     setSchemeCount,
+    setProvider,
     setSelectedIndex,
     setUploadFile,
     setUploadPreviewUrl,
@@ -55,6 +57,8 @@ export default function VoicePreviewSection({ runtime }: VoicePreviewSectionProp
           onPreviewTextChange={setPreviewText}
           schemeCount={schemeCount}
           onSchemeCountChange={setSchemeCount}
+          provider={provider}
+          onProviderChange={setProvider}
           isSubmitting={isVoiceCreationSubmitting}
           submittingState={voiceCreationSubmittingState}
           error={error}

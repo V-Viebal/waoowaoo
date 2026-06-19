@@ -40,6 +40,7 @@ export function useDesignProjectVoice(projectId: string) {
             previewText: string
             preferredName: string
             language: 'zh'
+            provider?: 'bailian' | 'omnivoice'
         }) => {
             const response = await requestTaskResponseWithError(
                 `/api/novel-promotion/${projectId}/voice-design`,

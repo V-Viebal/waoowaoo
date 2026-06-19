@@ -30,6 +30,7 @@ export const POST = apiHandler(async (
     ? body.preferredName.trim()
     : 'custom_voice'
   const language = body.language === 'en' ? 'en' : 'zh'
+  const provider = body.provider === 'omnivoice' ? 'omnivoice' : 'bailian'
 
   const promptValidation = validateVoicePrompt(voicePrompt)
   if (!promptValidation.valid) {
@@ -41,11 +42,12 @@ export const POST = apiHandler(async (
   }
 
   const digest = createHash('sha1')
-    .update(`${session.user.id}:${projectId}:${voicePrompt}:${previewText}:${preferredName}:${language}`)
+    .update(`${session.user.id}:${projectId}:${provider}:${voicePrompt}:${previewText}:${preferredName}:${language}`)
     .digest('hex')
     .slice(0, 16)
 
   const payload = {
+    provider,
     voicePrompt,
     previewText,
     preferredName,

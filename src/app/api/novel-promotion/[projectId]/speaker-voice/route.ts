@@ -61,6 +61,17 @@ export const GET = apiHandler(async (
       continue
     }
 
+    if (voice.provider === 'omnivoice') {
+      const previewAudioUrl = voice.previewAudioUrl ? signUrlIfNeeded(voice.previewAudioUrl) : undefined
+      speakerVoices[speaker] = {
+        provider: 'omnivoice',
+        voiceType: voice.voiceType,
+        profileId: voice.profileId,
+        ...(previewAudioUrl ? { previewAudioUrl } : {}),
+      }
+      continue
+    }
+
     const previewAudioUrl = voice.previewAudioUrl ? signUrlIfNeeded(voice.previewAudioUrl) : undefined
     speakerVoices[speaker] = {
       provider: 'bailian',

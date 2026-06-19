@@ -211,6 +211,14 @@
         "uploadFailed": "上传失败",
         "uploadSuccess": "上传成功"
     },
+    "voicePicker": {
+        "badge": {
+            "qwenDesigned": "百炼",
+            "omnivoiceClone": "OmniVoice 克隆",
+            "omnivoiceDesign": "OmniVoice 设计",
+            "custom": "上传"
+        }
+    },
     "voiceDesign": {
         "presets": {
             "maleBroadcaster": "男播音",
@@ -229,6 +237,9 @@
             "narrator": "富有感情的叙述者，声音温暖有故事感"
         },
         "defaultPreviewText": "你好，很高兴认识你。这是AI为你专属设计的声音，让我来为你展示它的特点。无论是温柔的对话，还是激动的讲述，我都能完美呈现。希望你喜欢这个声音，让我们一起创造精彩的内容吧。",
+        "provider": "服务提供商",
+        "providerOptionBailian": "百炼 (QwenTTS)",
+        "providerOptionOmnivoice": "OmniVoice (自托管)",
         "pleaseSelectStyle": "请输入或选择声音风格",
         "designVoiceFor": "为「{speaker}」设计AI声音",
         "hasExistingVoice": "已有声音",

@@ -19,6 +19,28 @@ import type {
   OpenAICompatMediaTemplateSource,
 } from './openai-compat-media-template'
 import { validateOpenAICompatMediaTemplate } from './user-api/model-template/validator'
+import {
+  isOfficialModelRegistered,
+  type OfficialProviderKey,
+  type OfficialModelModality,
+} from './providers/official/model-registry'
+
+// Eager catalog registration — `resolveModelSelection` checks the official
+// model registry as a fallback for image/video/audio modalities (catalog-only
+// providers like OmniVoice that don't require per-user customModels). Lazy
+// init via the per-provider `ensure*CatalogRegistered` calls only happens
+// when a `generate*` function runs, which is too late for resolution-stage
+// fallback. Registering at module load makes the registry authoritative
+// before any caller hits the fallback path.
+import { ensureBailianCatalogRegistered } from '@/lib/providers/bailian/catalog'
+import { ensureSiliconFlowCatalogRegistered } from '@/lib/providers/siliconflow/catalog'
+import { ensureStarRouterCatalogRegistered } from '@/lib/providers/starrouter/catalog'
+import { ensureOmnivoiceCatalogRegistered } from '@/lib/providers/omnivoice/catalog'
+
+ensureBailianCatalogRegistered()
+ensureSiliconFlowCatalogRegistered()
+ensureStarRouterCatalogRegistered()
+ensureOmnivoiceCatalogRegistered()
 
 export interface CustomModel {
   modelId: string
@@ -333,26 +355,45 @@ export async function resolveModelSelection(
   const models = await getModelsByType(userId, mediaType)
 
   const exact = findModelByKey(models, parsed.modelKey)
-  if (!exact) {
-    throw new Error(`MODEL_NOT_FOUND: ${parsed.modelKey} is not enabled for ${mediaType}`)
+  if (exact) {
+    const providerKey = getProviderKey(exact.provider).toLowerCase()
+    const llmProtocol = mediaType === 'llm' && providerKey === 'openai-compatible'
+      ? (exact.llmProtocol || 'chat-completions')
+      : undefined
+    const compatMediaTemplate = (mediaType === 'image' || mediaType === 'video') && providerKey === 'openai-compatible'
+      ? exact.compatMediaTemplate
+      : undefined
+
+    return {
+      provider: exact.provider,
+      modelId: exact.modelId,
+      modelKey: composeModelKey(exact.provider, exact.modelId),
+      mediaType,
+      ...(llmProtocol ? { llmProtocol } : {}),
+      ...(compatMediaTemplate ? { compatMediaTemplate } : {}),
+    }
   }
 
-  const providerKey = getProviderKey(exact.provider).toLowerCase()
-  const llmProtocol = mediaType === 'llm' && providerKey === 'openai-compatible'
-    ? (exact.llmProtocol || 'chat-completions')
-    : undefined
-  const compatMediaTemplate = (mediaType === 'image' || mediaType === 'video') && providerKey === 'openai-compatible'
-    ? exact.compatMediaTemplate
-    : undefined
-
-  return {
-    provider: exact.provider,
-    modelId: exact.modelId,
-    modelKey: composeModelKey(exact.provider, exact.modelId),
-    mediaType,
-    ...(llmProtocol ? { llmProtocol } : {}),
-    ...(compatMediaTemplate ? { compatMediaTemplate } : {}),
+  // Fallback: catalog-only providers (e.g., bailian, omnivoice) don't require
+  // a per-user customModel row. If the requested model is in the official
+  // catalog for this modality, accept it.
+  if (mediaType !== 'llm' && mediaType !== 'lipsync') {
+    const isCatalogModel = isOfficialModelRegistered({
+      provider: parsed.provider as OfficialProviderKey,
+      modality: mediaType as OfficialModelModality,
+      modelId: parsed.modelId,
+    })
+    if (isCatalogModel) {
+      return {
+        provider: parsed.provider,
+        modelId: parsed.modelId,
+        modelKey: parsed.modelKey,
+        mediaType,
+      }
+    }
   }
+
+  throw new Error(`MODEL_NOT_FOUND: ${parsed.modelKey} is not enabled for ${mediaType}`)
 }
 
 async function resolveSingleModelSelection(

@@ -28,9 +28,22 @@ interface VoicePickerDialogProps {
     onSelect: (voice: Voice) => void
 }
 
+// 音色类型徽章映射:provider -> i18n key + 颜色样式
+// 未知类型回退到中性灰底显示原值,避免新增 voiceType 时 UI 静默丢字段
+const VOICE_TYPE_BADGE: Record<string, { i18nKey: string; className: string }> = {
+    'qwen-designed': { i18nKey: 'qwenDesigned', className: 'bg-blue-500/20 text-blue-300 border border-blue-400/30' },
+    'omnivoice-clone': { i18nKey: 'omnivoiceClone', className: 'bg-purple-500/20 text-purple-300 border border-purple-400/30' },
+    'omnivoice-design': { i18nKey: 'omnivoiceDesign', className: 'bg-green-500/20 text-green-300 border border-green-400/30' },
+    custom: { i18nKey: 'custom', className: 'bg-gray-500/20 text-gray-300 border border-gray-400/30' },
+    uploaded: { i18nKey: 'custom', className: 'bg-gray-500/20 text-gray-300 border border-gray-400/30' },
+}
+
+const UNKNOWN_BADGE_CLASS = 'bg-gray-500/20 text-gray-300 border border-gray-400/30'
+
 export default function VoicePickerDialog({ isOpen, onClose, onSelect }: VoicePickerDialogProps) {
     const t = useTranslations('assetHub')
     const tv = useTranslations('voice.voiceDesign')
+    const tb = useTranslations('voice.voicePicker.badge')
     const voicesQuery = useGlobalVoices()
     const [selectedVoice, setSelectedVoice] = useState<Voice | null>(null)
     const [playingId, setPlayingId] = useState<string | null>(null)
@@ -137,6 +150,9 @@ export default function VoicePickerDialog({ isOpen, onClose, onSelect }: VoicePi
                                 const isSelected = selectedVoice?.id === voice.id
                                 const isPlaying = playingId === voice.id
                                 const genderIcon = voice.gender === 'male' ? 'M' : voice.gender === 'female' ? 'F' : ''
+                                const badgeMeta = voice.voiceType ? VOICE_TYPE_BADGE[voice.voiceType] : undefined
+                                const badgeLabel = badgeMeta ? tb(badgeMeta.i18nKey) : (voice.voiceType || '')
+                                const badgeClass = badgeMeta ? badgeMeta.className : UNKNOWN_BADGE_CLASS
 
                                 return (
                                     <div
@@ -160,9 +176,14 @@ export default function VoicePickerDialog({ isOpen, onClose, onSelect }: VoicePi
                                                 <AppIcon name="mic" className="w-5 h-5 text-[var(--glass-tone-info-fg)]" />
                                             </div>
                                             <div className="flex-1 min-w-0">
-                                                <div className="flex items-center gap-1">
+                                                <div className="flex items-center gap-1 flex-wrap">
                                                     <span className="font-medium text-[var(--glass-text-primary)] text-sm truncate">{voice.name}</span>
                                                     {genderIcon && <span className="glass-chip glass-chip-neutral text-[10px] px-1.5 py-0">{genderIcon}</span>}
+                                                    {badgeLabel && (
+                                                        <span className={`text-[10px] px-1.5 py-0 rounded ${badgeClass}`}>
+                                                            {badgeLabel}
+                                                        </span>
+                                                    )}
                                                 </div>
                                                 {voice.description && (
                                                     <p className="text-xs text-[var(--glass-text-secondary)] truncate">{voice.description}</p>

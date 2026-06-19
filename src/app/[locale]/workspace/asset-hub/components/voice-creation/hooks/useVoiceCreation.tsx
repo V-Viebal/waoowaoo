@@ -12,6 +12,7 @@ import {
     DEFAULT_VOICE_SCHEME_COUNT,
     generateVoiceDesignOptions,
     type GeneratedVoice,
+    type VoiceDesignProvider,
 } from '@/components/voice/voice-design-shared'
 
 export interface VoiceCreationModalShellProps {
@@ -39,6 +40,7 @@ export function useVoiceCreation({ isOpen, folderId, onClose, onSuccess, initial
     const [voicePrompt, setVoicePrompt] = useState('')
     const [previewText, setPreviewText] = useState(tv('defaultPreviewText'))
     const [schemeCount, setSchemeCount] = useState(String(DEFAULT_VOICE_SCHEME_COUNT))
+    const [provider, setProvider] = useState<VoiceDesignProvider>('bailian')
     const [isVoiceCreationSubmitting, setIsVoiceCreationSubmitting] = useState(false)
     const [isSaving, setIsSaving] = useState(false)
     const [error, setError] = useState<string | null>(null)
@@ -91,6 +93,7 @@ export function useVoiceCreation({ isOpen, folderId, onClose, onSuccess, initial
                 voicePrompt,
                 previewText,
                 defaultPreviewText: tv('defaultPreviewText'),
+                provider,
                 onDesignVoice: (payload) => designVoiceMutation.mutateAsync(payload),
             })
             setGeneratedVoices(voices)
@@ -258,6 +261,7 @@ export function useVoiceCreation({ isOpen, folderId, onClose, onSuccess, initial
         setVoicePrompt('')
         setPreviewText(tv('defaultPreviewText'))
         setSchemeCount(String(DEFAULT_VOICE_SCHEME_COUNT))
+        setProvider('bailian')
         setError(null)
         setGeneratedVoices([])
         setSelectedIndex(null)
@@ -295,6 +299,7 @@ export function useVoiceCreation({ isOpen, folderId, onClose, onSuccess, initial
         voicePrompt,
         previewText,
         schemeCount,
+        provider,
         isVoiceCreationSubmitting,
         isSaving,
         error,
@@ -316,6 +321,7 @@ export function useVoiceCreation({ isOpen, folderId, onClose, onSuccess, initial
         setVoicePrompt,
         setPreviewText,
         setSchemeCount,
+        setProvider,
         setError,
         setGeneratedVoices,
         setSelectedIndex,

@@ -1,10 +1,11 @@
 type VoiceSource = 'character' | 'speaker'
 
-export type SupportedAudioProviderKey = 'fal' | 'bailian'
+export type SupportedAudioProviderKey = 'fal' | 'bailian' | 'omnivoice'
 
 export interface CharacterVoiceFields {
   customVoiceUrl?: string | null
   voiceId?: string | null
+  voiceType?: string | null
 }
 
 export interface RawSpeakerVoiceEntry {
@@ -12,6 +13,7 @@ export interface RawSpeakerVoiceEntry {
   voiceType?: string | null
   audioUrl?: string | null
   voiceId?: string | null
+  profileId?: string | null
   previewAudioUrl?: string | null
 }
 
@@ -28,7 +30,17 @@ export type BailianSpeakerVoiceEntry = {
   previewAudioUrl?: string
 }
 
-export type SpeakerVoiceEntry = FalSpeakerVoiceEntry | BailianSpeakerVoiceEntry
+export type OmnivoiceSpeakerVoiceEntry = {
+  provider: 'omnivoice'
+  voiceType: string
+  profileId: string
+  previewAudioUrl?: string
+}
+
+export type SpeakerVoiceEntry =
+  | FalSpeakerVoiceEntry
+  | BailianSpeakerVoiceEntry
+  | OmnivoiceSpeakerVoiceEntry
 export type SpeakerVoiceMap = Record<string, SpeakerVoiceEntry>
 
 export type FalVoiceGenerationBinding = {
@@ -43,7 +55,16 @@ export type BailianVoiceGenerationBinding = {
   voiceId: string
 }
 
-export type VoiceGenerationBinding = FalVoiceGenerationBinding | BailianVoiceGenerationBinding
+export type OmnivoiceVoiceGenerationBinding = {
+  provider: 'omnivoice'
+  source: VoiceSource
+  profileId: string
+}
+
+export type VoiceGenerationBinding =
+  | FalVoiceGenerationBinding
+  | BailianVoiceGenerationBinding
+  | OmnivoiceVoiceGenerationBinding
 
 export type SpeakerVoicePatch =
   | {
@@ -57,11 +78,21 @@ export type SpeakerVoicePatch =
     voiceId: string
     previewAudioUrl?: string
   }
+  | {
+    provider: 'omnivoice'
+    voiceType?: string
+    profileId: string
+    previewAudioUrl?: string
+  }
 
 function readTrimmedString(input: unknown): string | null {
   if (typeof input !== 'string') return null
   const value = input.trim()
   return value.length > 0 ? value : null
+}
+
+function toLowerCase(value: string | null | undefined): string {
+  return typeof value === 'string' ? value.trim().toLowerCase() : ''
 }
 
 function normalizeRawSpeakerVoiceEntry(raw: unknown, speaker: string): SpeakerVoiceEntry {
@@ -97,6 +128,19 @@ function normalizeRawSpeakerVoiceEntry(raw: unknown, speaker: string): SpeakerVo
       voiceType,
       voiceId,
       ...(preview ? { previewAudioUrl: preview } : {}),
+    }
+  }
+
+  if (provider === 'omnivoice') {
+    const profileId = readTrimmedString(entry.profileId) || readTrimmedString(entry.voiceId)
+    if (!profileId) {
+      throw new Error(`SPEAKER_VOICE_ENTRY_INVALID_OMNIVOICE_PROFILE_ID: ${speaker}`)
+    }
+    return {
+      provider: 'omnivoice',
+      voiceType,
+      profileId,
+      ...(previewAudioUrl ? { previewAudioUrl } : {}),
     }
   }
 
@@ -151,7 +195,7 @@ export function parseSpeakerVoiceMap(raw: string | null | undefined): SpeakerVoi
 }
 
 function normalizeProviderKey(providerKey: string): SupportedAudioProviderKey | null {
-  if (providerKey === 'fal' || providerKey === 'bailian') {
+  if (providerKey === 'fal' || providerKey === 'bailian' || providerKey === 'omnivoice') {
     return providerKey
   }
   return null
@@ -185,6 +229,7 @@ export function resolveVoiceBindingForProvider(params: {
 
   const characterAudioUrl = readTrimmedString(params.character?.customVoiceUrl)
   const characterVoiceId = readTrimmedString(params.character?.voiceId)
+  const characterVoiceTypeLower = toLowerCase(params.character?.voiceType)
 
   if (providerKey === 'fal') {
     const fromCharacter = toFalBinding('character', characterAudioUrl)
@@ -193,8 +238,21 @@ export function resolveVoiceBindingForProvider(params: {
     return toFalBinding('speaker', readTrimmedString(params.speakerVoice.audioUrl))
   }
 
-  const fromCharacter = toBailianBinding('character', characterVoiceId)
-  if (fromCharacter) return fromCharacter
+  if (providerKey === 'omnivoice') {
+    if (characterVoiceTypeLower.startsWith('omnivoice-') && characterVoiceId) {
+      return { provider: 'omnivoice', source: 'character', profileId: characterVoiceId }
+    }
+    if (params.speakerVoice?.provider !== 'omnivoice') return null
+    const profileId = readTrimmedString(params.speakerVoice.profileId)
+    if (!profileId) return null
+    return { provider: 'omnivoice', source: 'speaker', profileId }
+  }
+
+  // bailian branch — guard against omnivoice-typed character voiceId being misused
+  if (!characterVoiceTypeLower.startsWith('omnivoice-')) {
+    const fromCharacter = toBailianBinding('character', characterVoiceId)
+    if (fromCharacter) return fromCharacter
+  }
   if (params.speakerVoice?.provider !== 'bailian') return null
   return toBailianBinding('speaker', readTrimmedString(params.speakerVoice.voiceId))
 }
@@ -219,6 +277,9 @@ export function hasAnyVoiceBinding(params: {
   if (params.speakerVoice.provider === 'fal') {
     return !!readTrimmedString(params.speakerVoice.audioUrl)
   }
+  if (params.speakerVoice.provider === 'omnivoice') {
+    return !!readTrimmedString(params.speakerVoice.profileId)
+  }
   return !!readTrimmedString(params.speakerVoice.voiceId)
 }
 
@@ -226,6 +287,9 @@ export function getSpeakerVoicePreviewUrl(speakerVoice?: SpeakerVoiceEntry | nul
   if (!speakerVoice) return null
   if (speakerVoice.provider === 'fal') {
     return readTrimmedString(speakerVoice.audioUrl)
+  }
+  if (speakerVoice.provider === 'omnivoice') {
+    return readTrimmedString(speakerVoice.previewAudioUrl)
   }
   return readTrimmedString(speakerVoice.previewAudioUrl)
 }

@@ -10,6 +10,10 @@ import {
   collectProjectBailianManagedVoiceIds,
   cleanupUnreferencedBailianVoices,
 } from '@/lib/providers/bailian'
+import {
+  collectProjectOmnivoiceManagedVoiceIds,
+  cleanupUnreferencedOmnivoiceVoices,
+} from '@/lib/providers/omnivoice'
 
 // GET - 获取项目详情
 export const GET = apiHandler(async (
@@ -219,6 +223,14 @@ export const DELETE = apiHandler(async (
       excludeProjectId: projectId,
     },
   })
+  const omnivoiceVoiceIds = await collectProjectOmnivoiceManagedVoiceIds(projectId)
+  const omnivoiceCleanupResult = await cleanupUnreferencedOmnivoiceVoices({
+    voiceIds: omnivoiceVoiceIds,
+    scope: {
+      userId: session.user.id,
+      excludeProjectId: projectId,
+    },
+  })
   const cosKeys = await collectProjectCOSKeys(projectId)
 
   // 2. 批量删除 COS 文件
@@ -245,12 +257,15 @@ export const DELETE = apiHandler(async (
       cosFilesFailed: cosResult.failed,
       bailianVoicesDeleted: voiceCleanupResult.deletedVoiceIds.length,
       bailianVoicesSkippedReferenced: voiceCleanupResult.skippedReferencedVoiceIds.length,
+      omnivoiceVoicesDeleted: omnivoiceCleanupResult.deletedVoiceIds.length,
+      omnivoiceVoicesSkippedReferenced: omnivoiceCleanupResult.skippedReferencedVoiceIds.length,
     }
   )
 
   _ulogInfo(`[DELETE] 项目删除完成: ${project.name}`)
   _ulogInfo(`[DELETE] COS 文件: 成功 ${cosResult.success}, 失败 ${cosResult.failed}`)
   _ulogInfo(`[DELETE] Bailian 音色: 删除 ${voiceCleanupResult.deletedVoiceIds.length}, 跳过(仍被引用) ${voiceCleanupResult.skippedReferencedVoiceIds.length}`)
+  _ulogInfo(`[DELETE] OmniVoice 音色: 删除 ${omnivoiceCleanupResult.deletedVoiceIds.length}, 跳过(仍被引用) ${omnivoiceCleanupResult.skippedReferencedVoiceIds.length}`)
 
   return NextResponse.json({
     success: true,
@@ -258,5 +273,7 @@ export const DELETE = apiHandler(async (
     cosFilesFailed: cosResult.failed,
     bailianVoicesDeleted: voiceCleanupResult.deletedVoiceIds.length,
     bailianVoicesSkippedReferenced: voiceCleanupResult.skippedReferencedVoiceIds.length,
+    omnivoiceVoicesDeleted: omnivoiceCleanupResult.deletedVoiceIds.length,
+    omnivoiceVoicesSkippedReferenced: omnivoiceCleanupResult.skippedReferencedVoiceIds.length,
   })
 })

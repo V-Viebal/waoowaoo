@@ -10,6 +10,7 @@ import {
   MIN_VOICE_SCHEME_COUNT,
   normalizeVoiceSchemeCount,
   type GeneratedVoice,
+  type VoiceDesignProvider,
 } from './voice-design-shared'
 
 const VOICE_PRESET_KEYS = [
@@ -30,6 +31,8 @@ interface VoiceDesignGeneratorSectionProps {
   onPreviewTextChange: (value: string) => void
   schemeCount: string
   onSchemeCountChange: (value: string) => void
+  provider?: VoiceDesignProvider
+  onProviderChange?: (value: VoiceDesignProvider) => void
   isSubmitting: boolean
   submittingState: TaskPresentationState | null
   error: string | null
@@ -49,6 +52,8 @@ export default function VoiceDesignGeneratorSection({
   onPreviewTextChange,
   schemeCount,
   onSchemeCountChange,
+  provider,
+  onProviderChange,
   isSubmitting,
   submittingState,
   error,
@@ -65,6 +70,21 @@ export default function VoiceDesignGeneratorSection({
 
   return (
     <>
+      {onProviderChange && (
+        <div>
+          <div className="text-sm text-[var(--glass-text-secondary)] mb-1">{tv('provider')}</div>
+          <select
+            value={provider ?? 'bailian'}
+            onChange={(event) => onProviderChange(event.target.value as VoiceDesignProvider)}
+            aria-label={tv('provider')}
+            className="glass-input-base w-full px-3 py-2 text-sm"
+          >
+            <option value="bailian" className="text-black">{tv('providerOptionBailian')}</option>
+            <option value="omnivoice" className="text-black">{tv('providerOptionOmnivoice')}</option>
+          </select>
+        </div>
+      )}
+
       <div>
         <div className="text-sm text-[var(--glass-text-secondary)] mb-2">{tv('selectStyle')}</div>
         <div className="flex flex-wrap gap-1.5">

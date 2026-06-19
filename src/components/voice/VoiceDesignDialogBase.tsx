@@ -12,6 +12,7 @@ import {
   type GeneratedVoice,
   type VoiceDesignMutationPayload,
   type VoiceDesignMutationResult,
+  type VoiceDesignProvider,
 } from './voice-design-shared'
 
 export type { VoiceDesignMutationPayload, VoiceDesignMutationResult } from './voice-design-shared'
@@ -39,6 +40,7 @@ export default function VoiceDesignDialogBase({
   const [voicePrompt, setVoicePrompt] = useState('')
   const [previewText, setPreviewText] = useState(tv('defaultPreviewText'))
   const [schemeCount, setSchemeCount] = useState(String(DEFAULT_VOICE_SCHEME_COUNT))
+  const [provider, setProvider] = useState<VoiceDesignProvider>('bailian')
   const [isDesignSubmitting, setIsDesignSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [generatedVoices, setGeneratedVoices] = useState<GeneratedVoice[]>([])
@@ -72,6 +74,7 @@ export default function VoiceDesignDialogBase({
         voicePrompt,
         previewText,
         defaultPreviewText: tv('defaultPreviewText'),
+        provider,
         onDesignVoice,
       })
       setGeneratedVoices(voices)
@@ -132,6 +135,7 @@ export default function VoiceDesignDialogBase({
     setVoicePrompt('')
     setPreviewText(tv('defaultPreviewText'))
     setSchemeCount(String(DEFAULT_VOICE_SCHEME_COUNT))
+    setProvider('bailian')
     setError(null)
     setGeneratedVoices([])
     setSelectedIndex(null)
@@ -174,6 +178,8 @@ export default function VoiceDesignDialogBase({
             onPreviewTextChange={setPreviewText}
             schemeCount={schemeCount}
             onSchemeCountChange={setSchemeCount}
+            provider={provider}
+            onProviderChange={setProvider}
             isSubmitting={isDesignSubmitting}
             submittingState={designSubmittingState}
             error={error}

@@ -219,13 +219,17 @@ function buildVoiceTaskInfo(taskType: TaskType, payload: AnyPayload): TaskBillin
   }
 }
 
-function buildVoiceDesignTaskInfo(taskType: TaskType): TaskBillingInfo {
+function buildVoiceDesignTaskInfo(taskType: TaskType, payload: AnyPayload): TaskBillingInfo {
+  // TODO(billing): adjust omnivoice unit price based on operator decision —
+  // currently mirrors bailian pricing per spec §5.4
+  const provider = readString(payload?.provider) === 'omnivoice' ? 'omnivoice' : 'bailian'
+  const model = provider === 'omnivoice' ? 'omnivoice-voice-design' : 'bailian-voice-design'
   return {
     billable: true,
     source: 'task',
     taskType,
     apiType: 'voice-design',
-    model: 'bailian-voice-design',
+    model,
     quantity: 1,
     unit: 'call',
     maxFrozenCost: calcVoiceDesign(),
@@ -273,7 +277,7 @@ export function buildDefaultTaskBillingInfo(taskType: TaskType, payload: AnyPayl
       return buildVoiceTaskInfo(taskType, payload)
     case TASK_TYPE.VOICE_DESIGN:
     case TASK_TYPE.ASSET_HUB_VOICE_DESIGN:
-      return buildVoiceDesignTaskInfo(taskType)
+      return buildVoiceDesignTaskInfo(taskType, payload)
     case TASK_TYPE.REGENERATE_STORYBOARD_TEXT:
     case TASK_TYPE.INSERT_PANEL:
     case TASK_TYPE.ANALYZE_NOVEL:

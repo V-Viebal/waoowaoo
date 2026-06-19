@@ -11,6 +11,10 @@ import {
   collectBailianManagedVoiceIds,
   cleanupUnreferencedBailianVoices,
 } from '@/lib/providers/bailian'
+import {
+  collectOmnivoiceManagedVoiceIds,
+  cleanupUnreferencedOmnivoiceVoices,
+} from '@/lib/providers/omnivoice'
 
 function toObject(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
@@ -99,6 +103,20 @@ export const DELETE = apiHandler(async (
   ])
   await cleanupUnreferencedBailianVoices({
     voiceIds: candidateVoiceIds,
+    scope: {
+      userId: session.user.id,
+      excludeNovelCharacterId: character.id,
+    },
+  })
+
+  const candidateOmnivoiceVoiceIds = collectOmnivoiceManagedVoiceIds([
+    {
+      voiceId: character.voiceId,
+      voiceType: character.voiceType,
+    },
+  ])
+  await cleanupUnreferencedOmnivoiceVoices({
+    voiceIds: candidateOmnivoiceVoiceIds,
     scope: {
       userId: session.user.id,
       excludeNovelCharacterId: character.id,

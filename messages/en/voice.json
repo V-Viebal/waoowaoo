@@ -211,6 +211,14 @@
         "uploadFailed": "Upload failed",
         "uploadSuccess": "Upload successful"
     },
+    "voicePicker": {
+        "badge": {
+            "qwenDesigned": "Bailian",
+            "omnivoiceClone": "OmniVoice Clone",
+            "omnivoiceDesign": "OmniVoice Design",
+            "custom": "Upload"
+        }
+    },
     "voiceDesign": {
         "presets": {
             "maleBroadcaster": "Male Broadcaster",
@@ -229,6 +237,9 @@
             "narrator": "Emotional narrator with warm, storytelling voice"
         },
         "defaultPreviewText": "Hello, nice to meet you. This is your AI-designed exclusive voice. Let me demonstrate its features for you. Whether it's a gentle conversation or an excited narration, I can deliver it perfectly. I hope you enjoy this voice, let's create amazing content together.",
+        "provider": "Provider",
+        "providerOptionBailian": "Bailian (QwenTTS)",
+        "providerOptionOmnivoice": "OmniVoice (self-hosted)",
         "pleaseSelectStyle": "Please enter or select a voice style",
         "designVoiceFor": "Design AI Voice for \"{speaker}\"",
         "hasExistingVoice": "Has voice",

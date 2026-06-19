@@ -30,6 +30,7 @@ export function useDesignAssetHubVoice() {
       previewText: string
       preferredName: string
       language: 'zh'
+      provider?: 'bailian' | 'omnivoice'
     }) => {
       const response = await requestTaskResponseWithError(
         '/api/asset-hub/voice-design',

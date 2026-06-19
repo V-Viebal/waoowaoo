@@ -6,6 +6,7 @@ import { normalizeToBase64ForGeneration } from '@/lib/media/outbound-image'
 import { extractStorageKey, getSignedUrl, toFetchableUrl, uploadObject } from '@/lib/storage'
 import { resolveStorageKeyFromMediaValue } from '@/lib/media/service'
 import { synthesizeWithBailianTTS } from '@/lib/providers/bailian'
+import { synthesizeWithOmnivoiceTTS } from '@/lib/providers/omnivoice'
 import {
   parseSpeakerVoiceMap,
   resolveVoiceBindingForProvider,
@@ -260,6 +261,21 @@ export async function generateVoiceLine(params: {
     generated = {
       audioData,
       audioDuration: result.audioDuration ?? getWavDurationFromBuffer(audioData),
+    }
+  } else if (providerKey === 'omnivoice') {
+    if (!voiceBinding || voiceBinding.provider !== 'omnivoice') {
+      throw new Error('请先为该发言人绑定 OmniVoice 音色')
+    }
+    const result = await synthesizeWithOmnivoiceTTS({
+      text,
+      profileId: voiceBinding.profileId,
+    })
+    if (!result.success || !result.audioData) {
+      throw new Error(result.errorCode || result.error || 'OMNIVOICE_TTS_FAILED')
+    }
+    generated = {
+      audioData: result.audioData,
+      audioDuration: result.audioDuration ?? getWavDurationFromBuffer(result.audioData),
     }
   } else {
     throw new Error(`AUDIO_PROVIDER_UNSUPPORTED: ${audioSelection.provider}`)
