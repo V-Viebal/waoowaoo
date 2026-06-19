@@ -68,8 +68,6 @@ export default function ImageSectionActionButtons({
             />
 
             <div className="w-px h-3 bg-[var(--glass-stroke-base)]" />
-
-            <div className="w-px h-3 bg-[var(--glass-stroke-base)]" />
             <label className="flex items-center gap-0.5 px-1.5 text-[10px] text-[var(--glass-text-secondary)]">
               <span>{t('image.panelGridSize')}</span>
               <select

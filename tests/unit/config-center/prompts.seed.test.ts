@@ -48,7 +48,7 @@ describe('prompt config seed', () => {
   })
 
   it('upserts registered and unregistered definitions from prompt files', async () => {
-    await writePrompt(rootDir, 'novel-promotion/storyboard_grid_image', 'zh', 'registered {style}')
+    await writePrompt(rootDir, 'novel-promotion/panel_grid_image', 'zh', 'registered {style}')
     await writePrompt(rootDir, 'custom/unregistered_prompt', 'en', 'unregistered {input}')
 
     const result = await seedPromptConfig({ rootDir })
@@ -57,14 +57,14 @@ describe('prompt config seed', () => {
     expect(prismaMock.promptDefinition.upsert).toHaveBeenCalledTimes(2)
 
     const upsertCalls = prismaMock.promptDefinition.upsert.mock.calls.map(([args]) => args)
-    const registered = upsertCalls.find((args) => args.create.pathStem === 'novel-promotion/storyboard_grid_image')
+    const registered = upsertCalls.find((args) => args.create.pathStem === 'novel-promotion/panel_grid_image')
     const unregistered = upsertCalls.find((args) => args.create.pathStem === 'custom/unregistered_prompt')
 
     expect(registered?.create).toMatchObject({
-      promptId: PROMPT_IDS.NP_STORYBOARD_GRID_IMAGE,
-      pathStem: 'novel-promotion/storyboard_grid_image',
+      promptId: PROMPT_IDS.NP_PANEL_GRID_IMAGE,
+      pathStem: 'novel-promotion/panel_grid_image',
       category: 'novel-promotion',
-      name: PROMPT_IDS.NP_STORYBOARD_GRID_IMAGE,
+      name: PROMPT_IDS.NP_PANEL_GRID_IMAGE,
       description: null,
       isRegistered: true,
     })
@@ -74,7 +74,7 @@ describe('prompt config seed', () => {
       'aspect_ratio',
       'style',
       'grid_layout',
-      'panel_count',
+      'panel_grid_size',
     ])
     expect(unregistered?.create).toMatchObject({
       promptId: 'custom.unregistered_prompt',
@@ -89,8 +89,8 @@ describe('prompt config seed', () => {
   })
 
   it('upserts version 1 with an empty update for the same definition and locale', async () => {
-    await writePrompt(rootDir, 'novel-promotion/storyboard_grid_image', 'zh', 'registered zh')
-    await writePrompt(rootDir, 'novel-promotion/storyboard_grid_image', 'en', 'registered en')
+    await writePrompt(rootDir, 'novel-promotion/panel_grid_image', 'zh', 'registered zh')
+    await writePrompt(rootDir, 'novel-promotion/panel_grid_image', 'en', 'registered en')
 
     await seedPromptConfig({ rootDir })
 
@@ -98,7 +98,7 @@ describe('prompt config seed', () => {
     expect(prismaMock.promptVersion.upsert).toHaveBeenCalledWith(expect.objectContaining({
       where: {
         promptDefinitionId_locale_version: {
-          promptDefinitionId: `definition:${PROMPT_IDS.NP_STORYBOARD_GRID_IMAGE}`,
+          promptDefinitionId: `definition:${PROMPT_IDS.NP_PANEL_GRID_IMAGE}`,
           locale: 'zh',
           version: 1,
         },
@@ -113,10 +113,10 @@ describe('prompt config seed', () => {
   })
 
   it('rejects registered templates with undeclared non-literal variables', async () => {
-    await writePrompt(rootDir, 'novel-promotion/storyboard_grid_image', 'zh', 'registered {unexpected}')
+    await writePrompt(rootDir, 'novel-promotion/panel_grid_image', 'zh', 'registered {unexpected}')
 
     await expect(seedPromptConfig({ rootDir })).rejects.toThrow(
-      'PROMPT_SEED_VARIABLE_MISMATCH: novel-promotion/storyboard_grid_image:unexpected',
+      'PROMPT_SEED_VARIABLE_MISMATCH: novel-promotion/panel_grid_image:unexpected',
     )
   })
 })

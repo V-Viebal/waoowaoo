@@ -22,7 +22,6 @@ export const TASK_INTENTS: TaskIntent[] = [
 const TASK_INTENT_SET = new Set<string>(TASK_INTENTS)
 
 const TASK_INTENT_BY_TYPE: Record<TaskType, TaskIntent> = {
-  [TASK_TYPE.STORYBOARD_IMAGE]: 'generate',
   [TASK_TYPE.IMAGE_PANEL]: 'generate',
   [TASK_TYPE.IMAGE_CHARACTER]: 'generate',
   [TASK_TYPE.IMAGE_LOCATION]: 'generate',

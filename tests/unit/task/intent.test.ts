@@ -4,7 +4,6 @@ import { resolveTaskIntent } from '@/lib/task/intent'
 
 describe('resolveTaskIntent', () => {
   it('maps generate task types', () => {
-    expect(resolveTaskIntent(TASK_TYPE.STORYBOARD_IMAGE)).toBe('generate')
     expect(resolveTaskIntent(TASK_TYPE.IMAGE_CHARACTER)).toBe('generate')
     expect(resolveTaskIntent(TASK_TYPE.IMAGE_LOCATION)).toBe('generate')
     expect(resolveTaskIntent(TASK_TYPE.VIDEO_PANEL)).toBe('generate')

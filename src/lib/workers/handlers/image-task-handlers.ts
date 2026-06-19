@@ -1,7 +1,6 @@
 export { handleCharacterImageTask } from './character-image-task-handler'
 export { handleLocationImageTask } from './location-image-task-handler'
 export { handlePanelImageTask } from './panel-image-task-handler'
-export { handleStoryboardImageTask } from './storyboard-image-task-handler'
 export { handleModifyAssetImageTask } from './modify-asset-image-task-handler'
 export { handleAssetHubImageTask } from './asset-hub-image-task-handler'
 export { handleAssetHubModifyTask } from './asset-hub-modify-task-handler'

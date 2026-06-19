@@ -13,7 +13,6 @@ import {
   handleModifyAssetImageTask,
   handlePanelImageTask,
   handlePanelVariantTask,
-  handleStoryboardImageTask,
 } from './handlers/image-task-handlers'
 
 type AnyObj = Record<string, unknown>
@@ -22,8 +21,6 @@ async function processImageTask(job: Job<TaskJobData>) {
   await reportTaskProgress(job, 5, { stage: 'received' })
 
   switch (job.data.type) {
-    case TASK_TYPE.STORYBOARD_IMAGE:
-      return await handleStoryboardImageTask(job)
     case TASK_TYPE.IMAGE_CHARACTER:
       return await handleCharacterImageTask(job)
     case TASK_TYPE.IMAGE_LOCATION:
