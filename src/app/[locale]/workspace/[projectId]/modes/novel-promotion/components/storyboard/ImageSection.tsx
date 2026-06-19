@@ -147,7 +147,7 @@ export default function ImageSection({
           </select>
         </label>
         <label className="flex items-center gap-1">
-          <span>{t('image.candidateCount')}</span>
+          <span>{t('image.candidateCountLabel')}</span>
           <select
             value={candidateCount}
             onChange={(e) => setCandidateCount(Number(e.target.value))}
