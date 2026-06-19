@@ -6,7 +6,6 @@ import { NovelPromotionStoryboard } from '@/types/project'
 import { usePanelCandidates } from './usePanelCandidates'
 import {
   useClearProjectStoryboardError,
-  useCreateProjectStoryboardImage,
   useRefreshProjectAssets,
   useRefreshEpisodeData,
   useRefreshStoryboards,
@@ -14,8 +13,6 @@ import {
   useModifyProjectStoryboardImage,
   useDownloadProjectImages,
 } from '@/lib/query/hooks'
-import { extractErrorMessage } from '@/lib/errors/extract'
-import type { StoryboardGridPreset } from '@/lib/storyboard-images/grid'
 import {
   getStoryboardPanels,
   reconcileModifyingPanelIds,
@@ -52,7 +49,6 @@ export function useStoryboardImageGeneration({
   const refreshStoryboards = useRefreshStoryboards(episodeId ?? null)
   const regeneratePanelMutation = useRegenerateProjectPanelImage(projectId)
   const modifyPanelMutation = useModifyProjectStoryboardImage(projectId)
-  const createStoryboardImageMutation = useCreateProjectStoryboardImage(projectId)
   const downloadImagesMutation = useDownloadProjectImages(projectId)
   const clearStoryboardErrorMutation = useClearProjectStoryboardError(projectId)
 
@@ -60,20 +56,16 @@ export function useStoryboardImageGeneration({
   const [selectingCandidateIds] = useState<Set<string>>(new Set())
   const [editingPanel, setEditingPanel] = useState<{ storyboardId: string; panelIndex: number } | null>(null)
   const [modifyingPanels, setModifyingPanels] = useState<Set<string>>(new Set())
-  const [submittingAiStoryboardIds, setSubmittingAiStoryboardIds] = useState<Set<string>>(new Set())
-  const [compositingStoryboardIds, setCompositingStoryboardIds] = useState<Set<string>>(new Set())
   const [isDownloadingImages, setIsDownloadingImages] = useState(false)
   const [previewImage, setPreviewImage] = useState<string | null>(null)
 
   const submittingStoryboardIds = useMemo(() => {
-    const ids = new Set<string>(
+    return new Set<string>(
       localStoryboards
         .filter((storyboard) => storyboard.storyboardTaskRunning)
         .map((storyboard) => storyboard.id),
     )
-    submittingAiStoryboardIds.forEach((id) => ids.add(id))
-    return ids
-  }, [localStoryboards, submittingAiStoryboardIds])
+  }, [localStoryboards])
 
   const {
     panelCandidateIndex,
@@ -155,87 +147,6 @@ export function useStoryboardImageGeneration({
     setIsDownloadingImages,
   })
 
-  const createCompositedStoryboardImage = useCallback(async (
-    storyboardId: string,
-    gridPreset: StoryboardGridPreset,
-  ) => {
-    if (compositingStoryboardIds.has(storyboardId)) return
-
-    setCompositingStoryboardIds((previous) => new Set(previous).add(storyboardId))
-    try {
-      const data = await createStoryboardImageMutation.mutateAsync({
-        storyboardId,
-        mode: 'composited_storyboard',
-        gridPreset,
-      })
-      const imageUrl = 'storyboardImage' in data ? data.storyboardImage?.imageUrl : null
-      if (imageUrl) {
-        setLocalStoryboards((previousStoryboards) =>
-          previousStoryboards.map((storyboard) =>
-            storyboard.id === storyboardId
-              ? { ...storyboard, storyboardImageUrl: imageUrl }
-              : storyboard,
-          ),
-        )
-      }
-      if (onSilentRefresh) {
-        await onSilentRefresh()
-      }
-      refreshEpisode()
-      refreshStoryboards()
-    } catch (error) {
-      alert(extractErrorMessage(error, '拼接故事板图失败'))
-    } finally {
-      setCompositingStoryboardIds((previous) => {
-        const next = new Set(previous)
-        next.delete(storyboardId)
-        return next
-      })
-    }
-  }, [
-    compositingStoryboardIds,
-    createStoryboardImageMutation,
-    onSilentRefresh,
-    refreshEpisode,
-    refreshStoryboards,
-    setLocalStoryboards,
-  ])
-
-  const createAiStoryboardImage = useCallback(async (
-    storyboardId: string,
-    gridPreset: StoryboardGridPreset,
-  ) => {
-    if (submittingAiStoryboardIds.has(storyboardId)) return
-
-    setSubmittingAiStoryboardIds((previous) => new Set(previous).add(storyboardId))
-    try {
-      await createStoryboardImageMutation.mutateAsync({
-        storyboardId,
-        mode: 'ai_storyboard',
-        gridPreset,
-      })
-      if (onSilentRefresh) {
-        await onSilentRefresh()
-      }
-      refreshEpisode()
-      refreshStoryboards()
-    } catch (error) {
-      alert(extractErrorMessage(error, '生成故事板图失败'))
-    } finally {
-      setSubmittingAiStoryboardIds((previous) => {
-        const next = new Set(previous)
-        next.delete(storyboardId)
-        return next
-      })
-    }
-  }, [
-    createStoryboardImageMutation,
-    onSilentRefresh,
-    refreshEpisode,
-    refreshStoryboards,
-    submittingAiStoryboardIds,
-  ])
-
   const clearStoryboardError = useCallback(async (storyboardId: string) => {
     let snapshot: NovelPromotionStoryboard[] | null = null
     setLocalStoryboards((previousStoryboards) =>
@@ -277,14 +188,11 @@ export function useStoryboardImageGeneration({
     editingPanel,
     setEditingPanel,
     modifyingPanels,
-    compositingStoryboardIds,
     isDownloadingImages,
     previewImage,
     setPreviewImage,
     regeneratePanelImage,
     regenerateAllPanelsIndividually,
-    createAiStoryboardImage,
-    createCompositedStoryboardImage,
     selectPanelCandidate: confirmPanelCandidate,
     selectPanelCandidateIndex,
     cancelPanelCandidate,

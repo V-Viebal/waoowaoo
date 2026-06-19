@@ -1,7 +1,7 @@
 'use client'
 import { useTranslations } from 'next-intl'
 
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo } from 'react'
 import ScreenplayDisplay from './ScreenplayDisplay'
 import { StoryboardPanel } from './hooks/useStoryboardState'
 import StoryboardGroupHeader from './StoryboardGroupHeader'
@@ -15,7 +15,6 @@ import StoryboardGroupFailedAlert from './StoryboardGroupFailedAlert'
 import StoryboardGroupDialogs from './StoryboardGroupDialogs'
 import type { StoryboardGroupProps } from './StoryboardGroup.types'
 import { AppIcon } from '@/components/ui/icons'
-import { STORYBOARD_GRID_PRESETS, type StoryboardGridPreset } from '@/lib/storyboard-images/grid'
 
 export default function StoryboardGroup({
   storyboard,
@@ -37,7 +36,6 @@ export default function StoryboardGroup({
   hasUnsavedByPanel,
   modifyingPanels,
   submittingPanelImageIds,
-  compositingStoryboardIds,
   onToggleExpand,
   onMoveUp,
   onMoveDown,
@@ -45,7 +43,6 @@ export default function StoryboardGroup({
   onAddPanel,
   onDeleteStoryboard,
   onGenerateAllIndividually,
-  onCreateCompositedStoryboardImage,
   onPreviewImage,
   onCloseError,
   getPanelEditData,
@@ -57,7 +54,6 @@ export default function StoryboardGroup({
   onRemoveLocation,
   onRetryPanelSave,
   onRegeneratePanelImage,
-  onCreateAiStoryboardImage,
   onOpenEditModal,
   onOpenAIDataModal,
   getPanelCandidates,
@@ -74,7 +70,6 @@ export default function StoryboardGroup({
   submittingVariantPanelId,
 }: StoryboardGroupProps) {
   const t = useTranslations('storyboard')
-  const [gridPreset, setGridPreset] = useState<StoryboardGridPreset>(STORYBOARD_GRID_PRESETS.GRID_AUTO)
 
   const {
     insertModalOpen,
@@ -121,8 +116,6 @@ export default function StoryboardGroup({
 
   const currentRunningCount = textPanels.filter(isPanelTaskRunning).length
   const pendingCount = textPanels.filter((panel) => !panel.imageUrl && !isPanelTaskRunning(panel)).length
-  const canCompositeStoryboardImage = textPanels.length > 0 && textPanels.every((panel) => !!panel.imageUrl)
-  const isCompositingStoryboardImage = compositingStoryboardIds.has(storyboard.id)
 
   const groupOverlayState = useMemo(() => {
     if (!isSubmittingStoryboardTask && !isSelectingCandidate) return null
@@ -173,19 +166,12 @@ export default function StoryboardGroup({
         />
         <StoryboardGroupActions
           hasAnyImage={hasAnyImage}
-          isSubmittingStoryboardTask={isSubmittingStoryboardTask}
           isSubmittingStoryboardTextTask={isSubmittingStoryboardTextTask}
           currentRunningCount={currentRunningCount}
           pendingCount={pendingCount}
           panelCount={textPanels.length}
-          gridPreset={gridPreset}
-          isCompositingStoryboardImage={isCompositingStoryboardImage}
-          canCompositeStoryboardImage={canCompositeStoryboardImage}
           onRegenerateText={onRegenerateText}
           onGenerateAllIndividually={onGenerateAllIndividually}
-          onGridPresetChange={setGridPreset}
-          onCreateAiStoryboardImage={() => onCreateAiStoryboardImage(storyboard.id, gridPreset)}
-          onCreateCompositedStoryboardImage={() => onCreateCompositedStoryboardImage(storyboard.id, gridPreset)}
           onAddPanel={onAddPanel}
           onDeleteStoryboard={onDeleteStoryboard}
         />

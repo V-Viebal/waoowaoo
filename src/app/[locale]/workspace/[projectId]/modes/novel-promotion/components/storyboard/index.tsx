@@ -77,7 +77,6 @@ export default function StoryboardStage({
     submittingStoryboardIds,
     submittingPanelImageIds,
     selectingCandidateIds,
-    compositingStoryboardIds,
 
     editingPanel,
     setEditingPanel,
@@ -87,8 +86,6 @@ export default function StoryboardStage({
     setPreviewImage,
     regeneratePanelImage,
     regenerateAllPanelsIndividually,
-    createAiStoryboardImage,
-    createCompositedStoryboardImage,
     selectPanelCandidate,
     selectPanelCandidateIndex,
     cancelPanelCandidate,
@@ -180,7 +177,6 @@ export default function StoryboardStage({
           hasUnsavedByPanel={hasUnsavedByPanel}
           modifyingPanels={modifyingPanels}
           submittingPanelImageIds={submittingPanelImageIds}
-          compositingStoryboardIds={compositingStoryboardIds}
 
           movingClipId={movingClipId}
           insertingAfterPanelId={insertingAfterPanelId}
@@ -208,8 +204,6 @@ export default function StoryboardStage({
           onRemoveLocation={handleRemoveLocation}
           onRetryPanelSave={retrySave}
           onRegeneratePanelImage={regeneratePanelImage}
-          onCreateAiStoryboardImage={createAiStoryboardImage}
-          onCreateCompositedStoryboardImage={createCompositedStoryboardImage}
           onOpenEditModal={(storyboardId, panelIndex) => setEditingPanel({ storyboardId, panelIndex })}
           onOpenAIDataModal={(storyboardId, panelIndex) => setAIDataPanel({ storyboardId, panelIndex })}
           getPanelCandidates={getPanelCandidates}

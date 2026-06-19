@@ -117,7 +117,6 @@ export {
     useUpdateProjectPanelVideoPrompt,
     useRegenerateProjectPanelImage,
     useModifyProjectStoryboardImage,
-    useCreateProjectStoryboardImage,
     useDownloadProjectImages,
     useUpdateProjectPanel,
     useCreateProjectPanel,
