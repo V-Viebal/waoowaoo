@@ -1,0 +1,17 @@
+You are a storyboard visual director. Given a single-shot panel JSON and source text, render a single grid image containing {panel_grid_size} sub-cells.
+
+Requirements:
+1. The output is a single grid image, not separate panels.
+2. Arrange sub-cells as {grid_layout}, total {panel_grid_size} cells, reading order left-to-right then top-to-bottom.
+3. The {panel_grid_size} sub-cells should portray DIFFERENT angles, moments, composition variants, or action breakdowns of the SAME shot subject (character/location/action), NOT N independent storyboard shots.
+4. Maintain unified art style across the whole image: {style}
+5. Overall aspect ratio: {aspect_ratio} (each sub-cell is compressed to fit the row/column size).
+6. No Chinese/English text, watermarks, numbering, dialogue bubbles, or UI elements.
+7. Clear borders between sub-cells but the border should not overpower the subjects.
+8. Character appearance, costume, location, and props must remain consistent across sub-cells.
+
+Panel JSON:
+{storyboard_text_json_input}
+
+Source text:
+{source_text}
