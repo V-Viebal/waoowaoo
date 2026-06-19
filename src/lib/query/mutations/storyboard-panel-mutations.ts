@@ -39,11 +39,15 @@ type CreateStoryboardImageResult =
 export function useRegenerateProjectPanelImage(projectId: string) {
     const queryClient = useQueryClient()
     return useMutation({
-        mutationFn: async ({ panelId, count }: { panelId: string; count?: number }) => {
+        mutationFn: async ({ panelId, count, panelGridSize }: { panelId: string; count?: number; panelGridSize?: number }) => {
             const res = await apiFetch(`/api/novel-promotion/${projectId}/regenerate-panel-image`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ panelId, count: count ?? 1 }),
+                body: JSON.stringify({
+                    panelId,
+                    count: count ?? 1,
+                    panelGridSize: panelGridSize ?? 1,
+                }),
             })
             if (!res.ok) {
                 const error = await res.json().catch(() => ({}))
