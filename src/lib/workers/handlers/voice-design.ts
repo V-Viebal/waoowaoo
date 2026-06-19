@@ -5,6 +5,7 @@ import {
   validateVoicePrompt,
   type VoiceDesignInput,
 } from '@/lib/providers/bailian/voice-design'
+import { createOmnivoiceVoiceDesign, OMNIVOICE_TTS_MODEL_ID } from '@/lib/providers/omnivoice'
 import { getProviderConfig } from '@/lib/api-config'
 import { reportTaskProgress } from '@/lib/workers/shared'
 import { assertTaskActive } from '@/lib/workers/utils'
@@ -21,8 +22,13 @@ function readLanguage(value: unknown): 'zh' | 'en' {
   return value === 'en' ? 'en' : 'zh'
 }
 
+function readProvider(value: unknown): 'bailian' | 'omnivoice' {
+  return value === 'omnivoice' ? 'omnivoice' : 'bailian'
+}
+
 export async function handleVoiceDesignTask(job: Job<TaskJobData>) {
   const payload = (job.data.payload || {}) as Record<string, unknown>
+  const provider = readProvider(payload.provider)
   const voicePrompt = readRequiredString(payload.voicePrompt, 'voicePrompt')
   const previewText = readRequiredString(payload.previewText, 'previewText')
   const preferredName = typeof payload.preferredName === 'string' && payload.preferredName.trim()
@@ -46,13 +52,41 @@ export async function handleVoiceDesignTask(job: Job<TaskJobData>) {
   })
   await assertTaskActive(job, 'voice_design_submit')
 
-  const { apiKey } = await getProviderConfig(job.data.userId, 'bailian')
-  const input: VoiceDesignInput = {
-    voicePrompt,
-    previewText,
-    preferredName,
-    language,
+  const taskType = job.data.type === TASK_TYPE.ASSET_HUB_VOICE_DESIGN
+    ? TASK_TYPE.ASSET_HUB_VOICE_DESIGN
+    : TASK_TYPE.VOICE_DESIGN
+
+  if (provider === 'omnivoice') {
+    const designed = await createOmnivoiceVoiceDesign({
+      voicePrompt,
+      previewText,
+      preferredName,
+      language,
+      userId: job.data.userId,
+    })
+    if (!designed.success) {
+      throw new Error(designed.error || '声音设计失败')
+    }
+    await reportTaskProgress(job, 96, {
+      stage: 'voice_design_done',
+      stageLabel: '声音设计完成',
+      displayMode: 'detail',
+    })
+    return {
+      success: true,
+      voiceId: designed.profileId,
+      targetModel: OMNIVOICE_TTS_MODEL_ID,
+      voiceType: 'omnivoice-design',
+      audioBase64: designed.audioBase64,
+      sampleRate: designed.sampleRate,
+      responseFormat: designed.responseFormat,
+      requestId: designed.requestId,
+      taskType,
+    }
   }
+
+  const { apiKey } = await getProviderConfig(job.data.userId, 'bailian')
+  const input: VoiceDesignInput = { voicePrompt, previewText, preferredName, language }
   const designed = await createVoiceDesign(input, apiKey)
   if (!designed.success) {
     throw new Error(designed.error || '声音设计失败')
@@ -68,11 +102,12 @@ export async function handleVoiceDesignTask(job: Job<TaskJobData>) {
     success: true,
     voiceId: designed.voiceId,
     targetModel: designed.targetModel,
+    voiceType: 'qwen-designed',
     audioBase64: designed.audioBase64,
     sampleRate: designed.sampleRate,
     responseFormat: designed.responseFormat,
     usageCount: designed.usageCount,
     requestId: designed.requestId,
-    taskType: job.data.type === TASK_TYPE.ASSET_HUB_VOICE_DESIGN ? TASK_TYPE.ASSET_HUB_VOICE_DESIGN : TASK_TYPE.VOICE_DESIGN,
+    taskType,
   }
 }
