@@ -19,6 +19,11 @@ import type {
   OpenAICompatMediaTemplateSource,
 } from './openai-compat-media-template'
 import { validateOpenAICompatMediaTemplate } from './user-api/model-template/validator'
+import {
+  isOfficialModelRegistered,
+  type OfficialProviderKey,
+  type OfficialModelModality,
+} from './providers/official/model-registry'
 
 export interface CustomModel {
   modelId: string
@@ -333,26 +338,45 @@ export async function resolveModelSelection(
   const models = await getModelsByType(userId, mediaType)
 
   const exact = findModelByKey(models, parsed.modelKey)
-  if (!exact) {
-    throw new Error(`MODEL_NOT_FOUND: ${parsed.modelKey} is not enabled for ${mediaType}`)
+  if (exact) {
+    const providerKey = getProviderKey(exact.provider).toLowerCase()
+    const llmProtocol = mediaType === 'llm' && providerKey === 'openai-compatible'
+      ? (exact.llmProtocol || 'chat-completions')
+      : undefined
+    const compatMediaTemplate = (mediaType === 'image' || mediaType === 'video') && providerKey === 'openai-compatible'
+      ? exact.compatMediaTemplate
+      : undefined
+
+    return {
+      provider: exact.provider,
+      modelId: exact.modelId,
+      modelKey: composeModelKey(exact.provider, exact.modelId),
+      mediaType,
+      ...(llmProtocol ? { llmProtocol } : {}),
+      ...(compatMediaTemplate ? { compatMediaTemplate } : {}),
+    }
   }
 
-  const providerKey = getProviderKey(exact.provider).toLowerCase()
-  const llmProtocol = mediaType === 'llm' && providerKey === 'openai-compatible'
-    ? (exact.llmProtocol || 'chat-completions')
-    : undefined
-  const compatMediaTemplate = (mediaType === 'image' || mediaType === 'video') && providerKey === 'openai-compatible'
-    ? exact.compatMediaTemplate
-    : undefined
-
-  return {
-    provider: exact.provider,
-    modelId: exact.modelId,
-    modelKey: composeModelKey(exact.provider, exact.modelId),
-    mediaType,
-    ...(llmProtocol ? { llmProtocol } : {}),
-    ...(compatMediaTemplate ? { compatMediaTemplate } : {}),
+  // Fallback: catalog-only providers (e.g., bailian, omnivoice) don't require
+  // a per-user customModel row. If the requested model is in the official
+  // catalog for this modality, accept it.
+  if (mediaType !== 'llm' && mediaType !== 'lipsync') {
+    const isCatalogModel = isOfficialModelRegistered({
+      provider: parsed.provider as OfficialProviderKey,
+      modality: mediaType as OfficialModelModality,
+      modelId: parsed.modelId,
+    })
+    if (isCatalogModel) {
+      return {
+        provider: parsed.provider,
+        modelId: parsed.modelId,
+        modelKey: parsed.modelKey,
+        mediaType,
+      }
+    }
   }
+
+  throw new Error(`MODEL_NOT_FOUND: ${parsed.modelKey} is not enabled for ${mediaType}`)
 }
 
 async function resolveSingleModelSelection(
