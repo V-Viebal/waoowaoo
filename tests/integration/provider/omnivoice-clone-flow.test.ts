@@ -38,7 +38,7 @@ describe('POST /api/asset-hub/voice-clone (omnivoice)', () => {
 
   it('creates GlobalVoice on successful clone', async () => {
     ;(prisma.mediaObject.findUnique as unknown as { mockResolvedValue: (v: unknown) => void }).mockResolvedValue({
-      id: 'm1', storageKey: 'voice-ref/u1/x.wav', userId: 'u1',
+      id: 'm1', storageKey: 'voices/u1/timestamp.wav',
     })
     ;(createOmnivoiceClone as unknown as { mockResolvedValue: (v: unknown) => void }).mockResolvedValue({
       success: true, profileId: 'prof_z',
@@ -65,9 +65,20 @@ describe('POST /api/asset-hub/voice-clone (omnivoice)', () => {
     }))
   })
 
-  it('rejects mediaObject owned by another user', async () => {
+  it('rejects mediaObject whose storage-key prefix encodes another user', async () => {
     ;(prisma.mediaObject.findUnique as unknown as { mockResolvedValue: (v: unknown) => void }).mockResolvedValue({
-      id: 'm1', storageKey: 'k', userId: 'someone-else',
+      id: 'm1', storageKey: 'voices/attacker/file.wav',
+    })
+    const res = await cloneHandler(buildRequest({
+      name: 'X', refAudioMediaId: 'm1',
+    }), ctx)
+    expect(res.status).toBe(403)
+    expect(createOmnivoiceClone).not.toHaveBeenCalled()
+  })
+
+  it('fail-closed rejects mediaObject whose storage key does not match the voices/<userId>/ convention', async () => {
+    ;(prisma.mediaObject.findUnique as unknown as { mockResolvedValue: (v: unknown) => void }).mockResolvedValue({
+      id: 'm1', storageKey: 'k',
     })
     const res = await cloneHandler(buildRequest({
       name: 'X', refAudioMediaId: 'm1',
@@ -78,7 +89,7 @@ describe('POST /api/asset-hub/voice-clone (omnivoice)', () => {
 
   it('returns 502 when omnivoice backend unreachable', async () => {
     ;(prisma.mediaObject.findUnique as unknown as { mockResolvedValue: (v: unknown) => void }).mockResolvedValue({
-      id: 'm1', storageKey: 'k', userId: 'u1',
+      id: 'm1', storageKey: 'voices/u1/x.wav',
     })
     ;(createOmnivoiceClone as unknown as { mockResolvedValue: (v: unknown) => void }).mockResolvedValue({
       success: false, error: 'fetch failed', errorCode: 'OMNIVOICE_BACKEND_UNREACHABLE',

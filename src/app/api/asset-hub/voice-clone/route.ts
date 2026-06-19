@@ -6,14 +6,28 @@ import { getObjectBuffer, getSignedUrl } from '@/lib/storage'
 import { createOmnivoiceClone } from '@/lib/providers/omnivoice'
 
 /**
- * Best-effort extraction of the userId encoded in a storage key.
- * Voice-related uploads use the convention `voices/<userId>/...` (see
- * src/app/api/asset-hub/voices/upload/route.ts). Returns null if the key
- * does not match a known convention.
+ * Ownership model for MediaObject in this route
+ * --------------------------------------------------
+ * This route assumes the MediaObject was uploaded via the canonical
+ * `voices/<userId>/...` storage key convention (see
+ * `src/app/api/asset-hub/voices/upload/route.ts`). The MediaObject schema
+ * currently has NO `userId` column (known gap; tracked under Task 18
+ * follow-ups in `docs/superpowers/plans/2026-06-18-omnivoice-sdk-integration.md`).
+ *
+ * Until the schema is updated, ownership is enforced solely via the
+ * storage-key prefix. Any MediaObject whose storage key does not match
+ * `voices/<userId>/...` (where `<userId>` equals the current session user)
+ * is rejected with 403 (fail-closed).
+ */
+
+/**
+ * Extracts the userId encoded in a `voices/<userId>/...` storage key.
+ * Returns null if the key does not follow the convention — callers MUST
+ * treat null as "ownership unknown" and fail closed.
  */
 function extractUserIdFromKey(key: string): string | null {
   const segments = key.split('/').filter(Boolean)
-  if (segments.length >= 2 && (segments[0] === 'voices' || segments[0] === 'voice-ref')) {
+  if (segments.length >= 2 && segments[0] === 'voices') {
     return segments[1] ?? null
   }
   return null
@@ -37,16 +51,10 @@ export const POST = apiHandler(async (request: NextRequest) => {
   if (!name) throw new ApiError('INVALID_PARAMS')
   if (!refAudioMediaId) throw new ApiError('INVALID_PARAMS')
 
-  // NOTE: MediaObject schema has no `userId` column today. The brief assumes one;
-  // pending a schema migration we accept it via runtime cast and additionally
-  // verify via the storageKey path convention `voices/<userId>/...` if the
-  // userId field is missing.
-  const media = (await prisma.mediaObject.findUnique({ where: { id: refAudioMediaId } })) as
-    | ((NonNullable<Awaited<ReturnType<typeof prisma.mediaObject.findUnique>>>) & { userId?: string })
-    | null
+  const media = await prisma.mediaObject.findUnique({ where: { id: refAudioMediaId } })
   if (!media) throw new ApiError('NOT_FOUND')
 
-  const ownerId = media.userId ?? extractUserIdFromKey(media.storageKey)
+  const ownerId = extractUserIdFromKey(media.storageKey)
   if (!ownerId || ownerId !== session.user.id) {
     return NextResponse.json({ success: false, error: 'forbidden' }, { status: 403 })
   }

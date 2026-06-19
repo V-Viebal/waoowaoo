@@ -2965,6 +2965,18 @@ git add src/lib/billing/ README.md docs/
 git commit -m "docs(omnivoice): 计费占位 + 部署文档(env、持久化、SDK 构建)"
 ```
 
+### Follow-ups from Task 15
+
+1. **MediaObject ownership schema** — `MediaObject` has no `userId` column. The voice-clone route (`src/app/api/asset-hub/voice-clone/route.ts`) currently relies on the storage-key prefix `voices/<userId>/` for ownership and fails closed when the key does not match. Future work:
+   - Add a `userId` column to `MediaObject` with a migration + backfill via parent relations (Project/Episode/etc.), OR
+   - Scope the API through `GlobalVoice.userId` instead of `refAudioMediaId` (i.e. take a `globalVoiceId` and infer ownership from the GlobalVoice row, then read its `customVoiceMediaId` for cloning).
+
+2. **Frontend UI for voice cloning** — `useVoiceCreation` currently uploads via formData → `useUploadAssetHubVoice` → `/api/asset-hub/voices/upload`. That route writes a `GlobalVoice` row with `voiceType: 'uploaded'` directly and does **not** create a `MediaObject`. A "Clone via OmniVoice" UI entry therefore needs one of:
+   - Modify the upload route to create a `MediaObject` and return its id, then chain to `/api/asset-hub/voice-clone`, OR
+   - Switch `/api/asset-hub/voice-clone` to take a `globalVoiceId` (the just-uploaded `voiceType: 'uploaded'` GlobalVoice) and read its `customVoiceUrl`'s storage key for cloning.
+
+   In either path, ownership enforcement collapses back to a single, schema-backed signal — at which point the storage-key prefix check in the route can be retired.
+
 ---
 
 ## Task 19: 契约 + 回归测试
