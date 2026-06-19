@@ -28,6 +28,7 @@ export const POST = apiHandler(async (
   const panelId = body?.panelId
   const count = body?.count
   const candidateCount = Math.max(1, Math.min(4, Number(count ?? DEFAULT_CANDIDATE_COUNT)))
+  const panelGridSize = Math.max(1, Math.min(16, Number(body?.panelGridSize ?? 1)))
 
   if (!panelId) {
     throw new ApiError('INVALID_PARAMS')
@@ -55,6 +56,7 @@ export const POST = apiHandler(async (
   const billingPayload = {
     ...body,
     candidateCount,
+    panelGridSize,
     imageModel: projectModelConfig.storyboardModel,
     ...(Object.keys(capabilityOptions).length > 0 ? { generationOptions: capabilityOptions } : {})}
 
@@ -71,7 +73,7 @@ export const POST = apiHandler(async (
     payload: withTaskUiPayload(billingPayload, {
       intent: 'regenerate',
       hasOutputAtStart}),
-    dedupeKey: `image_panel:${panelId}:${candidateCount}`,
+    dedupeKey: `image_panel:${panelId}:${candidateCount}:${panelGridSize}`,
     billingInfo: buildDefaultTaskBillingInfo(TASK_TYPE.IMAGE_PANEL, billingPayload)})
 
   return NextResponse.json(result)
