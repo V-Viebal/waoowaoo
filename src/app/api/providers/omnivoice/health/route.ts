@@ -1,8 +1,11 @@
 import { NextResponse } from 'next/server'
 import { apiHandler } from '@/lib/api-errors'
+import { requireUserAuth, isErrorResponse } from '@/lib/api-auth'
 import { probeOmnivoice, getOmnivoiceClient } from '@/lib/providers/omnivoice'
 
 export const GET = apiHandler(async () => {
+  const authResult = await requireUserAuth()
+  if (isErrorResponse(authResult)) return authResult
   const probe = await probeOmnivoice()
   if (!probe.success) {
     return NextResponse.json(
