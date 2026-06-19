@@ -176,21 +176,11 @@ OMNIVOICE_BASE_URL=http://omnivoice-backend:3900
 OMNIVOICE_REQUEST_TIMEOUT_MS=300000
 ```
 
-### SDK 包路径
+### SDK 包
 
-`package.json` 当前用 `file:` 引用本地 SDK 源码:
+`@omnivoice/sdk` 已 vendored 到仓库 `vendor/omnivoice-sdk/`(只包含构建产物 `dist/`,~148 KB)。无需 sibling 仓库或额外构建步骤,`npm install` 直接可用。
 
-```
-"@omnivoice/sdk": "file:../../../../OmniVoice-Studio/sdk/omnivoice-ts"
-```
-
-这个路径是 **worktree 相对路径**(4 级 `..`),仅适用于本仓库 `.claude/worktrees/<branch>/` 下的 worktree 开发场景。**合并到 main 分支时,必须改回**:
-
-```
-"@omnivoice/sdk": "file:../OmniVoice-Studio/sdk/omnivoice-ts"
-```
-
-CI / Docker 镜像构建前需先在 `OmniVoice-Studio/sdk/omnivoice-ts/` 跑 `bun run build` 产出 `dist/`,或在 vvicat 仓库 vendor SDK 的 `dist/` 目录(后续 SDK 发布到 npm 时取消 vendor)。
+升级 SDK 版本时:从 OmniVoice-Studio 仓库重新构建 `bun run build` 后,把 `dist/` 拷过来覆盖即可。
 
 ### 后端部署要点
 

@@ -25,6 +25,23 @@ import {
   type OfficialModelModality,
 } from './providers/official/model-registry'
 
+// Eager catalog registration — `resolveModelSelection` checks the official
+// model registry as a fallback for image/video/audio modalities (catalog-only
+// providers like OmniVoice that don't require per-user customModels). Lazy
+// init via the per-provider `ensure*CatalogRegistered` calls only happens
+// when a `generate*` function runs, which is too late for resolution-stage
+// fallback. Registering at module load makes the registry authoritative
+// before any caller hits the fallback path.
+import { ensureBailianCatalogRegistered } from '@/lib/providers/bailian/catalog'
+import { ensureSiliconFlowCatalogRegistered } from '@/lib/providers/siliconflow/catalog'
+import { ensureStarRouterCatalogRegistered } from '@/lib/providers/starrouter/catalog'
+import { ensureOmnivoiceCatalogRegistered } from '@/lib/providers/omnivoice/catalog'
+
+ensureBailianCatalogRegistered()
+ensureSiliconFlowCatalogRegistered()
+ensureStarRouterCatalogRegistered()
+ensureOmnivoiceCatalogRegistered()
+
 export interface CustomModel {
   modelId: string
   modelKey: string
