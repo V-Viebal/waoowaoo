@@ -264,6 +264,7 @@
         "describePlaceholder": "描述声音特征：年龄、性别、音色、语调...",
         "aiRecommend": "AI 推荐语音",
         "aiRecommendLoading": "AI 分析角色中...",
+        "aiRecommendError": "AI 推荐语音失败，请稍后重试",
         "generateSchemesPrefix": "生成",
         "generateSchemesSuffix": "个声音方案",
         "schemeCountAriaLabel": "生成声音方案数量",

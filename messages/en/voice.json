@@ -264,6 +264,7 @@
         "describePlaceholder": "Describe voice characteristics: age, gender, tone, pitch...",
         "aiRecommend": "AI Recommend Voice",
         "aiRecommendLoading": "Analyzing character...",
+        "aiRecommendError": "AI voice recommendation failed. Please try again later.",
         "generateSchemesPrefix": "Generate",
         "generateSchemesSuffix": "Voice Schemes",
         "schemeCountAriaLabel": "Number of voice schemes to generate",

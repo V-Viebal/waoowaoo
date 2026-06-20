@@ -103,10 +103,22 @@ export default function VoiceDesignDialogBase({
         setError(null)
         try {
           const { instruct } = await onRecommendInstruct()
-          if (instruct) setVoicePrompt(instruct)
-        } catch (err) {
-          const message = err instanceof Error ? err.message : tv('generationError')
-          setError(message)
+          if (instruct) {
+            setVoicePrompt(instruct)
+            setGeneratedVoices([])
+            setSelectedIndex(null)
+            setError(null)
+          }
+        } catch (err: unknown) {
+          const status = err instanceof Error ? (err as Error & { status?: number }).status : undefined
+          if (status === 402) {
+            const detail = err instanceof Error ? (err as Error & { detail?: string }).detail : undefined
+            alert(t('insufficientBalance') + '\n\n' + (detail || t('insufficientBalanceDetail')))
+            setError(tv('aiRecommendError'))
+            return
+          }
+
+          setError(tv('aiRecommendError'))
         } finally {
           setIsRecommending(false)
         }
