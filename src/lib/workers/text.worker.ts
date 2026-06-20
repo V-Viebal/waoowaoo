@@ -25,6 +25,7 @@ import { assertTaskActive } from './utils'
 import { handleStoryToScriptTask } from './handlers/story-to-script'
 import { handleScriptToStoryboardTask } from './handlers/script-to-storyboard'
 import { handleVoiceAnalyzeTask } from './handlers/voice-analyze'
+import { handleCharacterVoiceRecommendTask } from './handlers/character-voice-recommend'
 import { handleAssetHubAIDesignTask } from './handlers/asset-hub-ai-design'
 import { handleAiStoryExpandTask } from './handlers/ai-story-expand'
 import { handleClipsBuildTask } from './handlers/clips-build'
@@ -661,6 +662,8 @@ async function processTextTask(job: Job<TaskJobData>) {
       return await handleScriptToStoryboardTask(job)
     case TASK_TYPE.VOICE_ANALYZE:
       return await handleVoiceAnalyzeTask(job)
+    case TASK_TYPE.CHARACTER_VOICE_RECOMMEND:
+      return await handleCharacterVoiceRecommendTask(job)
     case TASK_TYPE.ANALYZE_NOVEL:
       return await handleAnalyzeNovelTask(job)
     case TASK_TYPE.AI_STORY_EXPAND:

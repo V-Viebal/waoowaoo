@@ -23,6 +23,8 @@ export type {
   OmnivoiceInstructValidation,
   OmnivoiceChipGroupKey,
 } from './instruct-vocabulary'
+export { parseAndValidateRecommendation } from './instruct-recommend'
+export type { RecommendInstructResult } from './instruct-recommend'
 export type {
   OmnivoiceTTSParams,
   OmnivoiceTTSResult,
