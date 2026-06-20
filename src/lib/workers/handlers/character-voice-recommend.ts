@@ -94,24 +94,29 @@ export async function handleCharacterVoiceRecommendTask(job: Job<TaskJobData>) {
   const streamContext = createWorkerLLMStreamContext(job, 'character_voice_recommend')
   const streamCallbacks = createWorkerLLMStreamCallbacks(job, streamContext)
 
-  const completion = await withInternalLLMStreamCallbacks(
-    streamCallbacks,
-    async () =>
-      await executeAiTextStep({
-        userId: job.data.userId,
-        model: analysisModel,
-        messages: [{ role: 'user', content: promptTemplate }],
-        projectId,
-        action: 'character_voice_recommend',
-        meta: {
-          stepId: 'character_voice_recommend',
-          stepAttempt: 1,
-          stepTitle: 'AI 推荐声音',
-          stepIndex: 1,
-          stepTotal: 1,
-        },
-      }),
-  )
+  let completion: Awaited<ReturnType<typeof executeAiTextStep>>
+  try {
+    completion = await withInternalLLMStreamCallbacks(
+      streamCallbacks,
+      async () =>
+        await executeAiTextStep({
+          userId: job.data.userId,
+          model: analysisModel,
+          messages: [{ role: 'user', content: promptTemplate }],
+          projectId,
+          action: 'character_voice_recommend',
+          meta: {
+            stepId: 'character_voice_recommend',
+            stepAttempt: 1,
+            stepTitle: 'AI 推荐声音',
+            stepIndex: 1,
+            stepTotal: 1,
+          },
+        }),
+    )
+  } finally {
+    await streamCallbacks.flush()
+  }
 
   const recommendation = parseAndValidateRecommendation(completion.text ?? '', profile)
 
