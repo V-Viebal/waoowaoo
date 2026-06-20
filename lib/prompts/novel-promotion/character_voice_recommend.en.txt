@@ -8,7 +8,7 @@ You are a senior voice-casting director. Based on the character profile, pick th
 2. Age: pick exactly 1.
 3. Pitch: suggest picking 1, matching the character's temperament.
 4. Accent/dialect: skip by default; pick only if the profile clearly implies a regional dialect.
-5. Output only words from the vocabulary, separated by the "、" character.
+5. Output only words from the vocabulary, separated by a comma and a space (", ").
 6. Output ONLY the tag string — no explanation, no markdown, no line breaks.
 
 [Character profile]
