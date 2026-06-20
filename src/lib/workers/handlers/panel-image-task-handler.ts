@@ -296,6 +296,7 @@ export async function handlePanelImageTask(job: Job<TaskJobData>) {
   }
 
   const isFirstGeneration = !panel.imageUrl
+  const imageLayout = panelGridSize > 1 ? 'grid' : 'single'
 
   await assertTaskActive(job, 'persist_panel_image')
   if (isFirstGeneration) {
@@ -304,6 +305,7 @@ export async function handlePanelImageTask(job: Job<TaskJobData>) {
       data: {
         imageUrl: candidates[0] || null,
         candidateImages: candidateCount > 1 ? JSON.stringify(candidates) : null,
+        imageLayout,
       },
     })
   } else {
@@ -312,6 +314,7 @@ export async function handlePanelImageTask(job: Job<TaskJobData>) {
       data: {
         previousImageUrl: panel.imageUrl,
         candidateImages: JSON.stringify(candidates),
+        imageLayout,
       },
     })
   }

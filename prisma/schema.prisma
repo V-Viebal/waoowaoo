@@ -205,6 +205,7 @@ model NovelPromotionPanel {
   imageMediaId      String?
   imageMedia        MediaObject?              @relation("NovelPromotionPanelImageMedia", fields: [imageMediaId], references: [id], onDelete: SetNull)
   imageHistory      String?                   @db.Text
+  imageLayout       String?                   @db.Text // 图片布局：single | grid
   videoPrompt       String?                   @db.Text
   firstLastFramePrompt String?                @db.Text
   videoUrl          String?                   @db.Text

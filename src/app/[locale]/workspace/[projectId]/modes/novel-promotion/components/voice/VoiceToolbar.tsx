@@ -17,6 +17,8 @@ interface VoiceToolbarProps {
     totalLines: number
     linesWithVoice: number
     linesWithAudio: number
+    audioModel: string
+    onAudioModelChange: (value: string) => void
 }
 
 export default function VoiceToolbar({
@@ -32,7 +34,9 @@ export default function VoiceToolbar({
     allSpeakersHaveVoice,
     totalLines,
     linesWithVoice,
-    linesWithAudio
+    linesWithAudio,
+    audioModel,
+    onAudioModelChange,
 }: VoiceToolbarProps) {
     const t = useTranslations('voice')
     const voiceTaskRunningState = isBatchSubmitting
@@ -99,8 +103,22 @@ export default function VoiceToolbar({
                         ) : t("toolbar.downloadAll")}
                     </button>
                 </div>
-                <div className="text-sm text-[var(--glass-text-tertiary)]">
-                    {t("toolbar.stats", { total: totalLines, withVoice: linesWithVoice, withAudio: linesWithAudio })}
+                <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
+                        <span className="text-xs text-[var(--glass-text-tertiary)]">{t("toolbar.ttsEngine")}</span>
+                        <select
+                            value={audioModel}
+                            onChange={(e) => onAudioModelChange(e.target.value)}
+                            className="glass-input-base h-8 px-2.5 py-1 text-xs rounded-lg outline-none transition-all"
+                        >
+                            <option value="">{t("toolbar.auto")}</option>
+                            <option value="bailian:sambert-tts-v1">{t("toolbar.qwenTTS")}</option>
+                            <option value="omnivoice:tts-v1">{t("toolbar.omniVoice")}</option>
+                        </select>
+                    </div>
+                    <span className="text-sm text-[var(--glass-text-tertiary)]">
+                        {t("toolbar.stats", { total: totalLines, withVoice: linesWithVoice, withAudio: linesWithAudio })}
+                    </span>
                 </div>
             </div>
         </div>

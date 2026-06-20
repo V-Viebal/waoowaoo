@@ -50,6 +50,8 @@ export function useWorkspaceVideoActions({
     },
     generationOptions?: VideoGenerationOptions,
     panelId?: string,
+    imageLayout?: 'single' | 'grid',
+    gridSize?: number,
   ) => {
     const normalizedVideoModel = typeof videoModel === 'string' ? videoModel.trim() : ''
     if (!normalizedVideoModel) {
@@ -64,6 +66,8 @@ export function useWorkspaceVideoActions({
         videoModel: normalizedVideoModel,
         firstLastFrame,
         generationOptions,
+        imageLayout,
+        gridSize,
       })
     } catch (err: unknown) {
       if (isAbortError(err)) {

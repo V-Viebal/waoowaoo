@@ -75,6 +75,7 @@ export function useVideoPanelsProjection({
             videoModel: panel.videoModel || undefined,
           },
           imageUrl: panel.imageUrl || undefined,
+          imageLayout: (panel.imageLayout as 'single' | 'grid' | undefined) || undefined,
           firstLastFramePrompt: panel.firstLastFramePrompt || undefined,
           videoUrl: panel.videoUrl || undefined,
           videoGenerationMode: panel.videoGenerationMode || undefined,

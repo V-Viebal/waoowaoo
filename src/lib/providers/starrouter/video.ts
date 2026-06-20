@@ -4,7 +4,6 @@ import {
 } from '@/lib/providers/official/model-registry'
 import { getProviderConfig } from '@/lib/api-config'
 import type { GenerateResult } from '@/lib/generators/base'
-import { toFetchableUrl } from '@/lib/storage/utils'
 import { ensureStarRouterCatalogRegistered } from './catalog'
 import type { StarRouterGenerateRequestOptions } from './types'
 
@@ -24,7 +23,8 @@ function assertRegistered(modelId: string): void {
   })
 }
 
-const STARSTONE_VIDEO_ENDPOINT = 'https://starrouter.io/v1/videos/createVideoGeneration'
+const STARSTONE_VIDEO_SUBMIT_ENDPOINT = 'https://starrouter.io/v1/video/generations'
+const STARSTONE_VIDEO_QUERY_ENDPOINT = 'https://starrouter.io/v1/video/generations'
 
 // 视频是异步任务，submit 只是创建任务拿 task_id；上游卡住的话也得有兜底，
 // 否则会一直占住 BullMQ 的 job 槽位，影响后续锁续期。
@@ -35,17 +35,45 @@ interface StarRouterVideoSubmitResponse {
   message?: string
   data?: {
     task_id?: string
+    id?: string
   }
+  id?: string
+  task_id?: string
+  error?: {
+    code?: string
+    message?: string
+  }
+}
+
+function readTaskIdFromResponse(data: StarRouterVideoSubmitResponse): string {
+  return readTrimmedString(data.data?.task_id)
+    || readTrimmedString(data.data?.id)
+    || readTrimmedString(data.id)
+    || readTrimmedString(data.task_id)
 }
 
 interface StarRouterVideoSubmitBody {
   model: string
   prompt?: string
-  input_image_url?: string
+  image?: string
   duration?: number
-  aspect_ratio?: string
-  resolution?: string
-  generate_audio?: boolean
+  width?: number
+  height?: number
+  fps?: number
+  seed?: number
+  n?: number
+  response_format?: string
+  user?: string
+  metadata?: Record<string, unknown>
+}
+
+// 常见 aspect ratio 对应分辨率（720p 级别）
+const ASPECT_RATIO_TO_DIMENSIONS: Record<string, { width: number; height: number }> = {
+  '16:9': { width: 1280, height: 720 },
+  '9:16': { width: 720, height: 1280 },
+  '1:1': { width: 720, height: 720 },
+  '3:2': { width: 1080, height: 720 },
+  '2:3': { width: 720, height: 1080 },
 }
 
 function readTrimmedString(value: unknown): string {
@@ -73,10 +101,18 @@ function assertNoUnsupportedOptions(options: StarRouterGenerateRequestOptions): 
     'duration',
     'aspectRatio',
     'aspect_ratio',
-    'outputFormat',
-    'resolution',
+    'width',
+    'height',
     'fps',
+    'seed',
+    'n',
+    'outputFormat',
+    'response_format',
+    'resolution',
     'generateAudio',
+    'generate_audio',
+    'user',
+    'metadata',
   ])
   for (const [key, value] of Object.entries(options)) {
     if (value === undefined) continue
@@ -84,6 +120,33 @@ function assertNoUnsupportedOptions(options: StarRouterGenerateRequestOptions): 
       throw new Error(`STARSTONE_VIDEO_OPTION_UNSUPPORTED: ${key}`)
     }
   }
+}
+
+function resolveVideoDimensions(options: StarRouterGenerateRequestOptions): { width?: number; height?: number } {
+  const width = readOptionalPositiveInteger(options.width, 'width')
+  const height = readOptionalPositiveInteger(options.height, 'height')
+  if (width && height) return { width, height }
+
+  // 从 aspectRatio 推断尺寸
+  const aspectRatio = readTrimmedString(options.aspectRatio) || readTrimmedString(options.aspect_ratio)
+  if (aspectRatio && ASPECT_RATIO_TO_DIMENSIONS[aspectRatio]) {
+    return ASPECT_RATIO_TO_DIMENSIONS[aspectRatio]
+  }
+
+  // 从 resolution 推断（如 "720p"、"1080p"）
+  const resolution = readTrimmedString(options.resolution)?.toLowerCase()
+  if (resolution) {
+    const baseHeight = resolution === '1080p' ? 1080 : 720
+    const ratio = aspectRatio || '16:9'
+    const dims = ASPECT_RATIO_TO_DIMENSIONS[ratio] || ASPECT_RATIO_TO_DIMENSIONS['16:9']
+    const scale = baseHeight / dims.height
+    return {
+      width: Math.round(dims.width * scale),
+      height: baseHeight,
+    }
+  }
+
+  return {}
 }
 
 function buildSubmitRequest(params: StarRouterVideoGenerateParams): {
@@ -101,32 +164,38 @@ function buildSubmitRequest(params: StarRouterVideoGenerateParams): {
 
   const prompt = readTrimmedString(params.prompt) || readTrimmedString(params.options.prompt)
   const duration = readOptionalPositiveInteger(params.options.duration, 'duration')
-  const aspectRatio = readTrimmedString(params.options.aspectRatio) || readTrimmedString(params.options.aspect_ratio)
-  const resolution = readTrimmedString(params.options.resolution)
+  const fps = readOptionalPositiveInteger(params.options.fps, 'fps')
+  const seed = readOptionalPositiveInteger(params.options.seed, 'seed')
+  const n = readOptionalPositiveInteger(params.options.n, 'n')
+  const responseFormat = readTrimmedString(params.options.outputFormat) || readTrimmedString(params.options.response_format)
+  const user = readTrimmedString(params.options.user)
+  const { width, height } = resolveVideoDimensions(params.options)
+
+  // generate_audio 放入 metadata（文档说 metadata 放扩展参数）
   const generateAudio = readOptionalBoolean(params.options.generateAudio)
+    ?? readOptionalBoolean(params.options.generate_audio)
+  const metadata: Record<string, unknown> = {}
+  if (typeof generateAudio === 'boolean') {
+    metadata.generate_audio = generateAudio
+  }
 
   const submitBody: StarRouterVideoSubmitBody = {
     model: modelId,
-    input_image_url: toFetchableUrl(imageUrl),
+    image: imageUrl,
   }
-  if (prompt) {
-    submitBody.prompt = prompt
-  }
-  if (typeof duration === 'number') {
-    submitBody.duration = duration
-  }
-  if (aspectRatio) {
-    submitBody.aspect_ratio = aspectRatio
-  }
-  if (resolution) {
-    submitBody.resolution = resolution
-  }
-  if (typeof generateAudio === 'boolean') {
-    submitBody.generate_audio = generateAudio
-  }
+  if (prompt) submitBody.prompt = prompt
+  if (typeof duration === 'number') submitBody.duration = duration
+  if (typeof width === 'number') submitBody.width = width
+  if (typeof height === 'number') submitBody.height = height
+  if (typeof fps === 'number') submitBody.fps = fps
+  if (typeof seed === 'number') submitBody.seed = seed
+  if (typeof n === 'number') submitBody.n = n
+  if (responseFormat) submitBody.response_format = responseFormat
+  if (user) submitBody.user = user
+  if (Object.keys(metadata).length > 0) submitBody.metadata = metadata
 
   return {
-    endpoint: STARSTONE_VIDEO_ENDPOINT,
+    endpoint: STARSTONE_VIDEO_SUBMIT_ENDPOINT,
     body: submitBody,
   }
 }
@@ -171,12 +240,12 @@ export async function generateStarRouterVideo(params: StarRouterVideoGeneratePar
   const data = await parseSubmitResponse(response)
 
   if (!response.ok) {
-    const code = readTrimmedString(data.code)
-    const message = readTrimmedString(data.message)
+    const code = readTrimmedString(data.code) || readTrimmedString(data.error?.code)
+    const message = readTrimmedString(data.message) || readTrimmedString(data.error?.message)
     throw new Error(`STARSTONE_VIDEO_SUBMIT_FAILED(${response.status}): ${code || message || 'unknown error'}`)
   }
 
-  const taskId = readTrimmedString(data.data?.task_id)
+  const taskId = readTaskIdFromResponse(data)
   if (!taskId) {
     throw new Error('STARSTONE_VIDEO_TASK_ID_MISSING')
   }

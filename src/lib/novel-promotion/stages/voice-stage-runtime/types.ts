@@ -37,6 +37,7 @@ export interface Character {
   name: string
   customVoiceUrl?: string | null
   voiceId?: string | null
+  voiceType?: string | null
 }
 
 export interface BindablePanelOption {

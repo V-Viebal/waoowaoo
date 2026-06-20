@@ -66,6 +66,7 @@ export function useVoiceStageRuntime({
   const downloadVoicesMutation = useDownloadProjectVoices(projectId)
   const updateSpeakerVoiceMutation = useUpdateSpeakerVoice(projectId)
   const characters: Character[] = useMemo(() => (assets?.characters ?? []) as Character[], [assets?.characters])
+  const [audioModel, setAudioModel] = useState<string>('')
   const {
     voiceLines,
     setVoiceLines,
@@ -171,6 +172,7 @@ export function useVoiceStageRuntime({
     linesWithAudio,
     speakerCharacterMap,
     speakerVoices,
+    audioModel: audioModel || undefined,
     analyzeVoiceMutation,
     generateVoiceMutation,
     downloadVoicesMutation,
@@ -284,6 +286,8 @@ export function useVoiceStageRuntime({
         speakerOptions={speakerOptions}
         bindablePanelOptions={bindablePanelOptions}
         savingLineEditorState={savingLineEditorState}
+        audioModel={audioModel}
+        onAudioModelChange={setAudioModel}
         onAnalyze={handleAnalyze}
         onGenerateAll={handleGenerateAll}
         onDownloadAll={handleDownloadAll}

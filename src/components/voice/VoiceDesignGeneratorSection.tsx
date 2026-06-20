@@ -24,6 +24,10 @@ const VOICE_PRESET_KEYS = [
   'livelyFemale',
   'intellectualFemale',
   'narrator',
+  'hotBloodedMale',
+  'softCuteFemale',
+  'coolMatureFemale',
+  'sunnyTeenMale',
 ] as const
 
 type VoicePresetKey = (typeof VOICE_PRESET_KEYS)[number]

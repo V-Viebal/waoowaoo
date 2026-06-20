@@ -165,6 +165,8 @@ export function useGenerateVideo(projectId: string | null, episodeId: string | n
                 flModel: string
                 customPrompt?: string
             }
+            imageLayout?: 'single' | 'grid'
+            gridSize?: number
         }) => {
             if (!projectId) throw new Error('Project ID is required')
 
@@ -180,6 +182,8 @@ export function useGenerateVideo(projectId: string | null, episodeId: string | n
                 }
                 videoModel: string
                 generationOptions?: VideoGenerationOptions
+                imageLayout?: 'single' | 'grid'
+                gridSize?: number
             } = {
                 storyboardId: params.storyboardId,
                 panelIndex: params.panelIndex,
@@ -193,6 +197,14 @@ export function useGenerateVideo(projectId: string | null, episodeId: string | n
 
             if (params.generationOptions && typeof params.generationOptions === 'object') {
                 requestBody.generationOptions = params.generationOptions
+            }
+
+            if (params.imageLayout) {
+                requestBody.imageLayout = params.imageLayout
+            }
+
+            if (params.gridSize !== undefined && params.gridSize > 0) {
+                requestBody.gridSize = params.gridSize
             }
 
             const res = await apiFetch(`/api/novel-promotion/${projectId}/generate-video`, {

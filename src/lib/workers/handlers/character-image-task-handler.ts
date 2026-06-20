@@ -170,6 +170,8 @@ export async function handleCharacterImageTask(job: Job<TaskJobData>) {
         referenceImages: primaryReferenceImages.length > 0 ? primaryReferenceImages : undefined,
         aspectRatio: CHARACTER_ASSET_IMAGE_RATIO,
       },
+      // 同一 task 内串行生成多张时，禁止复用已有 externalId，否则所有图都会一模一样
+      allowTaskExternalIdResume: indexes.length === 1,
     })
 
     while (nextImageUrls.length <= index) {

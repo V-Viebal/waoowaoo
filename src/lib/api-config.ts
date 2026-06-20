@@ -21,6 +21,7 @@ import type {
 import { validateOpenAICompatMediaTemplate } from './user-api/model-template/validator'
 import {
   isOfficialModelRegistered,
+  listOfficialCatalogModels,
   type OfficialProviderKey,
   type OfficialModelModality,
 } from './providers/official/model-registry'
@@ -401,30 +402,50 @@ async function resolveSingleModelSelection(
   mediaType: ModelMediaType,
 ): Promise<ModelSelection> {
   const models = await getModelsByType(userId, mediaType)
-  if (models.length === 0) {
-    throw new Error(`MODEL_NOT_CONFIGURED: no ${mediaType} model is enabled`)
+  if (models.length === 1) {
+    const model = models[0]
+    const providerKey = getProviderKey(model.provider).toLowerCase()
+    const llmProtocol = mediaType === 'llm' && providerKey === 'openai-compatible'
+      ? (model.llmProtocol || 'chat-completions')
+      : undefined
+    const compatMediaTemplate = (mediaType === 'image' || mediaType === 'video') && providerKey === 'openai-compatible'
+      ? model.compatMediaTemplate
+      : undefined
+
+    return {
+      provider: model.provider,
+      modelId: model.modelId,
+      modelKey: composeModelKey(model.provider, model.modelId),
+      mediaType,
+      ...(llmProtocol ? { llmProtocol } : {}),
+      ...(compatMediaTemplate ? { compatMediaTemplate } : {}),
+    }
   }
+
   if (models.length > 1) {
     throw new Error(`MODEL_SELECTION_REQUIRED: multiple ${mediaType} models are enabled, provide model_key explicitly`)
   }
 
-  const model = models[0]
-  const providerKey = getProviderKey(model.provider).toLowerCase()
-  const llmProtocol = mediaType === 'llm' && providerKey === 'openai-compatible'
-    ? (model.llmProtocol || 'chat-completions')
-    : undefined
-  const compatMediaTemplate = (mediaType === 'image' || mediaType === 'video') && providerKey === 'openai-compatible'
-    ? model.compatMediaTemplate
-    : undefined
-
-  return {
-    provider: model.provider,
-    modelId: model.modelId,
-    modelKey: composeModelKey(model.provider, model.modelId),
-    mediaType,
-    ...(llmProtocol ? { llmProtocol } : {}),
-    ...(compatMediaTemplate ? { compatMediaTemplate } : {}),
+  // Fallback: catalog-only providers (e.g., omnivoice) don't require
+  // a per-user customModel row. If a single catalog model exists for this
+  // modality, use it.
+  if (mediaType !== 'llm' && mediaType !== 'lipsync') {
+    const catalogModels = listOfficialCatalogModels(mediaType as OfficialModelModality)
+    if (catalogModels.length === 1) {
+      const catalog = catalogModels[0]
+      return {
+        provider: catalog.provider,
+        modelId: catalog.modelId,
+        modelKey: catalog.modelKey,
+        mediaType,
+      }
+    }
+    if (catalogModels.length > 1) {
+      throw new Error(`MODEL_SELECTION_REQUIRED: multiple ${mediaType} catalog models available, provide model_key explicitly`)
+    }
   }
+
+  throw new Error(`MODEL_NOT_CONFIGURED: no ${mediaType} model is enabled`)
 }
 
 /**

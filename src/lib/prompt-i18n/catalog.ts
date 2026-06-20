@@ -165,6 +165,17 @@ export const PROMPT_CATALOG: Record<PromptId, PromptCatalogEntry> = {
       'panel_grid_size',
     ],
   },
+  [PROMPT_IDS.NP_PANEL_GRID_VIDEO]: {
+    pathStem: 'novel-promotion/panel_grid_video',
+    variableKeys: [
+      'base_prompt',
+      'panel_description',
+      'grid_layout',
+      'panel_grid_size',
+      'camera_move',
+      'shot_type',
+    ],
+  },
   [PROMPT_IDS.NP_STORYBOARD_EDIT]: {
     pathStem: 'novel-promotion/storyboard_edit',
     variableKeys: ['user_input'],

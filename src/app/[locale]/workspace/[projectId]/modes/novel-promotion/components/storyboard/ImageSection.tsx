@@ -211,7 +211,7 @@ export default function ImageSection({
         <span className="glass-chip glass-chip-info px-2 py-0.5 text-xs">{shotType}</span>
       </div>
 
-      {!candidateData && (
+      {!candidateData && imageUrl && (
         <ImageSectionActionButtons
           panelId={panelId}
           imageUrl={imageUrl}

@@ -37,6 +37,8 @@ interface VoiceControlPanelProps {
   speakerOptions: string[]
   bindablePanelOptions: BindablePanelOption[]
   savingLineEditorState: TaskPresentationState | null
+  audioModel: string
+  onAudioModelChange: (value: string) => void
   onAnalyze: () => Promise<void>
   onGenerateAll: () => Promise<void>
   onDownloadAll: () => Promise<void>
@@ -75,6 +77,8 @@ export default function VoiceControlPanel({
   speakerOptions,
   bindablePanelOptions,
   savingLineEditorState,
+  audioModel,
+  onAudioModelChange,
   onAnalyze,
   onGenerateAll,
   onDownloadAll,
@@ -108,6 +112,8 @@ export default function VoiceControlPanel({
           totalLines={totalLines}
           linesWithVoice={linesWithVoice}
           linesWithAudio={linesWithAudio}
+          audioModel={audioModel}
+          onAudioModelChange={onAudioModelChange}
         />
       ) : (
         <EmbeddedVoiceToolbar

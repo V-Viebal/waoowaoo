@@ -21,7 +21,11 @@
         "stats": "共 {total} 条台词 | 已设置音色 {withVoice} 条 | 已生成配音 {withAudio} 条",
         "noDownload": "没有可下载的配音",
         "downloadCount": "下载 {count} 条配音",
-        "uploadReferenceHint": "请先在资产库为所有角色上传参考音频"
+        "uploadReferenceHint": "请先在资产库为所有角色上传参考音频",
+        "ttsEngine": "TTS 引擎",
+        "auto": "自动",
+        "qwenTTS": "千问 TTS",
+        "omniVoice": "OmniVoice"
     },
     "speakerVoice": {
         "title": "发言人音色状态",
@@ -226,7 +230,11 @@
             "matureMale": "成熟男",
             "livelyFemale": "活泼女",
             "intellectualFemale": "知性女",
-            "narrator": "旁白"
+            "narrator": "旁白",
+            "hotBloodedMale": "热血少年",
+            "softCuteFemale": "软萌少女",
+            "coolMatureFemale": "高冷御姐",
+            "sunnyTeenMale": "阳光少年"
         },
         "presetsPrompts": {
             "maleBroadcaster": "沉稳的中年男性播音员，音色低沉浑厚，语速平稳，吐字清晰",
@@ -234,15 +242,23 @@
             "matureMale": "成熟稳重的男性，声音富有磁性和感染力",
             "livelyFemale": "活泼开朗的少女，声音甜美可爱，充满活力",
             "intellectualFemale": "知性优雅的女性，声音清晰悦耳，语调平和",
-            "narrator": "富有感情的叙述者，声音温暖有故事感"
+            "narrator": "富有感情的叙述者，声音温暖有故事感",
+            "hotBloodedMale": "热血少年音，充满活力和正义感，声音洪亮有冲劲，少年感十足，适合动漫男主",
+            "softCuteFemale": "软萌少女音，声音清甜软糯，可爱又元气，带有二次元感，适合动漫女主角",
+            "coolMatureFemale": "高冷御姐音，声音成熟磁性，气场强大，冷静从容，适合女王范角色",
+            "sunnyTeenMale": "阳光少年音，声音明亮清澈，温暖治愈，少年感满满，适合校园番男主"
         },
         "presetsPromptsOmnivoice": {
-            "maleBroadcaster": "男、中年、中音调",
+            "maleBroadcaster": "男、青年、低音调",
             "gentleFemale": "女、青年、高音调",
             "matureMale": "男、中年、低音调",
             "livelyFemale": "女、少年、高音调",
             "intellectualFemale": "女、青年、中音调",
-            "narrator": "男、中年、中音调"
+            "narrator": "男、中年、中音调",
+            "hotBloodedMale": "男、少年、高音调",
+            "softCuteFemale": "女、少年、极高音调",
+            "coolMatureFemale": "女、中年、低音调",
+            "sunnyTeenMale": "男、少年、中音调"
         },
         "omnivoiceChips": {
             "title": "或从词表多选(OmniVoice)：",
@@ -252,7 +268,7 @@
             "groupAccent": "口音/方言",
             "hint": "OmniVoice 仅接受词表中的标签;选中的标签会自动用「、」拼接到下方描述里。"
         },
-        "defaultPreviewText": "你好，很高兴认识你。这是AI为你专属设计的声音，让我来为你展示它的特点。无论是温柔的对话，还是激动的讲述，我都能完美呈现。希望你喜欢这个声音，让我们一起创造精彩的内容吧。",
+        "defaultPreviewText": "你好，很高兴认识你。",
         "provider": "服务提供商",
         "providerOptionBailian": "百炼 (QwenTTS)",
         "providerOptionOmnivoice": "OmniVoice (自托管)",

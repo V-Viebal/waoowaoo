@@ -21,7 +21,11 @@
         "stats": "{total} lines | {withVoice} with voice | {withAudio} generated",
         "noDownload": "No voices to download",
         "downloadCount": "Download {count} voices",
-        "uploadReferenceHint": "Please upload reference audio for all characters first"
+        "uploadReferenceHint": "Please upload reference audio for all characters first",
+        "ttsEngine": "TTS Engine",
+        "auto": "Auto",
+        "qwenTTS": "Qwen TTS",
+        "omniVoice": "OmniVoice"
     },
     "speakerVoice": {
         "title": "Speaker Voice Status",
@@ -226,7 +230,11 @@
             "matureMale": "Mature Male",
             "livelyFemale": "Lively Girl",
             "intellectualFemale": "Intellectual Female",
-            "narrator": "Narrator"
+            "narrator": "Narrator",
+            "hotBloodedMale": "Hot-Blooded Boy",
+            "softCuteFemale": "Soft & Cute Girl",
+            "coolMatureFemale": "Cool Mature Female",
+            "sunnyTeenMale": "Sunny Teen Boy"
         },
         "presetsPrompts": {
             "maleBroadcaster": "Middle-aged male broadcaster with steady, deep voice, clear pronunciation",
@@ -234,15 +242,23 @@
             "matureMale": "Mature male with charismatic and expressive voice",
             "livelyFemale": "Lively young girl with sweet, cute, energetic voice",
             "intellectualFemale": "Elegant intellectual woman with clear, pleasant voice",
-            "narrator": "Emotional narrator with warm, storytelling voice"
+            "narrator": "Emotional narrator with warm, storytelling voice",
+            "hotBloodedMale": "Hot-blooded teenage boy with energetic, passionate voice, full of youthful spirit and sense of justice",
+            "softCuteFemale": "Soft and cute anime girl with sweet, mellow voice, adorable and energetic",
+            "coolMatureFemale": "Cool and mature sister voice, deep and magnetic, strong aura, calm and composed",
+            "sunnyTeenMale": "Sunny teenage boy with bright, clear voice, warm and healing"
         },
         "presetsPromptsOmnivoice": {
-            "maleBroadcaster": "male, middle-aged, moderate pitch",
+            "maleBroadcaster": "male, young adult, low pitch",
             "gentleFemale": "female, young adult, high pitch",
             "matureMale": "male, middle-aged, low pitch",
             "livelyFemale": "female, teenager, high pitch",
             "intellectualFemale": "female, young adult, moderate pitch",
-            "narrator": "male, middle-aged, moderate pitch"
+            "narrator": "male, middle-aged, moderate pitch",
+            "hotBloodedMale": "male, teenager, high pitch",
+            "softCuteFemale": "female, teenager, very high pitch",
+            "coolMatureFemale": "female, middle-aged, low pitch",
+            "sunnyTeenMale": "male, teenager, moderate pitch"
         },
         "omnivoiceChips": {
             "title": "Or pick from the vocabulary (OmniVoice):",
@@ -252,7 +268,7 @@
             "groupAccent": "Accent",
             "hint": "OmniVoice only accepts tags from this vocabulary; selected tags are joined into the description below."
         },
-        "defaultPreviewText": "Hello, nice to meet you. This is your AI-designed exclusive voice. Let me demonstrate its features for you. Whether it's a gentle conversation or an excited narration, I can deliver it perfectly. I hope you enjoy this voice, let's create amazing content together.",
+        "defaultPreviewText": "Hello, nice to meet you.",
         "provider": "Provider",
         "providerOptionBailian": "Bailian (QwenTTS)",
         "providerOptionOmnivoice": "OmniVoice (self-hosted)",

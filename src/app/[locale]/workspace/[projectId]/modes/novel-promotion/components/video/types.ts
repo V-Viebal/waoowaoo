@@ -43,6 +43,7 @@ export interface Panel {
   duration?: number | null
   imagePrompt?: string | null
   imageUrl?: string | null  // 图片URL
+  imageLayout?: 'single' | 'grid' | null  // 图片布局：单镜头 | 宫格
   videoPrompt?: string | null
   firstLastFramePrompt?: string | null
   videoUrl?: string | null
@@ -85,6 +86,7 @@ export interface VideoPanel {
   textPanel?: TextPanel
   firstLastFramePrompt?: string
   imageUrl?: string
+  imageLayout?: 'single' | 'grid'  // 图片布局：单镜头 | 宫格
   videoUrl?: string
   videoGenerationMode?: VideoGenerationMode
   videoTaskRunning?: boolean

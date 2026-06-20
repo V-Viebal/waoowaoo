@@ -19,7 +19,7 @@ describe('createOmnivoiceVoiceDesign', () => {
     })
   })
 
-  it('passes a normalized Chinese instruct (deduped, 、-joined) and language=zh', async () => {
+  it('translates Chinese instruct to English before sending to SDK, TTS language stays zh', async () => {
     createProfile.mockResolvedValue({ id: 'prof_d1', name: 'vv_user1234_Hero', kind: 'design' })
     generateSpeech.mockResolvedValue({
       audio: new Uint8Array([1, 2, 3, 4]),
@@ -33,8 +33,8 @@ describe('createOmnivoiceVoiceDesign', () => {
       routingReason: null,
     })
 
-    // Mixed separators + duplicates — the validator should normalize to
-    // a deduped、-joined form before reaching the SDK.
+    // Mixed separators + duplicates — validator normalizes, then translator
+    // converts Chinese tokens to English for backend stability.
     const r = await createOmnivoiceVoiceDesign({
       voicePrompt: '男, 青年、中音调,男',
       previewText: '你好世界',
@@ -47,7 +47,9 @@ describe('createOmnivoiceVoiceDesign', () => {
       kind: 'design',
       name: 'vv_user1234_Hero',
       vdStates: { Style: 'Auto' },
-      instruct: '男、青年、中音调',
+      // Instruct translated to English (backend validates against English vocab reliably)
+      instruct: 'male, young adult, moderate pitch',
+      // TTS / profile language stays zh (independent of instruct language)
       language: 'zh',
     }))
     expect(generateSpeech).toHaveBeenCalledWith(expect.objectContaining({
@@ -62,7 +64,7 @@ describe('createOmnivoiceVoiceDesign', () => {
     expect(r.responseFormat).toBe('wav')
   })
 
-  it('passes an English instruct as-is (lowercased) and infers language=en when params.language unset', async () => {
+  it('passes an English instruct as-is (lowercased); TTS language defaults to zh', async () => {
     createProfile.mockResolvedValue({ id: 'prof_en', kind: 'design' })
     generateSpeech.mockResolvedValue({
       audio: new Uint8Array([0, 1]),
@@ -79,13 +81,13 @@ describe('createOmnivoiceVoiceDesign', () => {
     const r = await createOmnivoiceVoiceDesign({
       voicePrompt: 'Male, Young Adult, low pitch',
       previewText: 'hello',
-      // language intentionally omitted — should fall back to validator's detected language
+      // language intentionally omitted — TTS language defaults to 'zh'
       userId: 'u1',
     })
 
     expect(createProfile).toHaveBeenCalledWith(expect.objectContaining({
       instruct: 'male, young adult, low pitch',
-      language: 'en',
+      language: 'zh',
     }))
     expect(r.success).toBe(true)
   })

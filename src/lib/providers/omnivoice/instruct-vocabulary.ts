@@ -96,6 +96,48 @@ const EN_SET = new Set<string>(OMNIVOICE_EN_VOCABULARY)
 const ZH_SEPARATOR = '、'
 const EN_SEPARATOR = ','
 
+/**
+ * 中文 token → 英文 token 的映射。
+ *
+ * 由于 OmniVoice 后端对中文 instruct 的校验不稳定(偶发退化为
+ * 英文词表校验并返回 "Valid English items" 错误),送往后端前统
+ * 一把中文 token 翻译成英文,走英文受控词表路径,保证调用稳定。
+ *
+ * 中文方言(东北话、四川话等)没有对应的英文词表项,映射为 null,
+ * 翻译时会被跳过。UI 层仍然展示中文。
+ */
+const ZH_TO_EN: ReadonlyMap<string, string | null> = new Map([
+  // 性别
+  ['男', 'male'],
+  ['女', 'female'],
+  // 年龄
+  ['儿童', 'child'],
+  ['少年', 'teenager'],
+  ['青年', 'young adult'],
+  ['中年', 'middle-aged'],
+  ['老年', 'elderly'],
+  // 音调
+  ['极低音调', 'very low pitch'],
+  ['低音调', 'low pitch'],
+  ['中音调', 'moderate pitch'],
+  ['高音调', 'high pitch'],
+  ['极高音调', 'very high pitch'],
+  ['耳语', 'whisper'],
+  // 方言(英文词表里没有对应项,映射为 null 表示翻译时跳过)
+  ['东北话', null],
+  ['云南话', null],
+  ['四川话', null],
+  ['宁夏话', null],
+  ['桂林话', null],
+  ['河南话', null],
+  ['济南话', null],
+  ['甘肃话', null],
+  ['石家庄话', null],
+  ['贵州话', null],
+  ['陕西话', null],
+  ['青岛话', null],
+])
+
 /** 检测一个 token 大致是中文还是英文。 */
 function isChineseToken(token: string): boolean {
   return /[一-鿿]/.test(token)
@@ -219,6 +261,58 @@ export function validateOmnivoiceInstruct(
     ok: true,
     normalized: dedupePreserveOrder(enTokens).join(`${EN_SEPARATOR} `),
     language: 'en',
+  }
+}
+
+/**
+ * 把中文 instruct 翻译成英文,送给 OmniVoice 后端。
+ *
+ * 背景:OmniVoice 后端的中文 instruct 校验不稳定,偶发退化为英文
+ * 词表校验并报 "Valid English items" 错误。为保证调用稳定,在送
+ * 往后端前统一把中文 token 翻译成英文,走英文受控词表路径。
+ *
+ * 规则:
+ * - 已是英文 → 原样返回(language 仍为 'en')。
+ * - 中文 → 逐 token 查 ZH_TO_EN 映射,有英文对应项则翻译,
+ *   无对应项(如方言)则跳过;最终用英文分隔符 ", " 拼接。
+ * - 翻译后为空(例如全是方言)→ 返回默认的 'male, young adult'
+ *   兜底,保证下游调用一定有合法 instruct。
+ *
+ * 返回 `{ translated, skipped }`:
+ * - `translated`: 英文 instruct 字符串,可直接交给 SDK。
+ * - `skipped`: 因无英文对应项而被跳过的中文 token(用于日志/调试)。
+ */
+export function translateInstructToEnglish(
+  validated: OmnivoiceInstructValidationOk,
+): { translated: string; skipped: string[] } {
+  if (validated.language === 'en') {
+    return { translated: validated.normalized, skipped: [] }
+  }
+
+  const zhTokens = validated.normalized.split(ZH_SEPARATOR)
+  const enTokens: string[] = []
+  const skipped: string[] = []
+
+  for (const zh of zhTokens) {
+    const en = ZH_TO_EN.get(zh)
+    if (en === null) {
+      skipped.push(zh)
+      continue
+    }
+    if (en) {
+      enTokens.push(en)
+    } else {
+      skipped.push(zh)
+    }
+  }
+
+  if (enTokens.length === 0) {
+    return { translated: 'male, young adult', skipped: zhTokens }
+  }
+
+  return {
+    translated: dedupePreserveOrder(enTokens).join(`${EN_SEPARATOR} `),
+    skipped,
   }
 }
 

@@ -70,6 +70,13 @@ function validateSpeakerVoiceForProvider(
     }
   }
 
+  if (providerKey === 'omnivoice') {
+    return {
+      ok: false,
+      message: '请先为该发言人绑定 OmniVoice 音色',
+    }
+  }
+
   return {
     ok: false,
     message: '请先为该发言人设置参考音频',
@@ -140,6 +147,7 @@ export const POST = apiHandler(async (
           name: true,
           customVoiceUrl: true,
           voiceId: true,
+          voiceType: true,
         },
       },
     },

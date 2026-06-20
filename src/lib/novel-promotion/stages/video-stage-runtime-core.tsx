@@ -338,6 +338,8 @@ export function useVideoStageRuntime({
     },
     generationOptions?: VideoGenerationOptions,
     panelId?: string,
+    imageLayout?: 'single' | 'grid',
+    gridSize?: number,
   ) => {
     if (isSubmittingVideoBatch) return
 
@@ -360,7 +362,7 @@ export function useVideoStageRuntime({
     }
 
     try {
-      await onGenerateVideo(storyboardId, panelIndex, videoModel, firstLastFrame, generationOptions, panelId)
+      await onGenerateVideo(storyboardId, panelIndex, videoModel, firstLastFrame, generationOptions, panelId, imageLayout, gridSize)
     } catch (error) {
       setSubmittingVideoPanelKeys((previous) => {
         if (!previous.has(panelKey)) return previous

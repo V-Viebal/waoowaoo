@@ -48,7 +48,7 @@ function getErrorMessage(error: unknown): string {
  * 解析 externalId 获取 provider、type 和请求信息
  */
 export function parseExternalId(externalId: string): {
-    provider: 'FAL' | 'ARK' | 'GEMINI' | 'GOOGLE' | 'MINIMAX' | 'VIDU' | 'OPENAI' | 'OCOMPAT' | 'BAILIAN' | 'SILICONFLOW' | 'UNKNOWN'
+    provider: 'FAL' | 'ARK' | 'GEMINI' | 'GOOGLE' | 'MINIMAX' | 'VIDU' | 'OPENAI' | 'OCOMPAT' | 'BAILIAN' | 'SILICONFLOW' | 'STARSTONE' | 'UNKNOWN'
     type: 'VIDEO' | 'IMAGE' | 'BATCH' | 'UNKNOWN'
     endpoint?: string
     requestId: string
@@ -210,9 +210,23 @@ export function parseExternalId(externalId: string): {
         }
     }
 
+    if (externalId.startsWith('STARSTONE:')) {
+        const parts = externalId.split(':')
+        const type = parts[1]
+        const requestId = parts.slice(2).join(':')
+        if ((type !== 'VIDEO' && type !== 'IMAGE') || !requestId) {
+            throw new Error(`无效 STARSTONE externalId: "${externalId}"，应为 STARSTONE:TYPE:requestId`)
+        }
+        return {
+            provider: 'STARSTONE',
+            type: type as 'VIDEO' | 'IMAGE',
+            requestId,
+        }
+    }
+
     throw new Error(
         `无法识别的 externalId 格式: "${externalId}". ` +
-        `支持的格式: FAL:TYPE:endpoint:requestId, ARK:TYPE:requestId, GEMINI:BATCH:batchName, GOOGLE:VIDEO:operationName, MINIMAX:TYPE:taskId, VIDU:TYPE:taskId, OPENAI:VIDEO:providerToken:videoId, OCOMPAT:TYPE:providerToken:modelKeyToken:taskId, BAILIAN:TYPE:requestId, SILICONFLOW:TYPE:requestId`
+        `支持的格式: FAL:TYPE:endpoint:requestId, ARK:TYPE:requestId, GEMINI:BATCH:batchName, GOOGLE:VIDEO:operationName, MINIMAX:TYPE:taskId, VIDU:TYPE:taskId, OPENAI:VIDEO:providerToken:videoId, OCOMPAT:TYPE:providerToken:modelKeyToken:taskId, BAILIAN:TYPE:requestId, SILICONFLOW:TYPE:requestId, STARSTONE:TYPE:requestId`
     )
 }
 
@@ -252,6 +266,8 @@ export async function pollAsyncTask(
             return await pollBailianTask(parsed.requestId, userId)
         case 'SILICONFLOW':
             return await pollSiliconFlowTask(parsed.requestId)
+        case 'STARSTONE':
+            return await pollStarstoneTask(parsed.requestId, userId)
         default:
             // 🔥 移除 fallback：未知 provider 直接抛出错误
             throw new Error(`未知的 Provider: ${parsed.provider}`)
@@ -860,6 +876,159 @@ async function pollSiliconFlowTask(requestId: string): Promise<PollResult> {
 }
 
 /**
+ * 查询 StarRouter (StarStone) 视频任务状态
+ */
+async function pollStarstoneTask(requestId: string, userId: string): Promise<PollResult> {
+    const logPrefix = '[StarStone Query]'
+
+    try {
+        const { apiKey } = await getProviderConfig(userId, 'starrouter')
+        const response = await fetch(
+            `https://starrouter.io/v1/video/generations/${encodeURIComponent(requestId)}`,
+            {
+                headers: {
+                    Authorization: `Bearer ${apiKey}`,
+                },
+            },
+        )
+
+        const raw = await response.text()
+        let data: Record<string, unknown> = {}
+        if (raw) {
+            try {
+                const parsed = JSON.parse(raw) as unknown
+                if (parsed && typeof parsed === 'object') {
+                    data = parsed as Record<string, unknown>
+                }
+            } catch {
+                // 忽略解析错误，使用默认空对象
+            }
+        }
+
+        // 递归深度优先搜索所有字符串值中的 URL，找到第一个视频 URL
+        const findVideoUrl = (obj: unknown): string => {
+            if (!obj || typeof obj !== 'object') return ''
+            const record = obj as Record<string, unknown>
+            // 先检查常见的视频 URL 字段名
+            const videoKeys = ['video_url', 'url', 'videoUrl', 'download_url', 'downloadUrl', 'result_url', 'output_url']
+            for (const key of videoKeys) {
+                const val = record[key]
+                if (typeof val === 'string' && (val.startsWith('http') || val.startsWith('data:'))) {
+                    return val
+                }
+            }
+            // 遍历所有字符串值，找 URL
+            for (const val of Object.values(record)) {
+                if (typeof val === 'string' && /^https?:\/\/.*\.(mp4|mov|webm|avi)(\?|$)/i.test(val)) {
+                    return val
+                }
+            }
+            // 递归搜索嵌套对象和数组
+            for (const val of Object.values(record)) {
+                if (val && typeof val === 'object') {
+                    if (Array.isArray(val)) {
+                        for (const item of val) {
+                            const found = findVideoUrl(item)
+                            if (found) return found
+                        }
+                    } else {
+                        const found = findVideoUrl(val)
+                        if (found) return found
+                    }
+                }
+            }
+            return ''
+        }
+
+        // 兼容多种响应格式：data.code / error.code / error.message
+        const readStr = (obj: Record<string, unknown> | undefined, path: string): string => {
+            if (!obj) return ''
+            const parts = path.split('.')
+            let cur: unknown = obj
+            for (const p of parts) {
+                if (cur && typeof cur === 'object' && p in cur) {
+                    cur = (cur as Record<string, unknown>)[p]
+                } else {
+                    return ''
+                }
+            }
+            return typeof cur === 'string' ? cur : ''
+        }
+
+        const code = readStr(data, 'code') || readStr(data, 'error.code')
+        const message = readStr(data, 'message') || readStr(data, 'error.message')
+
+        if (!response.ok) {
+            return {
+                status: 'failed',
+                error: `StarStone: 查询失败 ${response.status} ${code || message}`.trim(),
+            }
+        }
+
+        // 兼容多种 status 位置：data.status / status / 从所有嵌套中查找
+        const findStatus = (obj: unknown): string => {
+            if (!obj || typeof obj !== 'object') return ''
+            const record = obj as Record<string, unknown>
+            const statusKeys = ['status', 'state', 'statusText']
+            for (const key of statusKeys) {
+                const val = record[key]
+                if (typeof val === 'string') return val
+            }
+            for (const val of Object.values(record)) {
+                if (val && typeof val === 'object' && !Array.isArray(val)) {
+                    const found = findStatus(val)
+                    if (found) return found
+                }
+            }
+            return ''
+        }
+        const status = (readStr(data, 'data.status') || readStr(data, 'status') || findStatus(data)).toUpperCase()
+
+        _ulogInfo(`${logPrefix} task_id=${requestId} status=${status}, topKeys=${Object.keys(data).join(',')}`)
+
+        if (status === 'FAILED' || status === 'ERROR') {
+            const errMsg = readStr(data, 'data.error_message') || message || '任务失败'
+            return {
+                status: 'failed',
+                error: `StarStone: ${errMsg}`,
+            }
+        }
+
+        if (status === 'SUCCEEDED' || status === 'SUCCESS' || status === 'DONE' || status === 'COMPLETED' || status === 'FINISHED') {
+            const videoUrl = findVideoUrl(data)
+            if (!videoUrl) {
+                // 输出调试信息帮助排查
+                _ulogError(`${logPrefix} task_id=${requestId} 任务成功但未找到视频URL，响应结构:`, JSON.stringify(data, (key, value) => {
+                    if (typeof value === 'string' && value.length > 200) return value.slice(0, 200) + '...'
+                    return value
+                }, 2))
+                return {
+                    status: 'failed',
+                    error: 'StarStone: 任务完成但未返回视频URL',
+                }
+            }
+            return {
+                status: 'completed',
+                resultUrl: videoUrl,
+                videoUrl,
+            }
+        }
+
+        // PENDING / PROCESSING / RUNNING 等都视为进行中
+        return {
+            status: 'pending',
+        }
+    } catch (error: unknown) {
+        const errorMessage = getErrorMessage(error)
+        _ulogError(`${logPrefix} task_id=${requestId} 异常:`, error)
+        return {
+            status: 'failed',
+            error: `StarStone: ${errorMessage}`,
+        }
+    }
+}
+
+/**
  * 查询 Vidu 任务状态
  */
 async function queryViduTaskStatus(
@@ -950,7 +1119,7 @@ async function queryViduTaskStatus(
  * 创建标准格式的 externalId
  */
 export function formatExternalId(
-    provider: 'FAL' | 'ARK' | 'GEMINI' | 'GOOGLE' | 'MINIMAX' | 'VIDU' | 'OPENAI' | 'OCOMPAT' | 'BAILIAN' | 'SILICONFLOW',
+    provider: 'FAL' | 'ARK' | 'GEMINI' | 'GOOGLE' | 'MINIMAX' | 'VIDU' | 'OPENAI' | 'OCOMPAT' | 'BAILIAN' | 'SILICONFLOW' | 'STARSTONE',
     type: 'VIDEO' | 'IMAGE' | 'BATCH',
     requestId: string,
     endpoint?: string,

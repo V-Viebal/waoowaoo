@@ -171,6 +171,7 @@ export default function VideoPanelCardBody({ runtime }: VideoPanelCardBodyProps)
                         undefined,
                         videoModel.generationOptions,
                         panel.panelId,
+                        panel.imageLayout,
                       )}
                     disabled={
                       taskStatus.isVideoTaskRunning

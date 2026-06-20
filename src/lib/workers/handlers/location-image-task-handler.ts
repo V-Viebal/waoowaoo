@@ -180,6 +180,8 @@ export async function handleLocationImageTask(job: Job<TaskJobData>) {
       options: {
         aspectRatio,
       },
+      // 同一 task 内串行生成多张时，禁止复用已有 externalId，否则所有图都会一模一样
+      allowTaskExternalIdResume: locationImages.length === 1,
     })
 
     await assertTaskActive(job, 'persist_location_image')

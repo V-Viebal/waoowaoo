@@ -179,6 +179,7 @@ describe('worker panel-image-task-handler behavior', () => {
       data: {
         imageUrl: 'cos/panel-candidate-1.png',
         candidateImages: JSON.stringify(['cos/panel-candidate-1.png', 'cos/panel-candidate-2.png']),
+        imageLayout: 'single',
       },
     })
   })
@@ -239,6 +240,7 @@ describe('worker panel-image-task-handler behavior', () => {
       data: {
         previousImageUrl: 'cos/panel-old.png',
         candidateImages: JSON.stringify(['cos/panel-regenerated.png']),
+        imageLayout: 'single',
       },
     })
   })
@@ -297,7 +299,40 @@ describe('worker panel-image-task-handler behavior', () => {
       data: {
         imageUrl: 'cos/grid-1.png',
         candidateImages: JSON.stringify(['cos/grid-1.png', 'cos/grid-2.png']),
+        imageLayout: 'grid',
       },
     })
+  })
+
+  it('sets imageLayout to grid when panelGridSize > 1', async () => {
+    utilsMock.resolveImageSourceFromGeneration.mockReset()
+    utilsMock.uploadImageSourceToCos.mockReset()
+    utilsMock.resolveImageSourceFromGeneration.mockResolvedValueOnce('src-grid')
+    utilsMock.uploadImageSourceToCos.mockResolvedValueOnce('cos/grid.png')
+
+    await handlePanelImageTask(buildJob({ candidateCount: 1, panelGridSize: 4 }))
+    expect(prismaMock.novelPromotionPanel.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          imageLayout: 'grid',
+        }),
+      }),
+    )
+  })
+
+  it('sets imageLayout to single when panelGridSize = 1', async () => {
+    utilsMock.resolveImageSourceFromGeneration.mockReset()
+    utilsMock.uploadImageSourceToCos.mockReset()
+    utilsMock.resolveImageSourceFromGeneration.mockResolvedValueOnce('src-single')
+    utilsMock.uploadImageSourceToCos.mockResolvedValueOnce('cos/single.png')
+
+    await handlePanelImageTask(buildJob({ candidateCount: 1, panelGridSize: 1 }))
+    expect(prismaMock.novelPromotionPanel.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          imageLayout: 'single',
+        }),
+      }),
+    )
   })
 })

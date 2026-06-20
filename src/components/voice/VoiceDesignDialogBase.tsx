@@ -185,10 +185,10 @@ export default function VoiceDesignDialogBase({
     <>
       <div className="fixed inset-0 z-[9999] glass-overlay" onClick={handleClose} />
       <div
-        className="fixed z-[10000] left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 glass-surface-modal w-full max-w-xl overflow-hidden"
+        className="fixed z-[10000] left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 glass-surface-modal w-full max-w-xl max-h-[85vh] flex flex-col overflow-hidden"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--glass-stroke-base)] bg-[var(--glass-bg-surface-strong)]">
+        <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--glass-stroke-base)] bg-[var(--glass-bg-surface-strong)] shrink-0">
           <div className="flex items-center gap-2">
             <AppIcon name="mic" className="w-5 h-5 text-[var(--glass-tone-info-fg)]" />
             <h2 className="font-semibold text-[var(--glass-text-primary)]">{tv('designVoiceFor', { speaker })}</h2>
@@ -201,7 +201,7 @@ export default function VoiceDesignDialogBase({
           </button>
         </div>
 
-        <div className="p-5 space-y-4">
+        <div className="p-5 space-y-4 overflow-y-auto">
           <VoiceDesignGeneratorSection
             voicePrompt={voicePrompt}
             onVoicePromptChange={setVoicePrompt}

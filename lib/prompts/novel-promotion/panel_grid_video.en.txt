@@ -1,0 +1,20 @@
+This is a comic storyboard page with {panel_grid_size} panels arranged in a grid layout. Generate a video from this grid image where the camera moves through the panels in reading order: left-to-right, top-to-bottom.
+
+Core action description:
+{base_prompt}
+
+Panel content details:
+{panel_description}
+
+Specifications:
+- Grid layout: {grid_layout}, {panel_grid_size} panels total
+- Shot type: {shot_type}
+- Camera movement: {camera_move}
+
+Animation requirements:
+1. Start at the first panel and smoothly move the camera through panels in reading order (left-to-right, top-to-bottom)
+2. Each panel has subtle internal motion (character breathing, ambient effects)
+3. Transitions between panels are smooth and natural, preserving the comic panel layout and grid lines
+4. Maintain consistent art style, lighting, and color tone throughout
+5. Character appearance, costumes, and environment elements remain consistent across all panels
+6. Do not let characters or objects break out of their panel boundaries

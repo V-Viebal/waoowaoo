@@ -18,6 +18,7 @@ import { normalizeToBase64ForGeneration } from '@/lib/media/outbound-image'
 import { resolveBuiltinCapabilitiesByModelKey } from '@/lib/model-capabilities/lookup'
 import { parseModelKeyStrict } from '@/lib/model-config-contract'
 import { getProviderConfig } from '@/lib/api-config'
+import { buildGridVideoPrompt, isGridLayout } from '@/lib/storyboard-images/grid-video-prompt'
 
 type AnyObj = Record<string, unknown>
 type VideoOptionValue = string | number | boolean
@@ -96,9 +97,33 @@ async function generateVideoForPanel(
   const firstLastCustomPrompt = typeof firstLastFramePayload?.customPrompt === 'string' ? firstLastFramePayload.customPrompt : null
   const persistedFirstLastPrompt = firstLastFramePayload ? panel.firstLastFramePrompt : null
   const customPrompt = typeof payload.customPrompt === 'string' ? payload.customPrompt : null
-  const prompt = firstLastCustomPrompt || persistedFirstLastPrompt || customPrompt || panel.videoPrompt || panel.description
-  if (!prompt) {
+  const basePrompt = firstLastCustomPrompt || persistedFirstLastPrompt || customPrompt || panel.videoPrompt || panel.description
+  if (!basePrompt) {
     throw new Error(`Panel ${panel.id} has no video prompt`)
+  }
+
+  // 宫格图视频提示词优化：如果面板为宫格布局，使用宫格专用提示词模板
+  const panelImageLayout = typeof panel.imageLayout === 'string' ? panel.imageLayout : null
+  const payloadImageLayout = typeof payload.imageLayout === 'string' ? payload.imageLayout : null
+  const isGridImage = isGridLayout(panelImageLayout || payloadImageLayout)
+
+  let prompt = basePrompt
+  if (isGridImage && !firstLastFramePayload) {
+    const payloadGridSize = typeof payload.gridSize === 'number' ? payload.gridSize : null
+    // 宫格数量：优先用 payload 传入的值，其次用默认值 4（常见 2x2 宫格）
+    const gridSize = payloadGridSize && payloadGridSize > 1 ? payloadGridSize : 4
+    const gridPrompt = await buildGridVideoPrompt({
+      basePrompt,
+      panelDescription: panel.description || basePrompt,
+      gridSize,
+      shotType: panel.shotType || '',
+      cameraMove: panel.cameraMove || '',
+      locale: (job.data.locale as 'zh' | 'en') || 'zh',
+      projectId: job.data.projectId,
+    })
+    if (gridPrompt) {
+      prompt = gridPrompt
+    }
   }
 
   const sourceImageUrl = toSignedUrlIfCos(panel.imageUrl, 3600)
