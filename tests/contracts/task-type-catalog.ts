@@ -42,6 +42,7 @@ const TASK_TYPE_OWNER_MAP = {
   [TASK_TYPE.REFERENCE_TO_CHARACTER]: 'tests/unit/worker/reference-to-character.test.ts',
   [TASK_TYPE.CHARACTER_PROFILE_CONFIRM]: 'tests/unit/worker/character-profile.test.ts',
   [TASK_TYPE.CHARACTER_PROFILE_BATCH_CONFIRM]: 'tests/unit/worker/character-profile.test.ts',
+  [TASK_TYPE.CHARACTER_VOICE_RECOMMEND]: 'tests/unit/billing/character-voice-recommend-billing.test.ts',
   [TASK_TYPE.EPISODE_SPLIT_LLM]: 'tests/unit/worker/episode-split.test.ts',
   [TASK_TYPE.ASSET_HUB_AI_DESIGN_CHARACTER]: 'tests/unit/worker/asset-hub-ai-design.test.ts',
   [TASK_TYPE.ASSET_HUB_AI_DESIGN_LOCATION]: 'tests/unit/worker/asset-hub-ai-design.test.ts',
