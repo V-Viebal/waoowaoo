@@ -4,6 +4,7 @@ import type { TwickTimelineProject, TwickTrack } from './types'
 type JsonRecord = Record<string, unknown>
 
 export const VOICE_OPTIMIZE_AUDIO_ELEMENT_NOT_FOUND = 'VOICE_OPTIMIZE_AUDIO_ELEMENT_NOT_FOUND'
+export const VOICE_OPTIMIZE_DURATION_OVERLAP = 'VOICE_OPTIMIZE_DURATION_OVERLAP'
 
 function asRecord(value: unknown): JsonRecord | null {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as JsonRecord : null
@@ -21,6 +22,12 @@ function readElementEnd(element: unknown): number {
   const record = asRecord(element)
   if (!record) return 0
   return Math.max(0, readNumber(record.e) ?? 0)
+}
+
+function readElementStart(element: unknown): number {
+  const record = asRecord(element)
+  if (!record) return 0
+  return Math.max(0, readNumber(record.s) ?? 0)
 }
 
 function calculateTrackDuration(track: TwickTrack): number {
@@ -86,7 +93,8 @@ export function replaceVoiceOptimizeAudioElement(params: {
   let oldSrc: string | null = null
   const tracks = (Array.isArray(params.projectData.tracks) ? params.projectData.tracks : []).map((track) => {
     const clonedTrack = cloneTrack(track)
-    clonedTrack.elements = (clonedTrack.elements || []).map((element) => {
+    const elements = clonedTrack.elements || []
+    clonedTrack.elements = elements.map((element, elementIndex) => {
       if (replacedElementId) return element
       const record = element as unknown as JsonRecord
       if (record.type !== 'audio') return element
@@ -98,6 +106,20 @@ export function replaceVoiceOptimizeAudioElement(params: {
       if (!matchesVoiceLine || !matchesSelected) return element
 
       const start = readNumber(record.s) ?? 0
+      const nextEnd = start + durationSeconds
+      const nextElementStart = elements
+        .filter((candidate, candidateIndex) => {
+          if (candidateIndex === elementIndex) return false
+          const candidateRecord = asRecord(candidate)
+          return candidateRecord?.type === 'audio'
+        })
+        .map(readElementStart)
+        .filter((candidateStart) => candidateStart >= start)
+        .sort((a, b) => a - b)[0]
+      if (typeof nextElementStart === 'number' && nextEnd > nextElementStart) {
+        throw new Error(VOICE_OPTIMIZE_DURATION_OVERLAP)
+      }
+
       const props = asRecord(record.props) || {}
       oldSrc = readString(props.src)
       replacedElementId = elementId || params.voiceLineId
@@ -115,7 +137,7 @@ export function replaceVoiceOptimizeAudioElement(params: {
 
       return {
         ...record,
-        e: start + durationSeconds,
+        e: nextEnd,
         props: {
           ...props,
           src: toMediaObjRef(params.audioMediaObjectId),

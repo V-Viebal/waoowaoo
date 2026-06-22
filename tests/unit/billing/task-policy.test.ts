@@ -80,15 +80,16 @@ describe('billing/task-policy', () => {
     expect(info.quantity).toBe(1)
   })
 
-  it('bills editor voice optimize through the existing voice seconds policy', () => {
+  it('bills editor voice optimize through the existing voice seconds policy using ceil(maxSeconds) first', () => {
     const info = expectBillableInfo(buildDefaultTaskBillingInfo(TASK_TYPE.EDITOR_AI_VOICE_OPTIMIZE, {
       durationSeconds: 6.8,
-      maxSeconds: 4,
+      maxSeconds: 9.2,
     }))
     expect(info.apiType).toBe('voice')
     expect(info.model).toBe('index-tts2')
     expect(info.unit).toBe('second')
-    expect(info.quantity).toBe(6)
+    expect(info.quantity).toBe(10)
+    expect(info.metadata).toEqual(expect.objectContaining({ maxSeconds: 10 }))
     expect(info.action).toBe(TASK_TYPE.EDITOR_AI_VOICE_OPTIMIZE)
   })
 })

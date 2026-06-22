@@ -271,6 +271,7 @@
           "emptySpeaker": "发言人不能为空。",
           "noVoiceLine": "找不到对应的配音文本。",
           "audioElementNotFound": "时间轴中找不到选中的语音片段。",
+          "durationOverlap": "新配音时长会覆盖同轨后续语音，请缩短文案或调整时间轴后重试。",
           "textLabel": "配音文案（MVP：直接编辑文案后重新生成）",
           "speakerLabel": "发言人 / 音色",
           "speedLabel": "语速 {speed}x",

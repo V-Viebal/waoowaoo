@@ -192,7 +192,7 @@ const routeCases: RouteCase[] = [
     action: 'voice-optimize',
     body: defaultBody({ voiceLineId: 'voice-1', maxSeconds: 4 }),
     expectedBilling: {
-      quantity: 4,
+      quantity: 5,
       unit: 'second',
       apiType: 'voice',
     },
@@ -283,7 +283,7 @@ describe('editor AI route skeletons', () => {
     const expectedPayload = routeCase.name === 'caption'
       ? { ...body, durationMinutes: routeCase.expectedBilling?.quantity }
       : routeCase.name.startsWith('voice-optimize')
-        ? { ...body, voiceLineId: 'voice-1', durationSeconds: routeCase.expectedBilling?.quantity, maxSeconds: routeCase.expectedBilling?.quantity }
+        ? { ...body, voiceLineId: 'voice-1', content: 'hello', durationSeconds: routeCase.expectedBilling?.quantity, maxSeconds: routeCase.expectedBilling?.quantity }
         : body
 
     expect(res.status).toBe(200)
@@ -309,7 +309,9 @@ describe('editor AI route skeletons', () => {
       type: routeCase.taskType,
       targetType: 'NovelPromotionEditorProject',
       targetId: 'editor-project-1',
-      dedupeKey: `editor-ai:${routeCase.action}:editor-project-1:req-${routeCase.name}`,
+      dedupeKey: routeCase.name.startsWith('voice-optimize')
+        ? expect.stringMatching(/^editor-ai:voice-optimize:editor-project-1:no-element:[a-f0-9]{16}:[a-f0-9]{12}:1$/)
+        : `editor-ai:${routeCase.action}:editor-project-1:req-${routeCase.name}`,
       billingInfo: routeCase.expectedBilling?.item
         ? expect.objectContaining({
           billable: true,
@@ -453,6 +455,95 @@ describe('editor AI route skeletons', () => {
       },
     })
     expect(submitTaskMock).not.toHaveBeenCalled()
+  })
+
+  it('voice-optimize returns 400 when content is explicitly blank and does not fall back to the original voice line', async () => {
+    const routeCase = routeCases.find((item) => item.name === 'voice-optimize durationSeconds')!
+    const { POST } = await routeCase.load()
+
+    const res = await POST(
+      buildEditorAiRequest(routeCase.path, defaultBody({ voiceLineId: 'voice-1', content: '   ', durationSeconds: 9 })),
+      buildContext(),
+    )
+
+    expect(res.status).toBe(400)
+    const json = await res.json() as Record<string, unknown>
+    expect(json.code).toBe('INVALID_PARAMS')
+    expect(json.message).toBe('VOICE_OPTIMIZE_EMPTY_TEXT')
+    expect(submitTaskMock).not.toHaveBeenCalled()
+  })
+
+  it('voice-optimize returns 400 when speaker is explicitly blank and does not fall back to the original voice line', async () => {
+    const routeCase = routeCases.find((item) => item.name === 'voice-optimize durationSeconds')!
+    const { POST } = await routeCase.load()
+
+    const res = await POST(
+      buildEditorAiRequest(routeCase.path, defaultBody({ voiceLineId: 'voice-1', speaker: '   ', durationSeconds: 9 })),
+      buildContext(),
+    )
+
+    expect(res.status).toBe(400)
+    const json = await res.json() as Record<string, unknown>
+    expect(json.code).toBe('INVALID_PARAMS')
+    expect(json.message).toBe('VOICE_OPTIMIZE_EMPTY_SPEAKER')
+    expect(submitTaskMock).not.toHaveBeenCalled()
+  })
+
+  it('voice-optimize billing uses max(client, db, estimated text) and ceil so pre-freeze is not underestimated', async () => {
+    const routeCase = routeCases.find((item) => item.name === 'voice-optimize durationSeconds')!
+    const { POST } = await routeCase.load()
+    prismaMock.novelPromotionVoiceLine.findFirst.mockResolvedValueOnce({
+      id: 'voice-1',
+      content: 'old',
+      audioDuration: 2600,
+      audioMedia: { durationMs: 2600 },
+    })
+    const longContent = '这是一段被用户改长的文案'.repeat(4)
+
+    const res = await POST(
+      buildEditorAiRequest(routeCase.path, defaultBody({ voiceLineId: 'voice-1', content: longContent, durationSeconds: 2.6, maxSeconds: 2 })),
+      buildContext(),
+    )
+
+    expect(res.status).toBe(200)
+    const submit = submitTaskMock.mock.calls[0]?.[0]
+    const expectedMaxSeconds = Math.ceil(Math.max(2.6, 2, 2.6, Math.max(5, Math.ceil(longContent.length / 2))))
+    expect(submit.billingInfo).toBeNull()
+    expectDefaultBillingForPayload(routeCase.taskType, submit.payload, {
+      apiType: 'voice',
+      quantity: expectedMaxSeconds,
+      unit: 'second',
+    })
+    expect(submit.payload).toEqual(expect.objectContaining({
+      content: longContent,
+      durationSeconds: expectedMaxSeconds,
+      maxSeconds: expectedMaxSeconds,
+    }))
+  })
+
+  it('voice-optimize duplicate submissions ignore requestId in dedupeKey and keep the same content/speaker/speed fingerprint', async () => {
+    const routeCase = routeCases.find((item) => item.name === 'voice-optimize durationSeconds')!
+    const { POST } = await routeCase.load()
+    const body = defaultBody({
+      voiceLineId: 'voice-1',
+      selectedElementId: 'audio-1',
+      content: 'same content',
+      speaker: 'A',
+      speed: 1.25,
+      durationSeconds: 3,
+    })
+
+    const first = await POST(buildEditorAiRequest(routeCase.path, { ...body, requestId: 'trace-1' }), buildContext())
+    const second = await POST(buildEditorAiRequest(routeCase.path, { ...body, requestId: 'trace-2' }), buildContext())
+
+    expect(first.status).toBe(200)
+    expect(second.status).toBe(200)
+    expect(submitTaskMock).toHaveBeenCalledTimes(2)
+    const firstSubmit = submitTaskMock.mock.calls[0]?.[0]
+    const secondSubmit = submitTaskMock.mock.calls[1]?.[0]
+    expect(firstSubmit.requestId).not.toBe(secondSubmit.requestId)
+    expect(firstSubmit.dedupeKey).toBe(secondSubmit.dedupeKey)
+    expect(firstSubmit.dedupeKey).toEqual(expect.stringMatching(/^editor-ai:voice-optimize:editor-project-1:audio-1:[a-f0-9]{16}:[a-f0-9]{12}:1.25$/))
   })
 
   it('caption billing uses server voice-line durations so pre-freeze is not underestimated by client payload', async () => {

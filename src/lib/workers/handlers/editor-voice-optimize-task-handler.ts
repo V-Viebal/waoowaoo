@@ -12,6 +12,7 @@ const MIN_BILLING_SECONDS = 1
 
 export const VOICE_OPTIMIZE_NO_VOICE_LINE_ERROR = 'VOICE_OPTIMIZE_NO_VOICE_LINE'
 export const VOICE_OPTIMIZE_EMPTY_TEXT_ERROR = 'VOICE_OPTIMIZE_EMPTY_TEXT'
+export const VOICE_OPTIMIZE_EMPTY_SPEAKER_ERROR = 'VOICE_OPTIMIZE_EMPTY_SPEAKER'
 
 type JsonRecord = Record<string, unknown>
 
@@ -37,10 +38,13 @@ function parseVoiceOptimizePayload(job: Job<TaskJobData>) {
     || (job.data.targetType === 'NovelPromotionEditorProject' ? readString(job.data.targetId) : null)
   const voiceLineId = readString(payload.voiceLineId)
   const selectedElementId = readString(payload.selectedElementId)
+  const contentExplicit = Object.prototype.hasOwnProperty.call(payload, 'content') || Object.prototype.hasOwnProperty.call(payload, 'text')
+  const speakerExplicit = Object.prototype.hasOwnProperty.call(payload, 'speaker')
   const content = readString(payload.content) || readString(payload.text)
   const speaker = readString(payload.speaker)
   const audioModel = readString(payload.audioModel) || undefined
   const speed = readPositiveNumber(payload.speed)
+  const maxSeconds = readPositiveNumber(payload.maxSeconds)
 
   if (!episodeId) throw new Error('episodeId is required')
   if (!editorProjectId) throw new Error('editorProjectId is required')
@@ -53,8 +57,11 @@ function parseVoiceOptimizePayload(job: Job<TaskJobData>) {
     selectedElementId,
     content,
     speaker,
+    contentExplicit,
+    speakerExplicit,
     audioModel,
     speed,
+    maxSeconds,
   }
 }
 
@@ -101,11 +108,17 @@ function resolveOptimizedLine(params: {
   voiceLine: NonNullable<VoiceLineRecord>
   content?: string | null
   speaker?: string | null
+  contentExplicit?: boolean
+  speakerExplicit?: boolean
 }) {
-  const content = (params.content || params.voiceLine.content || '').trim()
-  const speaker = (params.speaker || params.voiceLine.speaker || '').trim()
+  const content = params.contentExplicit
+    ? (params.content || '').trim()
+    : (params.content || params.voiceLine.content || '').trim()
+  const speaker = params.speakerExplicit
+    ? (params.speaker || '').trim()
+    : (params.speaker || params.voiceLine.speaker || '').trim()
   if (!content) throw new Error(VOICE_OPTIMIZE_EMPTY_TEXT_ERROR)
-  if (!speaker) throw new Error('VOICE_OPTIMIZE_EMPTY_SPEAKER')
+  if (!speaker) throw new Error(VOICE_OPTIMIZE_EMPTY_SPEAKER_ERROR)
   return { content, speaker }
 }
 
@@ -203,6 +216,8 @@ export async function handleEditorVoiceOptimizeTask(job: Job<TaskJobData>) {
     voiceLine,
     content: payload.content,
     speaker: payload.speaker,
+    contentExplicit: payload.contentExplicit,
+    speakerExplicit: payload.speakerExplicit,
   })
 
   await reportTaskProgress(job, 45, {
@@ -229,6 +244,13 @@ export async function handleEditorVoiceOptimizeTask(job: Job<TaskJobData>) {
     durationMs: generated.audioDuration || undefined,
   })
 
+  const durationSeconds = generated.audioDurationSeconds || ((generated.audioDuration || 0) / 1000)
+  const actualSeconds = Math.max(MIN_BILLING_SECONDS, Math.ceil(durationSeconds))
+  const frozenSeconds = payload.maxSeconds ? Math.ceil(payload.maxSeconds) : null
+  if (frozenSeconds !== null && actualSeconds > frozenSeconds) {
+    throw new Error('VOICE_OPTIMIZE_BILLING_FREEZE_UNDERESTIMATED')
+  }
+
   await prisma.novelPromotionEditorAsset.create({
     data: {
       editorProjectId: payload.editorProjectId,
@@ -251,7 +273,6 @@ export async function handleEditorVoiceOptimizeTask(job: Job<TaskJobData>) {
     mediaObjectId: audioMedia.id,
   })
 
-  const durationSeconds = generated.audioDurationSeconds || ((generated.audioDuration || 0) / 1000)
   const replacement = await persistVoiceOptimizedProjectWithVersionRetry({
     job,
     episodeId: payload.episodeId,
@@ -267,7 +288,6 @@ export async function handleEditorVoiceOptimizeTask(job: Job<TaskJobData>) {
     speaker: optimizedLine.speaker,
   })
 
-  const actualSeconds = Math.max(MIN_BILLING_SECONDS, durationSeconds)
   await reportTaskProgress(job, 95, {
     stage: 'voice_optimize_completed',
     voiceLineId: voiceLine.id,

@@ -209,7 +209,7 @@ function buildVideoTaskInfo(taskType: TaskType, payload: AnyPayload): TaskBillin
 }
 
 function buildVoiceTaskInfo(taskType: TaskType, payload: AnyPayload): TaskBillingInfo {
-  const maxSeconds = Math.max(1, Math.floor(toNumber(payload?.maxSeconds, 5)))
+  const maxSeconds = Math.max(1, Math.ceil(toNumber(payload?.maxSeconds, 5)))
   return {
     billable: true,
     source: 'task',
@@ -379,7 +379,7 @@ export function buildDefaultTaskBillingInfo(taskType: TaskType, payload: AnyPayl
     case TASK_TYPE.EDITOR_AI_VOICE_OPTIMIZE:
       return buildVoiceTaskInfo(taskType, {
         ...toRecord(payload),
-        maxSeconds: normalizeBillingQuantity(payload?.durationSeconds ?? payload?.maxSeconds, 5),
+        maxSeconds: normalizeBillingQuantity(payload?.maxSeconds ?? payload?.durationSeconds, 5),
       })
     case TASK_TYPE.EDITOR_RENDER:
       return buildEditorTaskInfo(

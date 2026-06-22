@@ -271,6 +271,7 @@
           "emptySpeaker": "Speaker cannot be empty.",
           "noVoiceLine": "Could not find the corresponding voice line.",
           "audioElementNotFound": "Could not find the selected voice clip in the timeline.",
+          "durationOverlap": "The new voice duration would overlap the next voice clip on the same track. Shorten the script or adjust the timeline, then retry.",
           "textLabel": "Voice script (MVP: edit directly, then regenerate)",
           "speakerLabel": "Speaker / voice",
           "speedLabel": "Speed {speed}x",

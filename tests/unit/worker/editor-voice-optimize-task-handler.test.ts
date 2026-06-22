@@ -50,6 +50,7 @@ vi.mock('@/lib/media/service', () => mediaMock)
 import {
   buildVoiceOptimizeProject,
   handleEditorVoiceOptimizeTask,
+  VOICE_OPTIMIZE_EMPTY_SPEAKER_ERROR,
   VOICE_OPTIMIZE_EMPTY_TEXT_ERROR,
   VOICE_OPTIMIZE_NO_VOICE_LINE_ERROR,
 } from '@/lib/workers/handlers/editor-voice-optimize-task-handler'
@@ -197,7 +198,7 @@ describe('editor voice optimize worker handler', () => {
       replacedElementId: 'audio-1',
       audioMediaObjectId: 'new-audio-media',
       audioDurationSeconds: 2.6,
-      actualQuantity: 2.6,
+      actualQuantity: 3,
     }))
   })
 
@@ -236,21 +237,47 @@ describe('editor voice optimize worker handler', () => {
     expect(prismaMock.novelPromotionEditorProject.updateMany).not.toHaveBeenCalled()
   })
 
-  it('throws when optimized text is empty and does not generate audio', async () => {
-    prismaMock.novelPromotionVoiceLine.findFirst.mockResolvedValueOnce({
-      id: 'voice-1',
-      episodeId: 'episode-1',
-      speaker: 'A',
-      content: '   ',
-      emotionPrompt: null,
-      emotionStrength: null,
-      audioDuration: null,
-      audioMediaId: null,
-      audioMedia: null,
-    })
-
+  it('throws when optimized text is explicitly empty and does not fall back to the original text', async () => {
     await expect(handleEditorVoiceOptimizeTask(buildJob({ content: '   ' }))).rejects.toThrow(VOICE_OPTIMIZE_EMPTY_TEXT_ERROR)
     expect(voiceMock.synthesizeVoiceLineAudio).not.toHaveBeenCalled()
+    expect(prismaMock.novelPromotionEditorProject.updateMany).not.toHaveBeenCalled()
+  })
+
+  it('throws when speaker is explicitly empty and does not fall back to the original speaker', async () => {
+    await expect(handleEditorVoiceOptimizeTask(buildJob({ speaker: '   ' }))).rejects.toThrow(VOICE_OPTIMIZE_EMPTY_SPEAKER_ERROR)
+    expect(voiceMock.synthesizeVoiceLineAudio).not.toHaveBeenCalled()
+    expect(prismaMock.novelPromotionEditorProject.updateMany).not.toHaveBeenCalled()
+  })
+
+  it('fails before persisting timeline changes when generated duration exceeds the frozen maxSeconds', async () => {
+    await expect(handleEditorVoiceOptimizeTask(buildJob({ maxSeconds: 2 }))).rejects.toThrow('VOICE_OPTIMIZE_BILLING_FREEZE_UNDERESTIMATED')
+    expect(mediaMock.ensureMediaObjectFromStorageKey).toHaveBeenCalled()
+    expect(prismaMock.novelPromotionEditorAsset.create).not.toHaveBeenCalled()
+    expect(prismaMock.novelPromotionEditorProject.updateMany).not.toHaveBeenCalled()
+  })
+
+  it('throws overlap error without persisting timeline changes when new audio would cover the next same-track element', async () => {
+    prismaMock.novelPromotionEditorProject.findFirst.mockResolvedValueOnce({
+      id: 'editor-project-1',
+      version: 3,
+      projectData: {
+        ...buildEditorProjectData(),
+        tracks: [
+          buildEditorProjectData().tracks[0],
+          {
+            id: 'track-audio-main',
+            name: '语音',
+            type: 'audio',
+            elements: [
+              { id: 'audio-1', type: 'audio', s: 1, e: 4, props: { src: 'mediaobj://old-audio' }, metadata: { voiceLineId: 'voice-1', speaker: 'A' } },
+              { id: 'audio-2', type: 'audio', s: 3, e: 5, props: { src: 'mediaobj://next-audio' }, metadata: { voiceLineId: 'voice-2', speaker: 'B' } },
+            ],
+          },
+        ],
+      },
+    })
+
+    await expect(handleEditorVoiceOptimizeTask(buildJob())).rejects.toThrow('VOICE_OPTIMIZE_DURATION_OVERLAP')
     expect(prismaMock.novelPromotionEditorProject.updateMany).not.toHaveBeenCalled()
   })
 })

@@ -183,6 +183,10 @@ export function VoiceOptimizePanel() {
         setLocalError(t('voiceOptimize.noVoiceLine'))
       } else if (message === 'VOICE_OPTIMIZE_EMPTY_TEXT') {
         setLocalError(t('voiceOptimize.emptyText'))
+      } else if (message === 'VOICE_OPTIMIZE_EMPTY_SPEAKER') {
+        setLocalError(t('voiceOptimize.emptySpeaker'))
+      } else if (message === 'VOICE_OPTIMIZE_DURATION_OVERLAP') {
+        setLocalError(t('voiceOptimize.durationOverlap'))
       } else {
         setLocalError(message || t('voiceOptimize.failed'))
       }

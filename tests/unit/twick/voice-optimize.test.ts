@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { replaceVoiceOptimizeAudioElement, VOICE_OPTIMIZE_AUDIO_ELEMENT_NOT_FOUND } from '@/lib/twick/voice-optimize'
+import { replaceVoiceOptimizeAudioElement, VOICE_OPTIMIZE_AUDIO_ELEMENT_NOT_FOUND, VOICE_OPTIMIZE_DURATION_OVERLAP } from '@/lib/twick/voice-optimize'
 import type { TwickTimelineProject } from '@/lib/twick/types'
 
 function buildProject(): TwickTimelineProject {
@@ -79,6 +79,16 @@ describe('replaceVoiceOptimizeAudioElement', () => {
     const audioElement = result.projectData.tracks?.[1]?.elements?.[1]
     expect(audioElement?.e).toBe(11)
     expect(result.projectData.metadata?.custom).toEqual(expect.objectContaining({ duration: 11 }))
+  })
+
+  it('throws a stable overlap error when the new duration would cover the next same-track element', () => {
+    expect(() => replaceVoiceOptimizeAudioElement({
+      projectData: buildProject(),
+      voiceLineId: 'voice-1',
+      selectedElementId: 'audio-1',
+      audioMediaObjectId: 'overlap-audio-media',
+      durationSeconds: 4.1,
+    })).toThrow(VOICE_OPTIMIZE_DURATION_OVERLAP)
   })
 
   it('throws a stable error when no matching audio element exists', () => {
