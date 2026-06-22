@@ -286,7 +286,34 @@
           "generate": "生成",
           "open": "打开"
         },
-        "phase2Hint": "AI 编辑能力将在 Phase 2 接入。"
+        "phase2Hint": "AI 编辑能力将在 Phase 2 接入。",
+        "enhance": {
+          "title": "AI 画面增强",
+          "description": "选中视频片段后，可应用智能裁剪。画面修复/超分需要接入视频增强 provider，当前为占位。",
+          "button": "应用增强",
+          "runningButton": "增强中...",
+          "running": "正在增强画面（{progress}%）",
+          "done": "画面增强已应用，时间轴已刷新。",
+          "failed": "画面增强失败，请稍后重试。",
+          "saveConflict": "编辑器项目存在保存冲突，请先解决冲突后再增强画面。",
+          "unsavedChanges": "当前编辑内容尚未保存，请保存成功后再增强画面。",
+          "missingContext": "缺少当前剧集、编辑项目或选中的视频片段。",
+          "loading": "正在加载编辑器数据...",
+          "selectVideo": "请先在时间轴选中一个视频片段。",
+          "videoElementNotFound": "时间轴中找不到选中的视频片段。",
+          "restoreUnavailable": "暂不可用：项目尚未配置视频画面修复/超分 provider。",
+          "smartCrop": "智能裁剪",
+          "restore": "画面修复",
+          "ratioLabel": "目标比例",
+          "anchorLabel": "构图焦点",
+          "anchorCenter": "居中",
+          "anchorTop": "顶部",
+          "anchorBottom": "底部",
+          "anchorLeft": "左侧",
+          "anchorRight": "右侧",
+          "selected": "已选 {id} · 时长约 {seconds}s",
+          "mvpNote": "MVP：智能裁剪仅更新时间轴 crop/fit 参数，不生成新 MediaObject 或 EditorAsset。"
+        }
       },
       "properties": {
         "selection": "当前选中",

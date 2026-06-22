@@ -451,6 +451,43 @@ describe('billing/service', () => {
       )
     })
 
+    it('editor smart-crop MVP can settle with actualQuantity=0 and release the frozen amount', async () => {
+      modeMock.getBillingMode.mockResolvedValue('ENFORCE')
+      ledgerMock.confirmChargeWithRecord.mockResolvedValueOnce(true)
+      const quoted = buildDefaultTaskBillingInfo(TASK_TYPE.EDITOR_AI_ENHANCE, {
+        editorProjectId: 'editor-project-1',
+        enhanceType: 'smart_crop',
+        durationSeconds: 6,
+      }) as Extract<TaskBillingInfo, { billable: true }>
+
+      const settled = await settleTaskBilling({
+        id: 'task_editor_enhance_smart_crop_zero_actual',
+        userId: 'u1',
+        projectId: 'p1',
+        billingInfo: {
+          ...quoted,
+          modeSnapshot: 'ENFORCE',
+          status: 'frozen',
+          freezeId: 'freeze_editor_enhance_smart_crop_zero_actual',
+        },
+      }, {
+        result: { actualQuantity: 0, actualSeconds: 0 },
+      }) as Extract<TaskBillingInfo, { billable: true }>
+
+      expect(settled.chargedCost).toBe(0)
+      expect(ledgerMock.increasePendingFreezeAmount).not.toHaveBeenCalled()
+      expect(ledgerMock.confirmChargeWithRecord).toHaveBeenCalledWith(
+        'freeze_editor_enhance_smart_crop_zero_actual',
+        expect.objectContaining({
+          apiType: 'editor',
+          model: BILLING_ITEM.EDITOR_AI_ENHANCE_SMART_CROP,
+          quantity: 0,
+          unit: 'second',
+        }),
+        expect.objectContaining({ chargedAmount: 0 }),
+      )
+    })
+
     it('editor per-use smart-cut ignores actualSeconds and charges one call unless actualQuantity is explicit', async () => {
       modeMock.getBillingMode.mockResolvedValue('ENFORCE')
       ledgerMock.confirmChargeWithRecord.mockResolvedValueOnce(true)

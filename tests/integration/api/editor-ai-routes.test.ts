@@ -149,12 +149,12 @@ const routeCases: RouteCase[] = [
     load: () => import('@/app/api/novel-promotion/[projectId]/editor/ai/enhance/route'),
     taskType: TASK_TYPE.EDITOR_AI_ENHANCE,
     action: 'enhance',
-    body: defaultBody({ enhanceType: 'restore', durationSeconds: 7 }),
+    body: defaultBody({ enhanceType: 'restore', selectedElementId: 'video-1', durationSeconds: 7 }),
     expectedBilling: {
       item: BILLING_ITEM.EDITOR_AI_ENHANCE_RESTORE,
-      quantity: 7,
+      quantity: 6,
       unit: 'second',
-      maxFrozenCost: 0.105,
+      maxFrozenCost: 0.09,
     },
   },
   {
@@ -163,7 +163,7 @@ const routeCases: RouteCase[] = [
     load: () => import('@/app/api/novel-promotion/[projectId]/editor/ai/enhance/route'),
     taskType: TASK_TYPE.EDITOR_AI_ENHANCE,
     action: 'enhance',
-    body: defaultBody({ enhanceType: 'smart_crop', durationSeconds: 6 }),
+    body: defaultBody({ enhanceType: 'smart_crop', selectedElementId: 'video-1', durationSeconds: 6 }),
     expectedBilling: {
       item: BILLING_ITEM.EDITOR_AI_ENHANCE_SMART_CROP,
       quantity: 6,
@@ -215,7 +215,13 @@ describe('editor AI route skeletons', () => {
     prismaMock.novelPromotionEditorProject.findFirst.mockResolvedValue({
       id: 'editor-project-1',
       episodeId: 'episode-1',
-      projectData: { version: 1, tracks: [] },
+      projectData: {
+        version: 1,
+        metadata: { custom: { width: 720, height: 1280, duration: 6 } },
+        tracks: [
+          { id: 'track-video-main', type: 'video', elements: [{ id: 'video-1', type: 'video', s: 0, e: 6, props: { src: 'mediaobj://video-1' }, metadata: { panelId: 'panel-1' } }] },
+        ],
+      },
     })
     prismaMock.novelPromotionPanel.count.mockResolvedValue(1)
     prismaMock.novelPromotionVoiceLine.findMany.mockResolvedValue([{
@@ -284,7 +290,9 @@ describe('editor AI route skeletons', () => {
       ? { ...body, durationMinutes: routeCase.expectedBilling?.quantity }
       : routeCase.name.startsWith('voice-optimize')
         ? { ...body, voiceLineId: 'voice-1', content: 'hello', durationSeconds: routeCase.expectedBilling?.quantity, maxSeconds: routeCase.expectedBilling?.quantity }
-        : body
+        : routeCase.name.startsWith('enhance')
+          ? { ...body, durationSeconds: routeCase.expectedBilling?.quantity, sourcePanelId: 'panel-1', originalSrc: 'mediaobj://video-1' }
+          : body
 
     expect(res.status).toBe(200)
     const json = await res.json() as { data: { taskId: string } }
@@ -409,6 +417,22 @@ describe('editor AI route skeletons', () => {
     const json = await res.json() as Record<string, unknown>
     expect(json.code).toBe('INVALID_PARAMS')
     expect(json.message).toBe('CAPTION_NO_VOICE_LINES')
+    expect(submitTaskMock).not.toHaveBeenCalled()
+  })
+
+  it('enhance returns 400 and does not enqueue when selected video is missing or invalid', async () => {
+    const routeCase = routeCases.find((item) => item.name === 'enhance smart crop')!
+    const { POST } = await routeCase.load()
+
+    const res = await POST(
+      buildEditorAiRequest(routeCase.path, defaultBody({ enhanceType: 'smart_crop', selectedElementId: 'audio-1', durationSeconds: 6 })),
+      buildContext(),
+    )
+
+    expect(res.status).toBe(400)
+    const json = await res.json() as Record<string, unknown>
+    expect(json.code).toBe('INVALID_PARAMS')
+    expect(json.message).toBe('ENHANCE_VIDEO_ELEMENT_NOT_FOUND')
     expect(submitTaskMock).not.toHaveBeenCalled()
   })
 

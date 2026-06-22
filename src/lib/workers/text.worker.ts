@@ -39,6 +39,7 @@ import { handleShotAITask } from './handlers/shot-ai-tasks'
 import { handleCharacterProfileTask } from './handlers/character-profile'
 import { handleEditorSmartCutTask } from './handlers/editor-smart-cut-task-handler'
 import { handleEditorCaptionTask } from './handlers/editor-caption-task-handler'
+import { handleEditorEnhanceTask } from './handlers/editor-enhance-task-handler'
 
 function readAssetKind(value: Record<string, unknown>): string {
   return typeof value.assetKind === 'string' ? value.assetKind : 'location'
@@ -707,6 +708,8 @@ async function processTextTask(job: Job<TaskJobData>) {
       return await handleEditorSmartCutTask(job)
     case TASK_TYPE.EDITOR_AI_CAPTION:
       return await handleEditorCaptionTask(job)
+    case TASK_TYPE.EDITOR_AI_ENHANCE:
+      return await handleEditorEnhanceTask(job)
     default:
       throw new Error(`Unsupported text task type: ${job.data.type}`)
   }

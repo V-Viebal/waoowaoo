@@ -286,7 +286,34 @@
           "generate": "Generate",
           "open": "Open"
         },
-        "phase2Hint": "AI editing tools will be connected in Phase 2."
+        "phase2Hint": "AI editing tools will be connected in Phase 2.",
+        "enhance": {
+          "title": "AI enhance",
+          "description": "Select a video clip, then apply smart crop. Restore/upscale needs a video enhancement provider and is currently a placeholder.",
+          "button": "Apply enhance",
+          "runningButton": "Enhancing...",
+          "running": "Enhancing video ({progress}%)",
+          "done": "Enhance applied. Timeline refreshed.",
+          "failed": "Enhance failed. Please try again.",
+          "saveConflict": "The editor project has a save conflict. Resolve it before enhancing video.",
+          "unsavedChanges": "Current editor changes have not been saved. Save successfully before enhancing video.",
+          "missingContext": "Missing current episode, editor project, or selected video clip.",
+          "loading": "Loading editor data...",
+          "selectVideo": "Select a video clip on the timeline first.",
+          "videoElementNotFound": "Could not find the selected video clip in the timeline.",
+          "restoreUnavailable": "Restore/upscale is not available yet because no video enhancement provider is configured.",
+          "smartCrop": "Smart crop",
+          "restore": "Restore",
+          "ratioLabel": "Target ratio",
+          "anchorLabel": "Focus",
+          "anchorCenter": "Center",
+          "anchorTop": "Top",
+          "anchorBottom": "Bottom",
+          "anchorLeft": "Left",
+          "anchorRight": "Right",
+          "selected": "Selected {id} · duration about {seconds}s",
+          "mvpNote": "MVP: smart crop updates timeline crop/fit parameters only, so it does not create a new MediaObject or EditorAsset."
+        }
       },
       "properties": {
         "selection": "Selection",

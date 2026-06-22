@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { useTimelineContext } from '@twick/timeline'
 import { CaptionPanel } from './ai/CaptionPanel'
+import { EnhancePanel } from './ai/EnhancePanel'
 import { SmartCutPanel } from './ai/SmartCutPanel'
 import { VoiceOptimizePanel } from './ai/VoiceOptimizePanel'
 import { CaptionStylePanel } from './properties/CaptionStylePanel'
@@ -50,6 +51,7 @@ function AiPanel() {
     <div className="space-y-3 text-xs text-slate-500">
       <SmartCutPanel />
       <CaptionPanel />
+      <EnhancePanel />
       <VoiceOptimizePanel />
       <div className="text-center text-[10px] text-slate-400">{t('phase2Hint')}</div>
     </div>
