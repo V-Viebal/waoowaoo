@@ -103,10 +103,10 @@ export type TaskBillingInfo =
     billable: true
     source: 'task'
     taskType: TaskType
-    apiType: 'text' | 'image' | 'video' | 'voice' | 'voice-design' | 'lip-sync'
+    apiType: 'text' | 'image' | 'video' | 'voice' | 'voice-design' | 'lip-sync' | 'editor'
     model: string
     quantity: number
-    unit: 'token' | 'image' | 'video' | 'second' | 'call'
+    unit: 'token' | 'image' | 'video' | 'second' | 'call' | 'minute'
     maxFrozenCost: number
     pricingVersion?: string
     action: string

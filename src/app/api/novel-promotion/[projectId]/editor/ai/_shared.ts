@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getAuthSession, isErrorResponse, notFound, unauthorized } from '@/lib/api-auth'
@@ -5,7 +6,7 @@ import { apiHandler, ApiError, getRequestId } from '@/lib/api-errors'
 import { submitTask } from '@/lib/task/submitter'
 import { resolveRequiredTaskLocale } from '@/lib/task/resolve-locale'
 import { TASK_TYPE, type TaskBillingInfo, type TaskType } from '@/lib/task/types'
-import { BILLING_ITEM, calculateBillingItemCost, type BillingItemKey } from '@/lib/billing/items'
+import { BILLING_ITEM, calculateBillingItemCost, getBillingItemDefinition, type BillingItemKey } from '@/lib/billing/items'
 import { BUILTIN_PRICING_VERSION } from '@/lib/model-pricing/version'
 
 export type EditorAiRouteContext = { params: Promise<{ projectId: string }> }
@@ -23,13 +24,43 @@ type SubmitEditorAiRouteParams = {
   billingItem?: BillingItemKey
   billingQuantity?: (body: EditorAiBody) => number
   payload?: (body: EditorAiBody) => Record<string, unknown>
-  dedupeKey?: (input: { editorProjectId: string; requestId: string | null }) => string | null
+  dedupeKey?: (input: { action: string; editorProjectId: string; requestId: string | null; body: EditorAiBody }) => string | null
 }
 
 function readPositiveNumber(value: unknown, fallback = 1): number {
   const numeric = Number(value)
   if (!Number.isFinite(numeric) || numeric <= 0) return fallback
   return numeric
+}
+
+function stableStringify(value: unknown): string {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value)
+  if (Array.isArray(value)) return `[${value.map((item) => stableStringify(item)).join(',')}]`
+  const record = value as Record<string, unknown>
+  return `{${Object.keys(record)
+    .sort()
+    .map((key) => `${JSON.stringify(key)}:${stableStringify(record[key])}`)
+    .join(',')}}`
+}
+
+function buildDefaultEditorAiDedupeKey(input: {
+  action: string
+  editorProjectId: string
+  requestId: string | null
+  body: EditorAiBody
+}) {
+  const explicitRequestId = typeof input.body.requestId === 'string' && input.body.requestId.trim()
+    ? input.body.requestId.trim()
+    : input.requestId
+  if (explicitRequestId) {
+    return `editor-ai:${input.action}:${input.editorProjectId}:${explicitRequestId}`
+  }
+
+  const fingerprint = createHash('sha1')
+    .update(stableStringify(input.body))
+    .digest('hex')
+    .slice(0, 16)
+  return `editor-ai:${input.action}:${input.editorProjectId}:${fingerprint}`
 }
 
 export function readCaptionBillingMinutes(body: EditorAiBody): number {
@@ -58,14 +89,15 @@ function buildEditorBillingInfo(params: {
   editorProjectId: string
 }): TaskBillingInfo {
   const quantity = readPositiveNumber(params.quantity, 1)
+  const definition = getBillingItemDefinition(params.billingItem)
   return {
     billable: true,
     source: 'task',
     taskType: params.taskType,
-    apiType: 'text',
+    apiType: 'editor',
     model: params.billingItem,
     quantity,
-    unit: 'call',
+    unit: definition.unit,
     maxFrozenCost: calculateBillingItemCost(params.billingItem, quantity),
     pricingVersion: BUILTIN_PRICING_VERSION,
     action: params.billingItem,
@@ -171,6 +203,18 @@ export function createEditorAiRoute(params: Omit<SubmitEditorAiRouteParams, 'req
       })
       : null
 
+    const dedupeKey = params.dedupeKey?.({
+      action: params.action,
+      editorProjectId,
+      requestId,
+      body,
+    }) || buildDefaultEditorAiDedupeKey({
+      action: params.action,
+      editorProjectId,
+      requestId,
+      body,
+    })
+
     const result = await submitTask({
       userId: authResult.session.user.id,
       locale,
@@ -187,7 +231,7 @@ export function createEditorAiRoute(params: Omit<SubmitEditorAiRouteParams, 'req
         action: params.action,
         ...(params.payload?.(body) || {}),
       },
-      dedupeKey: params.dedupeKey?.({ editorProjectId, requestId }) || null,
+      dedupeKey,
       billingInfo,
     })
 

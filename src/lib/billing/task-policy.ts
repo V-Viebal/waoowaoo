@@ -9,7 +9,7 @@ import {
 import { BillingOperationError } from './errors'
 import { BUILTIN_PRICING_VERSION } from '@/lib/model-pricing/version'
 import { TASK_TYPE, type TaskType } from '@/lib/task/types'
-import { BILLING_ITEM, calculateBillingItemCost, type BillingItemKey } from './items'
+import { BILLING_ITEM, calculateBillingItemCost, getBillingItemDefinition, type BillingItemKey } from './items'
 import type { TaskBillingInfo } from './types'
 
 type AnyPayload = Record<string, unknown> | null | undefined
@@ -258,14 +258,15 @@ function buildEditorTaskInfo(
   quantity: number,
 ): TaskBillingInfo {
   const normalizedQuantity = normalizeBillingQuantity(quantity, 1)
+  const definition = getBillingItemDefinition(item)
   return {
     billable: true,
     source: 'task',
     taskType,
-    apiType: 'text',
+    apiType: 'editor',
     model: item,
     quantity: normalizedQuantity,
-    unit: 'call',
+    unit: definition.unit,
     maxFrozenCost: calculateBillingItemCost(item, normalizedQuantity),
     pricingVersion: BUILTIN_PRICING_VERSION,
     action: item,

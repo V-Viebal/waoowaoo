@@ -33,8 +33,8 @@ export const MARKUP = {
 
 export type MarkupCategory = keyof typeof MARKUP
 
-export type ApiType = 'text' | 'image' | 'video' | 'voice' | 'voice-design' | 'lip-sync'
-export type UsageUnit = 'token' | 'image' | 'video' | 'second' | 'call'
+export type ApiType = 'text' | 'image' | 'video' | 'voice' | 'voice-design' | 'lip-sync' | 'editor'
+export type UsageUnit = 'token' | 'image' | 'video' | 'second' | 'call' | 'minute'
 
 export interface LlmCustomPricing {
   inputPerMillion?: number

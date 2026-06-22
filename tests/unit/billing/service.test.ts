@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { calcText, calcVideo, calcVoice } from '@/lib/billing/cost'
-import { BILLING_ITEM } from '@/lib/billing/items'
+import { BILLING_ITEM, calculateBillingItemCost } from '@/lib/billing/items'
 import { buildDefaultTaskBillingInfo } from '@/lib/billing/task-policy'
 import { TASK_TYPE, type TaskBillingInfo } from '@/lib/task/types'
 
@@ -336,6 +336,8 @@ describe('billing/service', () => {
         editorProjectId: 'editor-project-1',
       }) as Extract<TaskBillingInfo, { billable: true }>
       expect(quoted.action).toBe(BILLING_ITEM.EDITOR_SMART_CUT)
+      expect(quoted.apiType).toBe('editor')
+      expect(quoted.unit).toBe('call')
       expect(quoted.maxFrozenCost).toBe(0.05)
 
       modeMock.getBillingMode.mockResolvedValue('ENFORCE')
@@ -374,6 +376,79 @@ describe('billing/service', () => {
       }) as Extract<TaskBillingInfo, { billable: true }>
       expect(rollback.status).toBe('rolled_back')
       expect(ledgerMock.rollbackFreeze).toHaveBeenCalledWith('freeze_editor_rollback')
+    })
+
+    it('editor catalog settlement ignores collected text usage and charges fixed item price', async () => {
+      modeMock.getBillingMode.mockResolvedValue('ENFORCE')
+      ledgerMock.confirmChargeWithRecord.mockResolvedValueOnce(true)
+      const quoted = buildDefaultTaskBillingInfo(TASK_TYPE.EDITOR_AI_CAPTION, {
+        editorProjectId: 'editor-project-1',
+        durationMinutes: 3,
+      }) as Extract<TaskBillingInfo, { billable: true }>
+
+      const settled = await settleTaskBilling({
+        id: 'task_editor_caption_text_usage',
+        userId: 'u1',
+        projectId: 'p1',
+        billingInfo: {
+          ...quoted,
+          modeSnapshot: 'ENFORCE',
+          status: 'frozen',
+          freezeId: 'freeze_editor_caption_text_usage',
+        },
+      }, {
+        textUsage: [{ model: 'anthropic/claude-sonnet-4', inputTokens: 1_000_000, outputTokens: 1_000_000 }],
+      }) as Extract<TaskBillingInfo, { billable: true }>
+
+      expect(settled.chargedCost).toBe(calculateBillingItemCost(BILLING_ITEM.EDITOR_CAPTION_GENERATE, 3))
+      expect(ledgerMock.increasePendingFreezeAmount).not.toHaveBeenCalled()
+      expect(ledgerMock.confirmChargeWithRecord).toHaveBeenCalledWith(
+        'freeze_editor_caption_text_usage',
+        expect.objectContaining({
+          apiType: 'editor',
+          model: BILLING_ITEM.EDITOR_CAPTION_GENERATE,
+          quantity: 3,
+          unit: 'minute',
+        }),
+        expect.objectContaining({ chargedAmount: 0.06 }),
+      )
+    })
+
+    it('editor catalog settlement uses actual quantity without resolving text model pricing', async () => {
+      modeMock.getBillingMode.mockResolvedValue('ENFORCE')
+      ledgerMock.confirmChargeWithRecord.mockResolvedValueOnce(true)
+      const quoted = buildDefaultTaskBillingInfo(TASK_TYPE.EDITOR_AI_ENHANCE, {
+        editorProjectId: 'editor-project-1',
+        enhanceType: 'restore',
+        durationSeconds: 5,
+      }) as Extract<TaskBillingInfo, { billable: true }>
+
+      const settled = await settleTaskBilling({
+        id: 'task_editor_enhance_actual_seconds',
+        userId: 'u1',
+        projectId: 'p1',
+        billingInfo: {
+          ...quoted,
+          modeSnapshot: 'ENFORCE',
+          status: 'frozen',
+          freezeId: 'freeze_editor_enhance_actual_seconds',
+        },
+      }, {
+        result: { actualSeconds: 8 },
+      }) as Extract<TaskBillingInfo, { billable: true }>
+
+      expect(settled.chargedCost).toBe(calculateBillingItemCost(BILLING_ITEM.EDITOR_AI_ENHANCE_RESTORE, 8))
+      expect(ledgerMock.increasePendingFreezeAmount).toHaveBeenCalledTimes(1)
+      expect(ledgerMock.confirmChargeWithRecord).toHaveBeenCalledWith(
+        'freeze_editor_enhance_actual_seconds',
+        expect.objectContaining({
+          apiType: 'editor',
+          model: BILLING_ITEM.EDITOR_AI_ENHANCE_RESTORE,
+          quantity: 8,
+          unit: 'second',
+        }),
+        expect.objectContaining({ chargedAmount: 0.12 }),
+      )
     })
 
     it('settleTaskBilling handles SHADOW and non-ENFORCE snapshots', async () => {
