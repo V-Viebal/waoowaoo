@@ -84,7 +84,14 @@ export function SmartCutPanel() {
       return json
     },
     onError: (error) => {
-      setLocalError(error instanceof Error ? error.message : t('smartCut.failed'))
+      const message = error instanceof Error ? error.message : null
+      if (message === 'conflict') {
+        setLocalError(t('smartCut.saveConflict'))
+      } else if (message === 'unsaved-changes') {
+        setLocalError(t('smartCut.unsavedChanges'))
+      } else {
+        setLocalError(message || t('smartCut.failed'))
+      }
     },
   })
 

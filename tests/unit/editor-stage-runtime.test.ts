@@ -577,6 +577,91 @@ describe('useEditorProjectSync', () => {
     expect(savedProjects).toEqual([editA, editB])
   })
 
+  it('flushProjectSave rejects with conflict when local edits cannot be saved during a conflict', async () => {
+    const savedProjects: TwickTimelineProject[] = []
+    let shouldConflict = true
+
+    apiFetchMock.mockImplementation(async (url: string, options?: RequestInit) => {
+      if (options?.method === 'PUT') {
+        if (shouldConflict) {
+          return {
+            ok: false,
+            status: 409,
+            json: async () => ({ currentVersion: 2 }),
+          }
+        }
+        const body = JSON.parse(String(options.body)) as { projectData: TwickTimelineProject }
+        savedProjects.push(body.projectData)
+        return okJson({
+          data: {
+            id: 'editor-project-1',
+            version: savedProjects.length + 2,
+            updatedAt: '2026-01-01T00:00:00.000Z',
+          },
+        })
+      }
+
+      if (url.includes('/editor?episodeId=')) {
+        return okJson({
+          data: {
+            id: 'editor-project-1',
+            version: 1,
+            updatedAt: '2026-01-01T00:00:00.000Z',
+            projectData: createProject({ metadata: { custom: { marker: 'server' } } }),
+          },
+        })
+      }
+
+      return okJson({ data: null })
+    })
+
+    const hook = renderEditorProjectSyncHook(defaultHookProps)
+
+    await waitForExpectation(() => {
+      expect(hook.result.current?.projectData).not.toBeNull()
+    })
+
+    act(() => {
+      hook.result.current?.updateProjectData(createProject({ metadata: { custom: { marker: 'conflict-a' } } }))
+    })
+
+    await act(async () => {
+      await expect(hook.result.current!.flushProjectSave()).rejects.toThrow('conflict')
+    })
+
+    await waitForExpectation(() => {
+      expect(hook.result.current?.hasConflict).toBe(true)
+    })
+
+    shouldConflict = false
+    act(() => {
+      hook.result.current?.updateProjectData(createProject({ metadata: { custom: { marker: 'conflict-b' } } }))
+    })
+
+    await act(async () => {
+      await expect(hook.result.current!.flushProjectSave()).rejects.toThrow('conflict')
+    })
+    expect(savedProjects).toEqual([])
+  })
+
+  it('flushProjectSave rejects when local edits are not saved and no save work can be started', async () => {
+    createEmptyEditorApiMock()
+    const hook = renderEditorProjectSyncHook({
+      ...defaultHookProps,
+      projectId: null,
+      episodeId: null,
+    })
+
+    act(() => {
+      hook.result.current?.updateProjectData(createProject({ metadata: { custom: { marker: 'no-save-context' } } }))
+    })
+
+    await act(async () => {
+      await expect(hook.result.current!.flushProjectSave()).rejects.toThrow('unsaved-changes')
+    })
+    expect(apiFetchMock).not.toHaveBeenCalled()
+  })
+
   it('flushProjectSave rejects when the pending save fails so callers can stop follow-up work', async () => {
     const saveError = new Error('save failed during flush')
 
@@ -609,9 +694,9 @@ describe('useEditorProjectSync', () => {
       hook.result.current?.updateProjectData(createProject({ metadata: { custom: { marker: 'flush-fails' } } }))
     })
 
-    await expect(act(async () => {
-      await expect(hook.result.current?.flushProjectSave()).rejects.toThrow('save failed during flush')
-    })).resolves.toBeUndefined()
+    await act(async () => {
+      await expect(hook.result.current!.flushProjectSave()).rejects.toThrow('save failed during flush')
+    })
   })
 
   it('flushProjectSave returns immediately when there are no pending changes', async () => {

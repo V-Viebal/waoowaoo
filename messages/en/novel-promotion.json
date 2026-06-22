@@ -231,6 +231,8 @@
           "running": "Smart cutting ({progress}%)",
           "done": "Smart rough cut complete. Timeline refreshed.",
           "failed": "Smart rough cut failed. Please try again.",
+          "saveConflict": "The editor project has a save conflict. Resolve it before running smart rough cut.",
+          "unsavedChanges": "Current editor changes have not been saved. Save successfully before running smart rough cut.",
           "missingContext": "Missing current episode or editor project.",
           "loading": "Loading editor data...",
           "noVideos": "Generate at least one storyboard video first."

@@ -179,6 +179,7 @@ export function useEditorProjectSync({
   const savePendingRef = useRef(false)
   const saveMutationPendingRef = useRef(false)
   const saveErrorRef = useRef<string | null>(null)
+  const hasConflictRef = useRef(false)
   const inFlightSavePromiseRef = useRef<Promise<void> | null>(null)
   const debounceRef = useRef<ReturnType<typeof createDebouncedAction<[TwickTimelineProject]>> | null>(null)
 
@@ -193,6 +194,10 @@ export function useEditorProjectSync({
   useEffect(() => {
     saveErrorRef.current = saveError
   }, [saveError])
+
+  useEffect(() => {
+    hasConflictRef.current = hasConflict
+  }, [hasConflict])
 
   const editorProjectQuery = useQuery({
     queryKey,
@@ -256,7 +261,11 @@ export function useEditorProjectSync({
   }, [saveMutation.isPending])
 
   const startSave = useCallback((data: TwickTimelineProject, saveVersion = versionRef.current) => {
-    if (!projectId || !episodeId || saveMutationPendingRef.current) return null
+    if (!projectId || !episodeId) {
+      savePendingRef.current = false
+      return null
+    }
+    if (saveMutationPendingRef.current) return null
 
     const savedRevision = localProjectRevisionRef.current
     savePendingRef.current = false
@@ -447,7 +456,19 @@ export function useEditorProjectSync({
     for (let iteration = 0; iteration < FLUSH_PROJECT_SAVE_MAX_ITERATIONS; iteration += 1) {
       const savePromise = flushPendingSave() ?? inFlightSavePromiseRef.current
       if (savePromise) {
-        await savePromise
+        try {
+          await savePromise
+        } catch (error) {
+          const maybeConflict = error as Partial<EditorConflictError>
+          if (maybeConflict.code === 'CONFLICT') {
+            throw new Error('conflict')
+          }
+          throw error
+        }
+      }
+
+      if (hasConflictRef.current && lastSavedProjectRevisionRef.current < targetRevision) {
+        throw new Error('conflict')
       }
 
       if (saveErrorRef.current) {
@@ -459,6 +480,9 @@ export function useEditorProjectSync({
       }
 
       if (!inFlightSavePromiseRef.current && !savePendingRef.current && !debounceRef.current?.hasPending()) {
+        if (lastSavedProjectRevisionRef.current < targetRevision) {
+          throw new Error(hasConflictRef.current ? 'conflict' : 'unsaved-changes')
+        }
         return
       }
     }
