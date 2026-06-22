@@ -1,7 +1,10 @@
+import { Prisma } from '@prisma/client'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getAuthSession, isErrorResponse, notFound, unauthorized } from '@/lib/api-auth'
 import { apiHandler, ApiError } from '@/lib/api-errors'
+
+const MAX_PROJECT_DATA_JSON_CHARS = 5 * 1024 * 1024
 
 const editorProjectSelect = {
   id: true,
@@ -57,6 +60,48 @@ async function requireEpisode(projectId: string, episodeId: string) {
   return episode
 }
 
+function assertValidProjectData(projectData: unknown) {
+  if (
+    projectData === undefined
+    || projectData === null
+    || typeof projectData !== 'object'
+    || Array.isArray(projectData)
+  ) {
+    throw new ApiError('INVALID_PARAMS')
+  }
+
+  let serialized: string
+  try {
+    serialized = JSON.stringify(projectData)
+  } catch {
+    throw new ApiError('INVALID_PARAMS')
+  }
+
+  if (serialized === undefined || serialized.length > MAX_PROJECT_DATA_JSON_CHARS) {
+    throw new ApiError('INVALID_PARAMS')
+  }
+}
+
+function isUniqueConstraintError(error: unknown) {
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002'
+}
+
+async function getCurrentVersion(episodeId: string) {
+  const current = await prisma.novelPromotionEditorProject.findUnique({
+    where: { episodeId },
+    select: { version: true },
+  })
+
+  return current?.version
+}
+
+async function throwConflict(episodeId: string): Promise<never> {
+  throw new ApiError('CONFLICT', {
+    currentVersion: await getCurrentVersion(episodeId),
+    message: 'Editor project has been modified elsewhere',
+  })
+}
+
 /**
  * GET /api/novel-promotion/[projectId]/editor
  * 获取剧集的 Twick 编辑器项目数据
@@ -105,13 +150,16 @@ export const PUT = apiHandler(async (
     version?: unknown
   }
 
-  if (typeof episodeId !== 'string' || !episodeId || projectData === undefined || projectData === null) {
+  if (typeof episodeId !== 'string' || !episodeId) {
     throw new ApiError('INVALID_PARAMS')
   }
+
+  assertValidProjectData(projectData)
 
   if (version !== undefined && (!Number.isInteger(version) || version < 0)) {
     throw new ApiError('INVALID_PARAMS')
   }
+  const submittedVersion = version as number | undefined
 
   await requireEpisode(projectId, episodeId)
 
@@ -120,24 +168,47 @@ export const PUT = apiHandler(async (
     select: { id: true, version: true },
   })
 
-  if (existing && existing.version !== version) {
-    throw new ApiError('CONFLICT', {
-      currentVersion: existing.version,
-      message: 'Editor project has been modified elsewhere',
-    })
+  if (!existing) {
+    try {
+      const editorProject = await prisma.novelPromotionEditorProject.create({
+        data: {
+          episodeId,
+          projectData,
+          version: 1,
+        },
+        select: editorProjectSelect,
+      })
+
+      return NextResponse.json({ data: editorProject })
+    } catch (error: unknown) {
+      if (isUniqueConstraintError(error)) {
+        await throwConflict(episodeId)
+      }
+      throw error
+    }
   }
 
-  const editorProject = await prisma.novelPromotionEditorProject.upsert({
-    where: { episodeId },
-    create: {
+  if (submittedVersion === undefined) {
+    await throwConflict(episodeId)
+  }
+
+  const updateResult = await prisma.novelPromotionEditorProject.updateMany({
+    where: {
       episodeId,
-      projectData,
-      version: 1,
+      version: submittedVersion,
     },
-    update: {
+    data: {
       projectData,
       version: { increment: 1 },
     },
+  })
+
+  if (updateResult.count === 0) {
+    await throwConflict(episodeId)
+  }
+
+  const editorProject = await prisma.novelPromotionEditorProject.findUniqueOrThrow({
+    where: { episodeId },
     select: editorProjectSelect,
   })
 

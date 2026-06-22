@@ -62,6 +62,19 @@ describe('editor project API', () => {
   let secondEpisodeId: string
   let thirdEpisodeId: string
   let otherEpisodeId: string
+  let nextExtraEpisodeNumber = 10
+
+  async function createExtraEpisode() {
+    const episode = await prisma.novelPromotionEpisode.create({
+      data: {
+        novelPromotionProjectId,
+        episodeNumber: nextExtraEpisodeNumber++,
+        name: `Editor API Extra Episode ${randomUUID()}`,
+      },
+    })
+
+    return episode.id
+  }
 
   beforeAll(async () => {
     const owner = await prisma.user.create({
@@ -269,5 +282,79 @@ describe('editor project API', () => {
     const saved = await prisma.novelPromotionEditorProject.findUniqueOrThrow({ where: { episodeId: thirdEpisodeId } })
     expect(saved.version).toBe(3)
     expect(saved.projectData).toEqual({ tracks: [{ id: 'old' }] })
+  })
+
+  it('PUT uses atomic compare-and-swap when two requests submit the same version', async () => {
+    const { PUT } = await import('@/app/api/novel-promotion/[projectId]/editor/route')
+    const casEpisodeId = await createExtraEpisode()
+    await prisma.novelPromotionEditorProject.create({
+      data: {
+        episodeId: casEpisodeId,
+        projectData: { tracks: [{ id: 'initial' }] },
+        version: 1,
+      },
+    })
+
+    const [firstRes, secondRes] = await Promise.all([
+      PUT(putRequest(projectId, {
+        episodeId: casEpisodeId,
+        projectData: { tracks: [{ id: 'first' }] },
+        version: 1,
+      }), routeContext(projectId)),
+      PUT(putRequest(projectId, {
+        episodeId: casEpisodeId,
+        projectData: { tracks: [{ id: 'second' }] },
+        version: 1,
+      }), routeContext(projectId)),
+    ])
+
+    const results = await Promise.all([
+      firstRes.json().then((body) => ({ status: firstRes.status, body })),
+      secondRes.json().then((body) => ({ status: secondRes.status, body })),
+    ])
+
+    const successes = results.filter((result) => result.status === 200)
+    const conflicts = results.filter((result) => result.status === 409)
+
+    expect(successes).toHaveLength(1)
+    expect(conflicts).toHaveLength(1)
+    expect(successes[0].body.data.version).toBe(2)
+    expect(conflicts[0].body.error.code).toBe('CONFLICT')
+    expect(conflicts[0].body.error.details.currentVersion).toBe(2)
+
+    const saved = await prisma.novelPromotionEditorProject.findUniqueOrThrow({ where: { episodeId: casEpisodeId } })
+    expect(saved.version).toBe(2)
+    expect([{ tracks: [{ id: 'first' }] }, { tracks: [{ id: 'second' }] }]).toContainEqual(saved.projectData)
+  })
+
+  it('PUT rejects array and string projectData with INVALID_PARAMS', async () => {
+    const { PUT } = await import('@/app/api/novel-promotion/[projectId]/editor/route')
+    const invalidEpisodeId = await createExtraEpisode()
+
+    for (const invalidProjectData of [[{ id: 'array-item' }], 'not-an-object']) {
+      const res = await PUT(putRequest(projectId, {
+        episodeId: invalidEpisodeId,
+        projectData: invalidProjectData,
+      }), routeContext(projectId))
+      const body = await res.json()
+
+      expect(res.status).toBe(400)
+      expect(body.error.code).toBe('INVALID_PARAMS')
+    }
+  })
+
+  it('PUT rejects oversized projectData with INVALID_PARAMS', async () => {
+    const { PUT } = await import('@/app/api/novel-promotion/[projectId]/editor/route')
+    const oversizedEpisodeId = await createExtraEpisode()
+    const oversizedProjectData = { payload: 'x'.repeat(5 * 1024 * 1024) }
+
+    const res = await PUT(putRequest(projectId, {
+      episodeId: oversizedEpisodeId,
+      projectData: oversizedProjectData,
+    }), routeContext(projectId))
+    const body = await res.json()
+
+    expect(res.status).toBe(400)
+    expect(body.error.code).toBe('INVALID_PARAMS')
   })
 })
