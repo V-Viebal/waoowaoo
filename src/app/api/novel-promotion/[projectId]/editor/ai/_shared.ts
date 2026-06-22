@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getAuthSession, isErrorResponse, notFound, unauthorized } from '@/lib/api-auth'
-import { apiHandler, ApiError, getRequestId } from '@/lib/api-errors'
+import { apiHandler, ApiError, getIdempotencyKey, getRequestId } from '@/lib/api-errors'
 import { submitTask } from '@/lib/task/submitter'
 import { resolveRequiredTaskLocale } from '@/lib/task/resolve-locale'
 import { TASK_TYPE, type TaskBillingInfo, type TaskType } from '@/lib/task/types'
@@ -24,7 +24,7 @@ type SubmitEditorAiRouteParams = {
   billingItem?: BillingItemKey
   billingQuantity?: (body: EditorAiBody) => number
   payload?: (body: EditorAiBody) => Record<string, unknown>
-  dedupeKey?: (input: { action: string; editorProjectId: string; requestId: string | null; body: EditorAiBody }) => string | null
+  dedupeKey?: (input: { action: string; editorProjectId: string; clientRequestId: string | null; requestId: string | null; body: EditorAiBody }) => string | null
 }
 
 function readPositiveNumber(value: unknown, fallback = 1): number {
@@ -43,17 +43,25 @@ function stableStringify(value: unknown): string {
     .join(',')}}`
 }
 
+function readBodyRequestId(body: EditorAiBody): string | null {
+  return typeof body.requestId === 'string' && body.requestId.trim()
+    ? body.requestId.trim()
+    : null
+}
+
+function readHeaderRequestId(request: NextRequest): string | null {
+  const headerRequestId = request.headers.get('x-request-id')?.trim()
+  return headerRequestId || getIdempotencyKey(request) || null
+}
+
 function buildDefaultEditorAiDedupeKey(input: {
   action: string
   editorProjectId: string
-  requestId: string | null
+  clientRequestId: string | null
   body: EditorAiBody
 }) {
-  const explicitRequestId = typeof input.body.requestId === 'string' && input.body.requestId.trim()
-    ? input.body.requestId.trim()
-    : input.requestId
-  if (explicitRequestId) {
-    return `editor-ai:${input.action}:${input.editorProjectId}:${explicitRequestId}`
+  if (input.clientRequestId) {
+    return `editor-ai:${input.action}:${input.editorProjectId}:${input.clientRequestId}`
   }
 
   const fingerprint = createHash('sha1')
@@ -190,6 +198,7 @@ export function createEditorAiRoute(params: Omit<SubmitEditorAiRouteParams, 'req
 
     const locale = resolveRequiredTaskLocale(request, body)
     const requestId = getRequestId(request) || null
+    const clientRequestId = readBodyRequestId(body) || readHeaderRequestId(request)
     const billingItem = params.taskType === TASK_TYPE.EDITOR_AI_ENHANCE
       ? resolveEnhanceBillingItem(body)
       : params.billingItem
@@ -206,12 +215,13 @@ export function createEditorAiRoute(params: Omit<SubmitEditorAiRouteParams, 'req
     const dedupeKey = params.dedupeKey?.({
       action: params.action,
       editorProjectId,
+      clientRequestId,
       requestId,
       body,
     }) || buildDefaultEditorAiDedupeKey({
       action: params.action,
       editorProjectId,
-      requestId,
+      clientRequestId,
       body,
     })
 

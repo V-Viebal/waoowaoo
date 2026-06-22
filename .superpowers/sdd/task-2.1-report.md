@@ -212,3 +212,131 @@ These are pre-existing unrelated failures outside touched editor/billing paths; 
 - text/voice/image/video/lip-sync 的 `resolveTaskActual` 分支未改变语义。
 - 只新增 editor catalog 分支，且在 textUsage 分支前短路 editor item，避免 editor fixed-price 被 text usage 覆盖。
 - Voice optimize 继续复用现有 voice billing policy。
+
+
+## 修复轮次 2
+
+### 状态
+DONE
+
+### 修复 1：无客户端 requestId 时幂等 fallback 生效
+- 已确认 `apiHandler` 在进入业务 handler 前会执行 `getRequestId(req) || createRequestId()` 并通过 `setRequestId(req, requestId)` 写入 symbol；之后业务代码调用 `getRequestId(request)` 读到的是 trace requestId，不一定是客户端显式幂等键。
+- `createEditorAiRoute` 现在将 trace `requestId` 与客户端幂等键分开：
+  - trace `requestId`：仍使用 `getRequestId(request)`，传给 task/request logging。
+  - `clientRequestId`：只来自 `body.requestId` 或原始 headers：`x-request-id`、`idempotency-key`、`x-idempotency-key`（通过读取 request headers，不读取 apiHandler symbol）。
+- 默认 `dedupeKey` 只使用 `clientRequestId`；客户端未提供 body/header 幂等键时，回落到稳定 `stableStringify(body)` 的 sha1 hash，保证同 body 重试生成相同 `dedupeKey`，不会被 apiHandler 每次生成的随机 trace id 打散。
+
+### 修复 2：editor 结算 actual 用量按 catalog unit/type 归一
+- 已确认 `src/lib/billing/items.ts` 中 editor catalog 定义：
+  - `editor_smart_cut`: `type=per_use`, `unit=call`
+  - `editor_caption_generate`: `type=per_minute`, `unit=minute`
+  - `editor_export`: `type=per_minute`, `unit=minute`
+  - `editor_ai_enhance_smart_crop` / `editor_ai_enhance_restore`: `type=per_second`, `unit=second`
+- `resolveTaskActual` 只在 editor 分支新增 `resolveEditorActualQuantity`：
+  - `per_use/call`：默认按 1 次，只有显式 `actualQuantity` 才覆盖；忽略 `actualSeconds`。
+  - `per_second/second`：优先 `actualSeconds` / `actualDurationSeconds`，其次显式 `actualQuantity`，否则 quoted quantity。
+  - `per_minute/minute`：优先 `actualMinutes`；若 worker 返回 `actualSeconds` / `actualDurationSeconds`，转换为分钟 `/ 60`；其次显式 `actualQuantity`，否则 quoted quantity。
+- 非 editor 分支未改变：text usage、voice/image/video/lip-sync 的 existing actual 解析和成本计算仍走原逻辑。
+
+### 测试补充
+- `tests/integration/api/editor-ai-routes.test.ts`
+  - 新增无 body/header requestId 时，同 body 两次请求 trace `requestId` 不同但 `dedupeKey` 相同的回归断言，验证 body hash fallback 真正生效。
+- `tests/unit/billing/service.test.ts`
+  - 新增 smart-cut `actualSeconds` 仍按 1 次计费。
+  - 新增 caption `actualSeconds` 转分钟计费，避免秒数被当分钟导致 60x 过扣。
+  - 新增 export `actualDurationSeconds` 转分钟计费。
+
+### 命令与完整输出
+
+#### Focused tests
+Command:
+`npx cross-env BILLING_TEST_BOOTSTRAP=0 vitest run tests/integration/api/editor-ai-routes.test.ts tests/unit/billing/service.test.ts --reporter=dot`
+
+Output:
+```text
+The CJS build of Vite's Node API is deprecated. See https://vite.dev/guide/troubleshooting.html#vite-cjs-node-api-deprecated for more details.
+
+ RUN  v2.1.9 /Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor
+
+stderr | tests/unit/billing/service.test.ts > billing/service > expands freeze and charges actual voice usage when actual exceeds quoted
+{"ts":"2026-06-22T13:29:16.484+08:00","level":"ERROR","service":"vvicat","audit":false,"message":"[Billing] actual cost exceeds frozen max, overage freeze required","details":{"actualCost":0.72,"frozenCost":0.072,"requiredOverage":0.648}}
+
+stderr | tests/unit/billing/service.test.ts > billing/service > fails and rolls back when overage freeze expansion cannot be covered
+{"ts":"2026-06-22T13:29:16.486+08:00","level":"ERROR","service":"vvicat","audit":false,"message":"[Billing] actual cost exceeds frozen max, overage freeze required","details":{"actualCost":0.72,"frozenCost":0.072,"requiredOverage":0.648}}
+
+stderr | tests/unit/billing/service.test.ts > billing/service > task billing lifecycle helpers > editor catalog settlement uses actual quantity without resolving text model pricing
+{"ts":"2026-06-22T13:29:16.495+08:00","level":"ERROR","service":"vvicat","audit":false,"message":"[Billing] actual cost exceeds frozen max, overage freeze required","details":{"actualCost":0.12,"frozenCost":0.075,"requiredOverage":0.045}}
+
+stderr | tests/unit/billing/service.test.ts > billing/service > task billing lifecycle helpers > settleTaskBilling throws BILLING_CONFIRM_FAILED when confirm and rollback both fail
+{"ts":"2026-06-22T13:29:16.500+08:00","level":"ERROR","service":"vvicat","audit":false,"message":"[Billing] rollback task freeze failed:","details":{},"error":{"name":"Error","message":"rollback failed","stack":"Error: rollback failed\n    at /Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/tests/unit/billing/service.test.ts:667:55\n    at file:///Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/node_modules/@vitest/runner/dist/index.js:146:14\n    at file:///Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/node_modules/@vitest/runner/dist/index.js:533:11\n    at runWithTimeout (file:///Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/node_modules/@vitest/runner/dist/index.js:39:7)\n    at runTest (file:///Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/node_modules/@vitest/runner/dist/index.js:1056:17)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at runSuite (file:///Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/node_modules/@vitest/runner/dist/index.js:1205:15)\n    at runSuite (file:///Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/node_modules/@vitest/runner/dist/index.js:1205:15)\n    at runSuite (file:///Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/node_modules/@vitest/runner/dist/index.js:1205:15)\n    at runFiles (file:///Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/node_modules/@vitest/runner/dist/index.js:1262:5)"}}
+
+stderr | tests/unit/billing/service.test.ts > billing/service > task billing lifecycle helpers > settleTaskBilling expands freeze when actual exceeds quoted
+{"ts":"2026-06-22T13:29:16.501+08:00","level":"ERROR","service":"vvicat","audit":false,"message":"[Billing] actual cost exceeds frozen max, overage freeze required","details":{"actualCost":0.72,"frozenCost":0.072,"requiredOverage":0.648}}
+
+stderr | tests/unit/billing/service.test.ts > billing/service > task billing lifecycle helpers > settleTaskBilling charges Seedance 2.0 videos from exact usage tokens
+{"ts":"2026-06-22T13:29:16.517+08:00","level":"ERROR","service":"vvicat","audit":false,"message":"[Billing] actual cost exceeds frozen max, overage freeze required","details":{"actualCost":5.52,"frozenCost":4.968,"requiredOverage":0.552}}
+
+ ✓ tests/unit/billing/service.test.ts (29 tests) 46ms
+stderr | tests/unit/billing/service.test.ts > billing/service > task billing lifecycle helpers > rollbackTaskBilling handles success and fallback branches
+{"ts":"2026-06-22T13:29:16.518+08:00","level":"ERROR","service":"vvicat","audit":false,"message":"[Billing] rollback task freeze failed:","details":{},"error":{"name":"Error","message":"rollback failed","stack":"Error: rollback failed\n    at /Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/tests/unit/billing/service.test.ts:786:55\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at file:///Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/node_modules/@vitest/runner/dist/index.js:533:5\n    at runTest (file:///Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/node_modules/@vitest/runner/dist/index.js:1056:11)\n    at runSuite (file:///Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/node_modules/@vitest/runner/dist/index.js:1205:15)\n    at runSuite (file:///Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/node_modules/@vitest/runner/dist/index.js:1205:15)\n    at runSuite (file:///Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/node_modules/@vitest/runner/dist/index.js:1205:15)\n    at runFiles (file:///Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/node_modules/@vitest/runner/dist/index.js:1262:5)\n    at startTests (file:///Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/node_modules/@vitest/runner/dist/index.js:1271:3)\n    at file:///Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/node_modules/vitest/dist/chunks/runBaseTests.3qpJUEJM.js:126:11"}}
+
+stderr | tests/integration/api/editor-ai-routes.test.ts > editor AI route skeletons > 'smart-cut' returns 404 for another project editorProject
+{"ts":"2026-06-22T13:29:17.209+08:00","level":"ERROR","service":"vvicat","audit":false,"module":"api","action":"api.request.error","message":"Resource not found","requestId":"92a1d442-8aa9-4163-b31e-1669072ec58b","projectId":"project-1","errorCode":"NOT_FOUND","retryable":false,"durationMs":2,"details":{"method":"POST","path":"/api/novel-promotion/project-1/editor/ai/smart-cut","errorType":"ApiError"},"error":{"name":"ApiError","message":"Resource not found","stack":"ApiError: Resource not found\n    at requireOwnedEditorProject (/Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/src/app/api/novel-promotion/[projectId]/editor/ai/_shared.ts:169:11)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at /Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/src/app/api/novel-promotion/[projectId]/editor/ai/_shared.ts:193:5\n    at /Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/src/lib/api-errors.ts:473:94\n    at Module.withInternalLLMStreamCallbacks (/Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/src/lib/llm-observe/internal-stream-context.ts:36:10)\n    at /Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/src/lib/api-errors.ts:473:28\n    at /Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/src/lib/api-errors.ts:453:12\n    at /Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/tests/integration/api/editor-ai-routes.test.ts:242:17\n    at file:///Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/node_modules/@vitest/runner/dist/index.js:533:5\n    at runTest (file:///Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/node_modules/@vitest/runner/dist/index.js:1056:11)","code":"NOT_FOUND"}}
+
+stderr | tests/integration/api/editor-ai-routes.test.ts > editor AI route skeletons > 'caption' returns 404 for another project editorProject
+{"ts":"2026-06-22T13:29:17.213+08:00","level":"ERROR","service":"vvicat","audit":false,"module":"api","action":"api.request.error","message":"Resource not found","requestId":"279e9350-265e-4af9-8ec8-67d3895eeb8a","projectId":"project-1","errorCode":"NOT_FOUND","retryable":false,"durationMs":0,"details":{"method":"POST","path":"/api/novel-promotion/project-1/editor/ai/caption","errorType":"ApiError"},"error":{"name":"ApiError","message":"Resource not found","stack":"ApiError: Resource not found\n    at requireOwnedEditorProject (/Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/src/app/api/novel-promotion/[projectId]/editor/ai/_shared.ts:169:11)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at /Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/src/app/api/novel-promotion/[projectId]/editor/ai/_shared.ts:193:5\n    at /Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/src/lib/api-errors.ts:473:94\n    at Module.withInternalLLMStreamCallbacks (/Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/src/lib/llm-observe/internal-stream-context.ts:36:10)\n    at /Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/src/lib/api-errors.ts:473:28\n    at /Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/src/lib/api-errors.ts:453:12\n    at /Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/tests/integration/api/editor-ai-routes.test.ts:242:17\n    at file:///Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/node_modules/@vitest/runner/dist/index.js:533:5\n    at runTest (file:///Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/node_modules/@vitest/runner/dist/index.js:1056:11)","code":"NOT_FOUND"}}
+
+stderr | tests/integration/api/editor-ai-routes.test.ts > editor AI route skeletons > 'enhance restore' returns 404 for another project editorProject
+{"ts":"2026-06-22T13:29:17.214+08:00","level":"ERROR","service":"vvicat","audit":false,"module":"api","action":"api.request.error","message":"Resource not found","requestId":"a549b42d-4523-43e9-955c-46b4a401691c","projectId":"project-1","errorCode":"NOT_FOUND","retryable":false,"durationMs":0,"details":{"method":"POST","path":"/api/novel-promotion/project-1/editor/ai/enhance","errorType":"ApiError"},"error":{"name":"ApiError","message":"Resource not found","stack":"ApiError: Resource not found\n    at requireOwnedEditorProject (/Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/src/app/api/novel-promotion/[projectId]/editor/ai/_shared.ts:169:11)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at /Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/src/app/api/novel-promotion/[projectId]/editor/ai/_shared.ts:193:5\n    at /Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/src/lib/api-errors.ts:473:94\n    at Module.withInternalLLMStreamCallbacks (/Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/src/lib/llm-observe/internal-stream-context.ts:36:10)\n    at /Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/src/lib/api-errors.ts:473:28\n    at /Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/src/lib/api-errors.ts:453:12\n    at /Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/tests/integration/api/editor-ai-routes.test.ts:242:17\n    at file:///Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/node_modules/@vitest/runner/dist/index.js:533:5\n    at runTest (file:///Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/node_modules/@vitest/runner/dist/index.js:1056:11)","code":"NOT_FOUND"}}
+
+stderr | tests/integration/api/editor-ai-routes.test.ts > editor AI route skeletons > 'enhance smart crop' returns 404 for another project editorProject
+{"ts":"2026-06-22T13:29:17.215+08:00","level":"ERROR","service":"vvicat","audit":false,"module":"api","action":"api.request.error","message":"Resource not found","requestId":"9c8a39be-1279-4c5c-963f-7d2e0d6df79e","projectId":"project-1","errorCode":"NOT_FOUND","retryable":false,"durationMs":1,"details":{"method":"POST","path":"/api/novel-promotion/project-1/editor/ai/enhance","errorType":"ApiError"},"error":{"name":"ApiError","message":"Resource not found","stack":"ApiError: Resource not found\n    at requireOwnedEditorProject (/Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/src/app/api/novel-promotion/[projectId]/editor/ai/_shared.ts:169:11)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at /Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/src/app/api/novel-promotion/[projectId]/editor/ai/_shared.ts:193:5\n    at /Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/src/lib/api-errors.ts:473:94\n    at Module.withInternalLLMStreamCallbacks (/Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/src/lib/llm-observe/internal-stream-context.ts:36:10)\n    at /Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/src/lib/api-errors.ts:473:28\n    at /Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/src/lib/api-errors.ts:453:12\n    at /Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/tests/integration/api/editor-ai-routes.test.ts:242:17\n    at file:///Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/node_modules/@vitest/runner/dist/index.js:533:5\n    at runTest (file:///Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/node_modules/@vitest/runner/dist/index.js:1056:11)","code":"NOT_FOUND"}}
+
+stderr | tests/integration/api/editor-ai-routes.test.ts > editor AI route skeletons > 'voice-optimize durationSeconds' returns 404 for another project editorProject
+{"ts":"2026-06-22T13:29:17.215+08:00","level":"ERROR","service":"vvicat","audit":false,"module":"api","action":"api.request.error","message":"Resource not found","requestId":"50165690-9a29-440b-ae6e-7da567a19dc1","projectId":"project-1","errorCode":"NOT_FOUND","retryable":false,"durationMs":0,"details":{"method":"POST","path":"/api/novel-promotion/project-1/editor/ai/voice-optimize","errorType":"ApiError"},"error":{"name":"ApiError","message":"Resource not found","stack":"ApiError: Resource not found\n    at requireOwnedEditorProject (/Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/src/app/api/novel-promotion/[projectId]/editor/ai/_shared.ts:169:11)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at /Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/src/app/api/novel-promotion/[projectId]/editor/ai/_shared.ts:193:5\n    at /Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/src/lib/api-errors.ts:473:94\n    at Module.withInternalLLMStreamCallbacks (/Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/src/lib/llm-observe/internal-stream-context.ts:36:10)\n    at /Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/src/lib/api-errors.ts:473:28\n    at /Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/src/lib/api-errors.ts:453:12\n    at /Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/tests/integration/api/editor-ai-routes.test.ts:242:17\n    at file:///Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/node_modules/@vitest/runner/dist/index.js:533:5\n    at runTest (file:///Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/node_modules/@vitest/runner/dist/index.js:1056:11)","code":"NOT_FOUND"}}
+
+stderr | tests/integration/api/editor-ai-routes.test.ts > editor AI route skeletons > 'voice-optimize maxSeconds fallback' returns 404 for another project editorProject
+{"ts":"2026-06-22T13:29:17.216+08:00","level":"ERROR","service":"vvicat","audit":false,"module":"api","action":"api.request.error","message":"Resource not found","requestId":"daac17b3-929e-4a00-ab4d-df73d0565796","projectId":"project-1","errorCode":"NOT_FOUND","retryable":false,"durationMs":0,"details":{"method":"POST","path":"/api/novel-promotion/project-1/editor/ai/voice-optimize","errorType":"ApiError"},"error":{"name":"ApiError","message":"Resource not found","stack":"ApiError: Resource not found\n    at requireOwnedEditorProject (/Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/src/app/api/novel-promotion/[projectId]/editor/ai/_shared.ts:169:11)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at /Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/src/app/api/novel-promotion/[projectId]/editor/ai/_shared.ts:193:5\n    at /Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/src/lib/api-errors.ts:473:94\n    at Module.withInternalLLMStreamCallbacks (/Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/src/lib/llm-observe/internal-stream-context.ts:36:10)\n    at /Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/src/lib/api-errors.ts:473:28\n    at /Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/src/lib/api-errors.ts:453:12\n    at /Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/tests/integration/api/editor-ai-routes.test.ts:242:17\n    at file:///Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/node_modules/@vitest/runner/dist/index.js:533:5\n    at runTest (file:///Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/node_modules/@vitest/runner/dist/index.js:1056:11)","code":"NOT_FOUND"}}
+
+stderr | tests/integration/api/editor-ai-routes.test.ts > editor AI route skeletons > 'transition' returns 404 for another project editorProject
+{"ts":"2026-06-22T13:29:17.217+08:00","level":"ERROR","service":"vvicat","audit":false,"module":"api","action":"api.request.error","message":"Resource not found","requestId":"448aebe6-1c42-4d6f-a516-13d173faddd7","projectId":"project-1","errorCode":"NOT_FOUND","retryable":false,"durationMs":0,"details":{"method":"POST","path":"/api/novel-promotion/project-1/editor/ai/transition","errorType":"ApiError"},"error":{"name":"ApiError","message":"Resource not found","stack":"ApiError: Resource not found\n    at requireOwnedEditorProject (/Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/src/app/api/novel-promotion/[projectId]/editor/ai/_shared.ts:169:11)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at /Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/src/app/api/novel-promotion/[projectId]/editor/ai/_shared.ts:193:5\n    at /Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/src/lib/api-errors.ts:473:94\n    at Module.withInternalLLMStreamCallbacks (/Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/src/lib/llm-observe/internal-stream-context.ts:36:10)\n    at /Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/src/lib/api-errors.ts:473:28\n    at /Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/src/lib/api-errors.ts:453:12\n    at /Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/tests/integration/api/editor-ai-routes.test.ts:242:17\n    at file:///Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/node_modules/@vitest/runner/dist/index.js:533:5\n    at runTest (file:///Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/node_modules/@vitest/runner/dist/index.js:1056:11)","code":"NOT_FOUND"}}
+
+stderr | tests/integration/api/editor-ai-routes.test.ts > editor AI route skeletons > smart-cut propagates insufficient balance from task submission as 402
+{"ts":"2026-06-22T13:29:17.233+08:00","level":"ERROR","service":"vvicat","audit":false,"module":"api","action":"api.request.error","message":"Insufficient balance","requestId":"0d4b8176-e252-497c-8147-ef7e621742fe","projectId":"project-1","errorCode":"INSUFFICIENT_BALANCE","retryable":false,"durationMs":1,"details":{"method":"POST","path":"/api/novel-promotion/project-1/editor/ai/smart-cut","errorType":"ApiError"},"error":{"name":"ApiError","message":"Insufficient balance","stack":"ApiError: Insufficient balance\n    at /Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/tests/integration/api/editor-ai-routes.test.ts:312:42\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at file:///Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/node_modules/@vitest/runner/dist/index.js:533:5\n    at runTest (file:///Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/node_modules/@vitest/runner/dist/index.js:1056:11)\n    at runSuite (file:///Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/node_modules/@vitest/runner/dist/index.js:1205:15)\n    at runSuite (file:///Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/node_modules/@vitest/runner/dist/index.js:1205:15)\n    at runFiles (file:///Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/node_modules/@vitest/runner/dist/index.js:1262:5)\n    at startTests (file:///Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/node_modules/@vitest/runner/dist/index.js:1271:3)\n    at file:///Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/node_modules/vitest/dist/chunks/runBaseTests.3qpJUEJM.js:126:11\n    at withEnv (file:///Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/node_modules/vitest/dist/chunks/runBaseTests.3qpJUEJM.js:90:5)","code":"INSUFFICIENT_BALANCE"}}
+
+ ✓ tests/integration/api/editor-ai-routes.test.ts (31 tests) 295ms
+
+ Test Files  2 passed (2)
+      Tests  60 passed (60)
+   Start at  13:29:15
+   Duration  1.45s (transform 348ms, setup 6ms, collect 412ms, tests 341ms, environment 0ms, prepare 95ms)
+```
+
+#### Requested filtered typecheck
+Command:
+`npx tsc --noEmit 2>&1 | grep -iE "editor/ai|billing/service|billing/items|_shared|api-errors"`
+
+Output:
+```text
+
+```
+No matching type errors. Note: grep exits 1 when there are no matching lines.
+
+#### Existing billing tests check
+Command:
+`npm run test:billing`
+
+Output summary:
+```text
+ Test Files  15 passed (15)
+      Tests  108 passed (108)
+ % Coverage report from v8
+All files         |   80.71 |    77.59 |   92.22 |   80.71 |
+ERROR: Coverage for branches (77.59%) does not meet global threshold (80%)
+```
+Result: billing tests themselves all passed (`15 passed`, `108 passed`), but the script exits 1 because global branch coverage is `77.59%` below the existing `80%` threshold. This appears unrelated to the editor settlement change.
+
+### 对现有 billing / 非 editor 逻辑影响
+- 改动限定在 editor 结算短路分支；非 editor task 的 `actualQuantity` 解析、text usage override、video token 计费、voice 秒计费未改语义。
+- `calculateBillingItemCost` 和 `items.ts` catalog 未改，只按现有 `type/unit` 增加归一入口。
+- Concern: `npm run test:billing` 的 test body 全部通过，但 coverage threshold 仍使脚本退出 1；本轮未调整覆盖率阈值或 unrelated coverage。

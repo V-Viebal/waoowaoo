@@ -348,4 +348,24 @@ describe('editor AI route skeletons', () => {
       dedupeKey: 'editor-ai:smart-cut:editor-project-1:client-request-1',
     }))
   })
+
+  it('uses a stable body hash dedupeKey when no body or header idempotency key is provided', async () => {
+    const routeCase = routeCases[0]
+    const { POST } = await routeCase.load()
+    const body = defaultBody({ trim: { from: 0, to: 24 } })
+
+    const first = await POST(buildEditorAiRequest(routeCase.path, body), buildContext())
+    const second = await POST(buildEditorAiRequest(routeCase.path, body), buildContext())
+
+    expect(first.status).toBe(200)
+    expect(second.status).toBe(200)
+    expect(submitTaskMock).toHaveBeenCalledTimes(2)
+    const firstSubmit = submitTaskMock.mock.calls[0]?.[0]
+    const secondSubmit = submitTaskMock.mock.calls[1]?.[0]
+    expect(firstSubmit?.requestId).toEqual(expect.any(String))
+    expect(secondSubmit?.requestId).toEqual(expect.any(String))
+    expect(firstSubmit?.requestId).not.toBe(secondSubmit?.requestId)
+    expect(firstSubmit?.dedupeKey).toEqual(expect.stringMatching(/^editor-ai:smart-cut:editor-project-1:[a-f0-9]{16}$/))
+    expect(secondSubmit?.dedupeKey).toBe(firstSubmit?.dedupeKey)
+  })
 })
