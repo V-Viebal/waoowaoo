@@ -28,3 +28,4 @@ Execution rules:
 6. Repaint the background according to shot type and angle.
 7. If storyboard conflicts with source text, keep narrative logic from source text.
 8. Keep final visual style consistent with provided references.
+9. `context.neighbor_panels` may contain the previous/next shots' info. Use it ONLY to keep cinematographic continuity (avoid duplicate framing, respect the 180-degree rule, make character motion flow naturally). NEVER paint the neighbor panels' content, actions, or scene elements into the current frame — only render what the `panel` fields describe.

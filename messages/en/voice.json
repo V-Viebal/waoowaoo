@@ -213,7 +213,12 @@
         "previewAudio": "Preview Audio",
         "uploading": "Uploading...",
         "uploadFailed": "Upload failed",
-        "uploadSuccess": "Upload successful"
+        "uploadSuccess": "Upload successful",
+        "cloneMode": "Voice Clone",
+        "cloneHint": "Upload a clear voice recording; OmniVoice will clone its timbre for dubbing",
+        "cloneAndSave": "Clone & Save",
+        "cloning": "Cloning...",
+        "cloneFailed": "Voice clone failed"
     },
     "voicePicker": {
         "badge": {

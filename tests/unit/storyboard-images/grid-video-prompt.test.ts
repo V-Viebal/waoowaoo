@@ -1,3 +1,5 @@
+import fs from 'node:fs'
+import path from 'node:path'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { buildGridVideoPrompt, isGridLayout } from '@/lib/storyboard-images/grid-video-prompt'
 
@@ -143,7 +145,7 @@ describe('buildGridVideoPrompt', () => {
       expect.objectContaining({
         variables: expect.objectContaining({
           shot_type: '中景',
-          camera_move: '逐格推进',
+          camera_move: '平滑连贯运镜',
         }),
       }),
     )
@@ -224,5 +226,29 @@ describe('buildGridVideoPrompt', () => {
         }),
       }),
     )
+  })
+
+  it('keeps the zh template focused on one continuous scene instead of dynamic grid cuts', () => {
+    const template = fs.readFileSync(
+      path.resolve(process.cwd(), 'lib/prompts/novel-promotion/panel_grid_video.zh.txt'),
+      'utf8',
+    )
+
+    expect(template).toContain('单个剧情连贯完整自然的视频')
+    expect(template).toContain('不要输出分屏')
+    expect(template).toContain('不要出现画格边框')
+    expect(template).toContain('不是动态切图')
+  })
+
+  it('keeps the en template focused on one continuous scene instead of dynamic grid cuts', () => {
+    const template = fs.readFileSync(
+      path.resolve(process.cwd(), 'lib/prompts/novel-promotion/panel_grid_video.en.txt'),
+      'utf8',
+    )
+
+    expect(template).toContain('one coherent, complete, natural narrative video')
+    expect(template).toContain('Do not output split screens')
+    expect(template).toContain('Do not show panel borders')
+    expect(template).toContain('not animated cutouts')
   })
 })

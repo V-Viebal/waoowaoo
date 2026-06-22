@@ -7,6 +7,7 @@ import VoiceDesignDialogBase, {
 import type { VoiceDesignProvider } from '@/components/voice/voice-design-shared'
 import { useDesignProjectVoice } from '@/lib/query/hooks'
 import { useRecommendVoiceInstruct } from '@/lib/query/mutations/useVoiceMutations'
+import { apiFetch } from '@/lib/api-fetch'
 
 interface VoiceDesignDialogProps {
   isOpen: boolean
@@ -43,6 +44,24 @@ export default function VoiceDesignDialog({
       }
     : undefined
 
+  // 声音克隆：上传参考音频 → OmniVoice clone → 回填角色音色
+  const handleClone = characterId
+    ? async (file: File) => {
+        const formData = new FormData()
+        formData.append('file', file)
+        formData.append('characterId', characterId)
+        formData.append('mode', 'clone')
+        const res = await apiFetch(`/api/novel-promotion/${projectId}/character-voice`, {
+          method: 'POST',
+          body: formData,
+        })
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({})) as { error?: string }
+          throw new Error(data.error || 'clone failed')
+        }
+      }
+    : undefined
+
   return (
     <VoiceDesignDialogBase
       isOpen={isOpen}
@@ -52,6 +71,7 @@ export default function VoiceDesignDialog({
       onSave={onSave}
       onDesignVoice={handleDesignVoice}
       onRecommendInstruct={handleRecommendInstruct}
+      onClone={handleClone}
     />
   )
 }

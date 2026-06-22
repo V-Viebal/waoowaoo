@@ -213,7 +213,12 @@
         "previewAudio": "试听音频",
         "uploading": "上传中...",
         "uploadFailed": "上传失败",
-        "uploadSuccess": "上传成功"
+        "uploadSuccess": "上传成功",
+        "cloneMode": "声音克隆",
+        "cloneHint": "上传一段清晰的人声音频，OmniVoice 将克隆其音色用于配音",
+        "cloneAndSave": "克隆并保存",
+        "cloning": "克隆中...",
+        "cloneFailed": "声音克隆失败"
     },
     "voicePicker": {
         "badge": {

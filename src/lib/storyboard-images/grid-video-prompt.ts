@@ -32,9 +32,9 @@ function formatGridLayoutText(
  * 为宫格分镜图构建优化的视频生成提示词。
  *
  * 宫格图与单镜头图有本质区别：
- * - 宫格图包含多个分格，需要描述镜头在格间的推进方式
- * - 需要明确阅读顺序（左→右、上→下）
- * - 需要保持漫画分格线和整体布局感
+ * - 宫格图包含多个分格，但应被理解为同一连续动作的关键帧
+ * - 需要把各格补间成流畅连贯的单镜头视频，而非逐格平移/切换
+ * - 需要忽略分格线，输出完整连续的真实场景画面
  *
  * 当无法构建宫格提示词时，返回 null，调用方应回退到原始提示词。
  */
@@ -68,7 +68,7 @@ export async function buildGridVideoPrompt(
         grid_layout: gridLayoutText,
         panel_grid_size: String(gridSize),
         shot_type: shotType || (locale === 'zh' ? '中景' : 'medium shot'),
-        camera_move: cameraMove || (locale === 'zh' ? '逐格推进' : 'panel-by-panel slide'),
+        camera_move: cameraMove || (locale === 'zh' ? '平滑连贯运镜' : 'smooth continuous camera move'),
       },
     })
 

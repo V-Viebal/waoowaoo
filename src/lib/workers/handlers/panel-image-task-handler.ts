@@ -33,6 +33,56 @@ function formatPanelGridLayout(layout: ReturnType<typeof buildStoryboardGridLayo
   return `${layout.columns} columns x ${layout.rows} rows`
 }
 
+interface NeighborPanelContext {
+  // 相对当前镜头的位置：previous(前一镜) | next(后一镜)
+  position: 'previous' | 'next'
+  shot_type: string
+  camera_move: string
+  description: string
+}
+
+/**
+ * 查询相邻镜头（前一镜 + 后一镜），仅保留与当前镜头同场景（location 相同）的，
+ * 并只提取镜头语言相关的轻量字段。用于保持镜头语言/动作连贯，
+ * 而非维持角色/服装一致性（后者由参考图负责）。
+ */
+async function fetchNeighborPanelContext(panel: {
+  storyboardId: string
+  panelIndex: number
+  location: string | null
+}): Promise<NeighborPanelContext[]> {
+  if (!panel.location) return []
+
+  const neighbors = await prisma.novelPromotionPanel.findMany({
+    where: {
+      storyboardId: panel.storyboardId,
+      panelIndex: { in: [panel.panelIndex - 1, panel.panelIndex + 1] },
+    },
+    select: {
+      panelIndex: true,
+      shotType: true,
+      cameraMove: true,
+      description: true,
+      location: true,
+    },
+  })
+
+  const result: NeighborPanelContext[] = []
+  for (const neighbor of neighbors) {
+    // 仅同场景才注入，跨场景的相邻镜头信息会干扰当前画面
+    if ((neighbor.location || '') !== panel.location) continue
+    result.push({
+      position: neighbor.panelIndex < panel.panelIndex ? 'previous' : 'next',
+      shot_type: neighbor.shotType || '',
+      camera_move: neighbor.cameraMove || '',
+      description: neighbor.description || '',
+    })
+  }
+
+  // previous 在前，next 在后
+  return result.sort((left, right) => (left.position === 'previous' ? -1 : 1) - (right.position === 'previous' ? -1 : 1))
+}
+
 function parseJsonUnknown(raw: string | null | undefined): unknown | null {
   if (!raw) return null
   try {
@@ -85,6 +135,7 @@ function buildPanelPromptContext(params: {
     actingNotes: string | null
   }
   projectData: Awaited<ReturnType<typeof resolveNovelData>>
+  neighborPanels?: NeighborPanelContext[]
 }) {
   const panelCharacters = parsePanelCharacterReferences(params.panel.characters)
   const characterContexts = panelCharacters.map((reference) => {
@@ -142,6 +193,10 @@ function buildPanelPromptContext(params: {
     context: {
       character_appearances: characterContexts,
       location_reference: locationContext,
+      // 相邻镜头信息：仅用于保持镜头语言/动作连贯，不应被画进当前画面
+      neighbor_panels: params.neighborPanels && params.neighborPanels.length > 0
+        ? params.neighborPanels
+        : undefined,
     },
   }
 }
@@ -222,6 +277,11 @@ export async function handlePanelImageTask(job: Job<TaskJobData>) {
   })
   if (!projectData.videoRatio) throw new Error('Project videoRatio not configured')
   const aspectRatio = projectData.videoRatio
+  const neighborPanels = await fetchNeighborPanelContext({
+    storyboardId: panel.storyboardId,
+    panelIndex: panel.panelIndex,
+    location: panel.location,
+  })
   const promptContext = buildPanelPromptContext({
     panel: {
       id: panel.id,
@@ -237,6 +297,7 @@ export async function handlePanelImageTask(job: Job<TaskJobData>) {
       actingNotes: panel.actingNotes,
     },
     projectData,
+    neighborPanels,
   })
   const contextJson = JSON.stringify(promptContext, null, 2)
   const prompt = await (async () => {
@@ -269,6 +330,8 @@ export async function handlePanelImageTask(job: Job<TaskJobData>) {
     message: 'panel image prompt resolved',
     details: {
       promptLength: prompt.length,
+      neighborPanelCount: neighborPanels.length,
+      neighborPositions: neighborPanels.map((n) => n.position),
     },
   })
 

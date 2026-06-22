@@ -120,3 +120,39 @@ export function useUploadAssetHubVoice() {
     onSuccess: invalidateVoices,
   })
 }
+
+/**
+ * OmniVoice 声音克隆：上传参考音频 → clone → 保存为 omnivoice-clone 音色
+ */
+export function useCloneAssetHubVoice() {
+  const queryClient = useQueryClient()
+  const invalidateVoices = () => invalidateGlobalVoices(queryClient)
+
+  return useMutation({
+    mutationFn: async (payload: {
+      uploadFile: File
+      voiceName: string
+      folderId: string | null
+      language?: string
+    }) => {
+      const formData = new FormData()
+      formData.append('file', payload.uploadFile)
+      formData.append('name', payload.voiceName)
+      if (payload.folderId) {
+        formData.append('folderId', payload.folderId)
+      }
+      if (payload.language) {
+        formData.append('language', payload.language)
+      }
+      return await requestJsonWithError<{ success: boolean; globalVoiceId: string; profileId: string; previewUrl: string }>(
+        '/api/asset-hub/voice-clone-upload',
+        {
+          method: 'POST',
+          body: formData,
+        },
+        '声音克隆失败',
+      )
+    },
+    onSuccess: invalidateVoices,
+  })
+}

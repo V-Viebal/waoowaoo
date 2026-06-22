@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { uploadObject, generateUniqueKey, getSignedUrl } from '@/lib/storage'
 import { requireProjectAuthLight, isErrorResponse } from '@/lib/api-auth'
 import { apiHandler, ApiError } from '@/lib/api-errors'
+import { createOmnivoiceClone } from '@/lib/providers/omnivoice'
 
 /**
  * PATCH /api/novel-promotion/[projectId]/character-voice
@@ -107,10 +108,11 @@ export const POST = apiHandler(async (
     })
   }
 
-  // 处理 FormData 请求（文件上传）
+  // 处理 FormData 请求（文件上传 / 声音克隆）
   const formData = await request.formData()
   const file = formData.get('file') as File
   const characterId = formData.get('characterId') as string
+  const mode = (formData.get('mode') as string | null)?.trim() || 'upload'
 
   if (!file || !characterId) {
     throw new ApiError('INVALID_PARAMS')
@@ -128,6 +130,49 @@ export const POST = apiHandler(async (
 
   // 获取文件扩展名
   const ext = file.name.split('.').pop()?.toLowerCase() || 'mp3'
+
+  // OmniVoice 声音克隆分支：上传参考音频 → clone → 保存 profileId
+  if (mode === 'clone') {
+    const authedUserId = authResult.session.user.id
+    const cloneResult = await createOmnivoiceClone({
+      name: characterId,
+      refAudio: buffer,
+      refAudioFilename: file.name,
+      language: (formData.get('language') as string | null)?.trim() || 'Auto',
+      userId: authedUserId,
+    })
+    if (!cloneResult.success || !cloneResult.profileId) {
+      const status = cloneResult.errorCode === 'OMNIVOICE_BACKEND_UNREACHABLE' ? 502 : 400
+      return NextResponse.json({
+        success: false,
+        error: cloneResult.error,
+        errorCode: cloneResult.errorCode,
+      }, { status })
+    }
+
+    const cloneKey = generateUniqueKey(`voice/custom/${projectId}/${characterId}`, ext)
+    const cloneCosUrl = await uploadObject(buffer, cloneKey)
+
+    const clonedCharacter = await prisma.novelPromotionCharacter.update({
+      where: { id: characterId },
+      data: {
+        voiceType: 'omnivoice-clone',
+        voiceId: cloneResult.profileId,
+        customVoiceUrl: cloneCosUrl,
+      },
+    })
+
+    const clonePreviewUrl = getSignedUrl(cloneCosUrl, 7200)
+    return NextResponse.json({
+      success: true,
+      audioUrl: clonePreviewUrl,
+      profileId: cloneResult.profileId,
+      character: {
+        ...clonedCharacter,
+        customVoiceUrl: clonePreviewUrl,
+      },
+    })
+  }
 
   // 上传到COS
   const key = generateUniqueKey(`voice/custom/${projectId}/${characterId}`, ext)

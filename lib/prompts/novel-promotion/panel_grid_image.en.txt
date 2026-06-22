@@ -9,6 +9,7 @@ Requirements:
 6. No Chinese/English text, watermarks, numbering, dialogue bubbles, or UI elements.
 7. Clear borders between sub-cells but the border should not overpower the subjects.
 8. Character appearance, costume, location, and props must remain consistent across sub-cells.
+9. `context.neighbor_panels` contains adjacent shots' info; use it only to keep cinematographic continuity — never paint neighbor panels' content into this grid image.
 
 Panel JSON:
 {storyboard_text_json_input}

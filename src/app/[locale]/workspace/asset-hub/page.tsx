@@ -590,6 +590,22 @@ export default function AssetHubPage() {
                     hasExistingVoice={voiceDesignCharacter.hasExistingVoice}
                     onClose={() => setVoiceDesignCharacter(null)}
                     onSave={handleVoiceDesignSave}
+                    onClone={async (file: File) => {
+                        const formData = new FormData()
+                        formData.append('file', file)
+                        formData.append('characterId', voiceDesignCharacter.id)
+                        formData.append('mode', 'clone')
+                        const res = await apiFetch('/api/asset-hub/character-voice', {
+                            method: 'POST',
+                            body: formData,
+                        })
+                        if (!res.ok) {
+                            const data = await res.json().catch(() => ({})) as { error?: string }
+                            throw new Error(data.error || 'clone failed')
+                        }
+                        queryClient.invalidateQueries({ queryKey: queryKeys.globalAssets.characters() })
+                        refreshAssets()
+                    }}
                 />
             )}
 

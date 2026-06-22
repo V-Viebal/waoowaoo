@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom'
 import { useTranslations } from 'next-intl'
 import { resolveTaskPresentationState } from '@/lib/task/presentation'
 import { AppIcon } from '@/components/ui/icons'
+import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import VoiceDesignGeneratorSection from './VoiceDesignGeneratorSection'
 import {
   DEFAULT_VOICE_SCHEME_COUNT,
@@ -25,6 +26,8 @@ interface VoiceDesignDialogBaseProps {
   onSave: (voiceId: string, audioBase64: string, provider: VoiceDesignProvider) => void
   onDesignVoice: (payload: VoiceDesignMutationPayload) => Promise<VoiceDesignMutationResult>
   onRecommendInstruct?: () => Promise<{ instruct: string }>
+  /** 提供则启用「声音克隆」Tab：上传参考音频 → OmniVoice 克隆 */
+  onClone?: (file: File) => Promise<void>
 }
 
 export default function VoiceDesignDialogBase({
@@ -35,10 +38,13 @@ export default function VoiceDesignDialogBase({
   onSave,
   onDesignVoice,
   onRecommendInstruct,
+  onClone,
 }: VoiceDesignDialogBaseProps) {
   const t = useTranslations('common')
   const tv = useTranslations('voice.voiceDesign')
+  const tvCreate = useTranslations('voice.voiceCreate')
 
+  const [tab, setTab] = useState<'design' | 'clone'>('design')
   const [voicePrompt, setVoicePrompt] = useState('')
   const [previewText, setPreviewText] = useState(tv('defaultPreviewText'))
   const [schemeCount, setSchemeCount] = useState(String(DEFAULT_VOICE_SCHEME_COUNT))
@@ -51,6 +57,10 @@ export default function VoiceDesignDialogBase({
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
   const [playingIndex, setPlayingIndex] = useState<number | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
+  // 声音克隆状态
+  const [cloneFile, setCloneFile] = useState<File | null>(null)
+  const [isCloning, setIsCloning] = useState(false)
+  const cloneInputRef = useRef<HTMLInputElement | null>(null)
   const designSubmittingState = isDesignSubmitting
     ? resolveTaskPresentationState({
         phase: 'processing',
@@ -163,6 +173,7 @@ export default function VoiceDesignDialogBase({
   }
 
   const handleClose = () => {
+    setTab('design')
     setVoicePrompt('')
     setPreviewText(tv('defaultPreviewText'))
     setSchemeCount(String(DEFAULT_VOICE_SCHEME_COUNT))
@@ -172,10 +183,26 @@ export default function VoiceDesignDialogBase({
     setSelectedIndex(null)
     setShowConfirmDialog(false)
     setPlayingIndex(null)
+    setCloneFile(null)
+    setIsCloning(false)
     if (audioRef.current) {
       audioRef.current.pause()
     }
     onClose()
+  }
+
+  const handleCloneSubmit = async () => {
+    if (!onClone || !cloneFile) return
+    setIsCloning(true)
+    setError(null)
+    try {
+      await onClone(cloneFile)
+      handleClose()
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : tvCreate('cloneFailed'))
+    } finally {
+      setIsCloning(false)
+    }
   }
 
   if (!isOpen) return null
@@ -202,6 +229,21 @@ export default function VoiceDesignDialogBase({
         </div>
 
         <div className="p-5 space-y-4 overflow-y-auto">
+          {onClone && (
+            <SegmentedControl
+              options={[
+                { value: 'design' as const, label: tvCreate('aiDesignMode') },
+                { value: 'clone' as const, label: tvCreate('cloneMode') },
+              ]}
+              value={tab}
+              onChange={(val) => {
+                setTab(val as 'design' | 'clone')
+                setError(null)
+              }}
+            />
+          )}
+
+          {tab === 'design' && (
           <VoiceDesignGeneratorSection
             voicePrompt={voicePrompt}
             onVoicePromptChange={setVoicePrompt}
@@ -250,6 +292,56 @@ export default function VoiceDesignDialogBase({
               </div>
             )}
           />
+          )}
+
+          {tab === 'clone' && onClone && (
+            <div className="space-y-3">
+              <div className="text-xs text-[var(--glass-text-tertiary)] bg-[var(--glass-tone-info-bg)] px-3 py-2 rounded-lg">
+                {tvCreate('cloneHint')}
+              </div>
+              {!cloneFile ? (
+                <div
+                  onClick={() => cloneInputRef.current?.click()}
+                  className="border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all border-[var(--glass-stroke-base)] hover:border-[var(--glass-stroke-focus)] hover:bg-[var(--glass-bg-muted)]"
+                >
+                  <div className="text-sm text-[var(--glass-text-secondary)] mb-2">{tvCreate('dropOrClick')}</div>
+                  <div className="text-xs text-[var(--glass-text-tertiary)]">{tvCreate('supportedFormats')}</div>
+                  <input
+                    ref={cloneInputRef}
+                    type="file"
+                    accept="audio/*,.mp3,.wav,.ogg,.m4a,.aac"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      if (file) {
+                        setCloneFile(file)
+                        setError(null)
+                      }
+                    }}
+                    className="hidden"
+                  />
+                </div>
+              ) : (
+                <div className="glass-surface-soft border border-[var(--glass-stroke-base)] rounded-xl p-4 flex items-center justify-between gap-2">
+                  <span className="text-sm font-medium text-[var(--glass-text-primary)] truncate">{cloneFile.name}</span>
+                  <button onClick={() => setCloneFile(null)} className="glass-btn-base glass-btn-soft p-1 shrink-0">×</button>
+                </div>
+              )}
+
+              {error && (
+                <div className="text-sm text-[var(--glass-tone-danger-fg)] bg-[var(--glass-tone-danger-bg)] px-3 py-2 rounded-lg">
+                  {error}
+                </div>
+              )}
+
+              <button
+                onClick={() => { void handleCloneSubmit() }}
+                disabled={!cloneFile || isCloning}
+                className="glass-btn-base glass-btn-tone-success w-full py-2.5 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+              >
+                {isCloning ? tvCreate('cloning') : tvCreate('cloneAndSave')}
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

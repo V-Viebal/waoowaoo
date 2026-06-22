@@ -45,7 +45,10 @@ export default function VoicePreviewSection({ runtime }: VoicePreviewSectionProp
     handleDrop,
     handlePlayUpload,
     handleSaveUploaded,
+    handleSaveCloned,
   } = runtime
+
+  const isUploadLike = mode === 'upload' || mode === 'clone'
 
   return (
     <>
@@ -100,8 +103,13 @@ export default function VoicePreviewSection({ runtime }: VoicePreviewSectionProp
         />
       )}
 
-      {mode === 'upload' && (
+      {isUploadLike && (
         <>
+          {mode === 'clone' && (
+            <div className="text-xs text-[var(--glass-text-tertiary)] bg-[var(--glass-tone-info-bg)] px-3 py-2 rounded-lg">
+              {tvCreate('cloneHint')}
+            </div>
+          )}
           {!uploadFile ? (
             <div
               onClick={() => fileInputRef.current?.click()}
@@ -152,7 +160,7 @@ export default function VoicePreviewSection({ runtime }: VoicePreviewSectionProp
 
           {uploadFile && (
             <button
-              onClick={handleSaveUploaded}
+              onClick={mode === 'clone' ? handleSaveCloned : handleSaveUploaded}
               disabled={isUploading || !voiceName.trim()}
               className="glass-btn-base glass-btn-tone-success w-full py-2.5 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium flex items-center justify-center gap-2"
             >
@@ -162,14 +170,14 @@ export default function VoicePreviewSection({ runtime }: VoicePreviewSectionProp
                   className="text-white [&>span]:text-white [&_svg]:text-white"
                 />
               ) : (
-                tHub('save')
+                mode === 'clone' ? tvCreate('cloneAndSave') : tHub('save')
               )}
             </button>
           )}
         </>
       )}
 
-      {mode === 'upload' && error && (
+      {isUploadLike && error && (
         <div className="text-sm text-[var(--glass-tone-danger-fg)] bg-[var(--glass-tone-danger-bg)] px-3 py-2 rounded-lg">
           {error}
         </div>

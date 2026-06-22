@@ -6,6 +6,7 @@ import {
     useDesignAssetHubVoice,
     useSaveDesignedAssetHubVoice,
     useUploadAssetHubVoice,
+    useCloneAssetHubVoice,
 } from '@/lib/query/hooks'
 import { resolveTaskPresentationState } from '@/lib/task/presentation'
 import {
@@ -24,7 +25,7 @@ export interface VoiceCreationModalShellProps {
     initialVoiceName?: string
 }
 
-type CreationMode = 'design' | 'upload'
+type CreationMode = 'design' | 'upload' | 'clone'
 
 export function useVoiceCreation({ isOpen, folderId, onClose, onSuccess, initialVoiceName }: VoiceCreationModalShellProps) {
     const t = useTranslations('common')
@@ -74,6 +75,7 @@ export function useVoiceCreation({ isOpen, folderId, onClose, onSuccess, initial
     const designVoiceMutation = useDesignAssetHubVoice()
     const saveDesignedMutation = useSaveDesignedAssetHubVoice()
     const uploadVoiceMutation = useUploadAssetHubVoice()
+    const cloneVoiceMutation = useCloneAssetHubVoice()
 
     // 生成音色
     const handleGenerate = async () => {
@@ -255,6 +257,34 @@ export function useVoiceCreation({ isOpen, folderId, onClose, onSuccess, initial
         }
     }
 
+    // 声音克隆保存（上传参考音频 → OmniVoice clone → 保存音色）
+    const handleSaveCloned = async () => {
+        if (!uploadFile) return
+        if (!voiceName.trim()) {
+            setError(tHub('voiceNameRequired'))
+            return
+        }
+
+        setIsUploading(true)
+        setError(null)
+
+        try {
+            await cloneVoiceMutation.mutateAsync({
+                uploadFile,
+                voiceName: voiceName.trim(),
+                folderId,
+            })
+
+            onSuccess()
+            handleClose()
+        } catch (err: unknown) {
+            const errMsg = err instanceof Error ? err.message : tvCreate('cloneFailed')
+            setError(errMsg)
+        } finally {
+            setIsUploading(false)
+        }
+    }
+
     // 关闭弹窗
     const handleClose = () => {
         setMode('design')
@@ -338,6 +368,7 @@ export function useVoiceCreation({ isOpen, folderId, onClose, onSuccess, initial
         handleDrop,
         handlePlayUpload,
         handleSaveUploaded,
+        handleSaveCloned,
         handleClose,
         handleModeChange,
     }

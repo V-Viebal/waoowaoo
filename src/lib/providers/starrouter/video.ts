@@ -24,7 +24,6 @@ function assertRegistered(modelId: string): void {
 }
 
 const STARSTONE_VIDEO_SUBMIT_ENDPOINT = 'https://starrouter.io/v1/video/generations'
-const STARSTONE_VIDEO_QUERY_ENDPOINT = 'https://starrouter.io/v1/video/generations'
 
 // 视频是异步任务，submit 只是创建任务拿 task_id；上游卡住的话也得有兜底，
 // 否则会一直占住 BullMQ 的 job 槽位，影响后续锁续期。
@@ -90,6 +89,14 @@ function readOptionalPositiveInteger(value: unknown, fieldName: string): number 
 
 function readOptionalBoolean(value: unknown): boolean | undefined {
   return typeof value === 'boolean' ? value : undefined
+}
+
+function readOptionalRecord(value: unknown, fieldName: string): Record<string, unknown> | undefined {
+  if (value === undefined) return undefined
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error(`STARSTONE_VIDEO_OPTION_INVALID_${fieldName.toUpperCase()}`)
+  }
+  return { ...(value as Record<string, unknown>) }
 }
 
 function assertNoUnsupportedOptions(options: StarRouterGenerateRequestOptions): void {
@@ -171,10 +178,12 @@ function buildSubmitRequest(params: StarRouterVideoGenerateParams): {
   const user = readTrimmedString(params.options.user)
   const { width, height } = resolveVideoDimensions(params.options)
 
+  // metadata 是 StarRouter 的模型扩展参数入口，必须保留调用方传入的负向词、风格、质量等字段。
+  const metadata = readOptionalRecord(params.options.metadata, 'metadata') ?? {}
+
   // generate_audio 放入 metadata（文档说 metadata 放扩展参数）
   const generateAudio = readOptionalBoolean(params.options.generateAudio)
     ?? readOptionalBoolean(params.options.generate_audio)
-  const metadata: Record<string, unknown> = {}
   if (typeof generateAudio === 'boolean') {
     metadata.generate_audio = generateAudio
   }

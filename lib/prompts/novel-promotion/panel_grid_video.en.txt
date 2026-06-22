@@ -1,20 +1,18 @@
-This is a comic storyboard page with {panel_grid_size} panels arranged in a grid layout. Generate a video from this grid image where the camera moves through the panels in reading order: left-to-right, top-to-bottom.
+This reference image arranges {panel_grid_size} consecutive moments of the same scene together ({grid_layout}). Extract only the characters, setting, action stages, and narrative change from those moments, then reconstruct them as one coherent, complete, natural narrative video. The final output must feel like a real camera captured one complete scene, not like the grid image itself is being displayed.
 
 Core action description:
 {base_prompt}
 
-Panel content details:
+Scene content details:
 {panel_description}
 
-Specifications:
-- Grid layout: {grid_layout}, {panel_grid_size} panels total
+Shot specifications:
 - Shot type: {shot_type}
 - Camera movement: {camera_move}
 
-Animation requirements:
-1. Start at the first panel and smoothly move the camera through panels in reading order (left-to-right, top-to-bottom)
-2. Each panel has subtle internal motion (character breathing, ambient effects)
-3. Transitions between panels are smooth and natural, preserving the comic panel layout and grid lines
-4. Maintain consistent art style, lighting, and color tone throughout
-5. Character appearance, costumes, and environment elements remain consistent across all panels
-6. Do not let characters or objects break out of their panel boundaries
+Generation requirements:
+1. Do not output split screens, collages, comic pages, grid layouts, dynamic cut transitions, or panel-by-panel scanning shots. Do not show panel borders, dividing lines, white gutters, black gutters, numbering, or reading-order cues.
+2. Read the reference moments as timeline keyframes of one action, then interpolate between them in story order so the motion flows naturally. This is not animated cutouts, and not a cut from one cell to another.
+3. Keep the feel of one continuous scene and one narrative camera shot throughout, with camera work matching the shot type and movement above. Transitions must be natural with no hard cuts.
+4. Keep character appearance, costumes, scene, lighting, and color tone consistent across the entire video.
+5. Make performance and ambient motion natural and lifelike (character action, breathing, light, wind, etc.), avoiding static cutout-style micro-motion.

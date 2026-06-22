@@ -13,6 +13,7 @@ interface VoiceDesignDialogProps {
   hasExistingVoice?: boolean
   onClose: () => void
   onSave: (voiceId: string, audioBase64: string, provider: VoiceDesignProvider) => void
+  onClone?: (file: File) => Promise<void>
 }
 
 export default function VoiceDesignDialog({
@@ -21,6 +22,7 @@ export default function VoiceDesignDialog({
   hasExistingVoice = false,
   onClose,
   onSave,
+  onClone,
 }: VoiceDesignDialogProps) {
   const designVoiceMutation = useDesignAssetHubVoice()
 
@@ -38,6 +40,7 @@ export default function VoiceDesignDialog({
       onClose={onClose}
       onSave={onSave}
       onDesignVoice={handleDesignVoice}
+      onClone={onClone}
     />
   )
 }

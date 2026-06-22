@@ -5,6 +5,7 @@ import { TASK_TYPE, type TaskJobData } from '@/lib/task/types'
 const prismaMock = vi.hoisted(() => ({
   novelPromotionPanel: {
     findUnique: vi.fn(),
+    findMany: vi.fn(async (): Promise<Array<Record<string, unknown>>> => []),
     update: vi.fn(async () => ({})),
   },
 }))
@@ -334,5 +335,42 @@ describe('worker panel-image-task-handler behavior', () => {
         }),
       }),
     )
+  })
+
+  it('injects same-scene neighbor panels into prompt context', async () => {
+    prismaMock.novelPromotionPanel.findMany.mockResolvedValueOnce([
+      { panelIndex: 1, shotType: 'medium', cameraMove: 'pan', description: 'next shot', location: 'Old Town' },
+    ])
+
+    await handlePanelImageTask(buildJob({ candidateCount: 1 }))
+
+    expect(promptMock.buildPromptAsync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        variables: expect.objectContaining({
+          storyboard_text_json_input: expect.stringContaining('"neighbor_panels"'),
+        }),
+      }),
+    )
+    const call = promptMock.buildPromptAsync.mock.calls.find((args) => {
+      const first = (args as unknown as Array<{ variables?: { storyboard_text_json_input?: unknown } }>)[0]
+      const text = first?.variables?.storyboard_text_json_input
+      return typeof text === 'string' && text.includes('neighbor_panels')
+    }) as unknown as Array<{ variables: { storyboard_text_json_input: string } }> | undefined
+    expect(call?.[0].variables.storyboard_text_json_input).toContain('"position": "next"')
+  })
+
+  it('filters out cross-scene neighbor panels', async () => {
+    prismaMock.novelPromotionPanel.findMany.mockResolvedValueOnce([
+      { panelIndex: 1, shotType: 'wide', cameraMove: 'static', description: 'different place', location: 'Forest' },
+    ])
+
+    await handlePanelImageTask(buildJob({ candidateCount: 1 }))
+
+    const call = promptMock.buildPromptAsync.mock.calls.find((args) => {
+      const first = (args as unknown as Array<{ variables?: { storyboard_text_json_input?: unknown } }>)[0]
+      return typeof first?.variables?.storyboard_text_json_input === 'string'
+    }) as unknown as Array<{ variables: { storyboard_text_json_input: string } }> | undefined
+    // 跨场景邻镜应被过滤，neighbor_panels 不出现
+    expect(call?.[0].variables.storyboard_text_json_input).not.toContain('neighbor_panels')
   })
 })

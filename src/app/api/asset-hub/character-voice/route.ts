@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { uploadObject, generateUniqueKey, getSignedUrl } from '@/lib/storage'
 import { requireUserAuth, isErrorResponse } from '@/lib/api-auth'
 import { apiHandler, ApiError } from '@/lib/api-errors'
+import { createOmnivoiceClone } from '@/lib/providers/omnivoice'
 
 interface VoiceDesignPayload {
     voiceId?: string
@@ -84,10 +85,11 @@ export const POST = apiHandler(async (request: NextRequest) => {
         })
     }
 
-    // 处理 FormData 请求（文件上传）
+    // 处理 FormData 请求（文件上传 / 声音克隆）
     const formData = await request.formData()
     const file = formData.get('file') as File
     const characterId = formData.get('characterId') as string
+    const mode = (formData.get('mode') as string | null)?.trim() || 'upload'
 
     if (!file || !characterId) {
         throw new ApiError('INVALID_PARAMS')
@@ -110,6 +112,44 @@ export const POST = apiHandler(async (request: NextRequest) => {
     const arrayBuffer = await file.arrayBuffer()
     const buffer = Buffer.from(arrayBuffer)
     const ext = file.name.split('.').pop()?.toLowerCase() || 'mp3'
+
+    // OmniVoice 声音克隆分支
+    if (mode === 'clone') {
+        const cloneResult = await createOmnivoiceClone({
+            name: characterId,
+            refAudio: buffer,
+            refAudioFilename: file.name,
+            language: (formData.get('language') as string | null)?.trim() || 'Auto',
+            userId: session.user.id,
+        })
+        if (!cloneResult.success || !cloneResult.profileId) {
+            const status = cloneResult.errorCode === 'OMNIVOICE_BACKEND_UNREACHABLE' ? 502 : 400
+            return NextResponse.json({
+                success: false,
+                error: cloneResult.error,
+                errorCode: cloneResult.errorCode,
+            }, { status })
+        }
+
+        const cloneKey = generateUniqueKey(`global-voice/${session.user.id}/${characterId}`, ext)
+        const cloneCosUrl = await uploadObject(buffer, cloneKey)
+
+        await db.globalCharacter.update({
+            where: { id: characterId },
+            data: {
+                voiceType: 'omnivoice-clone',
+                voiceId: cloneResult.profileId,
+                customVoiceUrl: cloneCosUrl,
+            },
+        })
+
+        return NextResponse.json({
+            success: true,
+            audioUrl: getSignedUrl(cloneCosUrl, 7200),
+            profileId: cloneResult.profileId,
+        })
+    }
+
     const key = generateUniqueKey(`global-voice/${session.user.id}/${characterId}`, ext)
     const audioUrl = await uploadObject(buffer, key)
 
