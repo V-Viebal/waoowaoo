@@ -1,123 +1,145 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { requireProjectAuthLight, isErrorResponse } from '@/lib/api-auth'
+import { getAuthSession, isErrorResponse, notFound, unauthorized } from '@/lib/api-auth'
 import { apiHandler, ApiError } from '@/lib/api-errors'
+
+const editorProjectSelect = {
+  id: true,
+  episodeId: true,
+  projectData: true,
+  version: true,
+  renderStatus: true,
+  renderOutputMediaObjectId: true,
+  renderSettings: true,
+  renderTaskId: true,
+  createdAt: true,
+  updatedAt: true,
+} as const
+
+async function requireOwnedProject(projectId: string) {
+  const session = await getAuthSession()
+  if (!session?.user?.id) {
+    return unauthorized()
+  }
+
+  const project = await prisma.project.findFirst({
+    where: {
+      id: projectId,
+      userId: session.user.id,
+    },
+    select: {
+      id: true,
+      userId: true,
+      name: true,
+    },
+  })
+
+  if (!project) {
+    return notFound('Project')
+  }
+
+  return { session, project }
+}
+
+async function requireEpisode(projectId: string, episodeId: string) {
+  const episode = await prisma.novelPromotionEpisode.findFirst({
+    where: {
+      id: episodeId,
+      novelPromotionProject: { projectId },
+    },
+    select: { id: true },
+  })
+
+  if (!episode) {
+    throw new ApiError('NOT_FOUND')
+  }
+
+  return episode
+}
 
 /**
  * GET /api/novel-promotion/[projectId]/editor
- * 获取剧集的编辑器项目数据
+ * 获取剧集的 Twick 编辑器项目数据
  */
 export const GET = apiHandler(async (
-    request: NextRequest,
-    { params }: { params: Promise<{ projectId: string }> }
+  request: NextRequest,
+  { params }: { params: Promise<{ projectId: string }> }
 ) => {
-    const { projectId } = await params
+  const { projectId } = await params
 
-    // 🔐 统一权限验证
-    const authResult = await requireProjectAuthLight(projectId)
-    if (isErrorResponse(authResult)) return authResult
+  const authResult = await requireOwnedProject(projectId)
+  if (isErrorResponse(authResult)) return authResult
 
-    const episodeId = request.nextUrl.searchParams.get('episodeId')
+  const episodeId = request.nextUrl.searchParams.get('episodeId')
+  if (!episodeId) {
+    throw new ApiError('INVALID_PARAMS')
+  }
 
-    if (!episodeId) {
-        throw new ApiError('INVALID_PARAMS')
-    }
+  await requireEpisode(projectId, episodeId)
 
-    // 查找编辑器项目
-    const editorProject = await prisma.videoEditorProject.findUnique({
-        where: { episodeId }
-    })
+  const editorProject = await prisma.novelPromotionEditorProject.findUnique({
+    where: { episodeId },
+    select: editorProjectSelect,
+  })
 
-    if (!editorProject) {
-        return NextResponse.json({ projectData: null }, { status: 200 })
-    }
-
-    return NextResponse.json({
-        id: editorProject.id,
-        episodeId: editorProject.episodeId,
-        projectData: JSON.parse(editorProject.projectData),
-        renderStatus: editorProject.renderStatus,
-        outputUrl: editorProject.outputUrl,
-        updatedAt: editorProject.updatedAt
-    })
+  return NextResponse.json({ data: editorProject })
 })
 
 /**
  * PUT /api/novel-promotion/[projectId]/editor
- * 保存编辑器项目数据
+ * 保存 Twick 编辑器项目数据（带乐观锁）
  */
 export const PUT = apiHandler(async (
-    request: NextRequest,
-    { params }: { params: Promise<{ projectId: string }> }
+  request: NextRequest,
+  { params }: { params: Promise<{ projectId: string }> }
 ) => {
-    const { projectId } = await params
+  const { projectId } = await params
 
-    // 🔐 统一权限验证
-    const authResult = await requireProjectAuthLight(projectId)
-    if (isErrorResponse(authResult)) return authResult
+  const authResult = await requireOwnedProject(projectId)
+  if (isErrorResponse(authResult)) return authResult
 
-    const body = await request.json()
-    const { episodeId, projectData } = body
+  const body = await request.json()
+  const { episodeId, projectData, version } = body as {
+    episodeId?: unknown
+    projectData?: unknown
+    version?: unknown
+  }
 
-    if (!episodeId || !projectData) {
-        throw new ApiError('INVALID_PARAMS')
-    }
+  if (typeof episodeId !== 'string' || !episodeId || projectData === undefined || projectData === null) {
+    throw new ApiError('INVALID_PARAMS')
+  }
 
-    // 验证剧集存在
-    const episode = await prisma.novelPromotionEpisode.findFirst({
-        where: {
-            id: episodeId,
-            novelPromotionProject: { projectId }
-        }
+  if (version !== undefined && (!Number.isInteger(version) || version < 0)) {
+    throw new ApiError('INVALID_PARAMS')
+  }
+
+  await requireEpisode(projectId, episodeId)
+
+  const existing = await prisma.novelPromotionEditorProject.findUnique({
+    where: { episodeId },
+    select: { id: true, version: true },
+  })
+
+  if (existing && existing.version !== version) {
+    throw new ApiError('CONFLICT', {
+      currentVersion: existing.version,
+      message: 'Editor project has been modified elsewhere',
     })
+  }
 
-    if (!episode) {
-        throw new ApiError('NOT_FOUND')
-    }
+  const editorProject = await prisma.novelPromotionEditorProject.upsert({
+    where: { episodeId },
+    create: {
+      episodeId,
+      projectData,
+      version: 1,
+    },
+    update: {
+      projectData,
+      version: { increment: 1 },
+    },
+    select: editorProjectSelect,
+  })
 
-    // 保存或更新编辑器项目
-    const editorProject = await prisma.videoEditorProject.upsert({
-        where: { episodeId },
-        create: {
-            episodeId,
-            projectData: JSON.stringify(projectData)
-        },
-        update: {
-            projectData: JSON.stringify(projectData),
-            updatedAt: new Date()
-        }
-    })
-
-    return NextResponse.json({
-        success: true,
-        id: editorProject.id,
-        updatedAt: editorProject.updatedAt
-    })
-})
-
-/**
- * DELETE /api/novel-promotion/[projectId]/editor
- * 删除编辑器项目
- */
-export const DELETE = apiHandler(async (
-    request: NextRequest,
-    { params }: { params: Promise<{ projectId: string }> }
-) => {
-    const { projectId } = await params
-
-    // 🔐 统一权限验证
-    const authResult = await requireProjectAuthLight(projectId)
-    if (isErrorResponse(authResult)) return authResult
-
-    const episodeId = request.nextUrl.searchParams.get('episodeId')
-
-    if (!episodeId) {
-        throw new ApiError('INVALID_PARAMS')
-    }
-
-    await prisma.videoEditorProject.delete({
-        where: { episodeId }
-    })
-
-    return NextResponse.json({ success: true })
+  return NextResponse.json({ data: editorProject })
 })
