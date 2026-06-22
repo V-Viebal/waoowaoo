@@ -172,5 +172,81 @@
     },
     "confirm": "继续并清空",
     "cancel": "取消"
+  },
+  "editor": {
+    "title": "AI剪辑器",
+    "subtitle": "画布 {width}×{height} · 自动保存已启用",
+    "loading": "正在加载编辑器...",
+    "emptyTitle": "暂无可剪辑素材",
+    "emptyDescription": "请先在视频生成阶段生成至少一个分镜视频，然后回到 AI剪辑。",
+    "saveStatus": {
+      "idle": "等待编辑",
+      "loading": "加载中...",
+      "saving": "保存中...",
+      "saved": "已保存",
+      "savedAt": "已保存 {time}",
+      "error": "保存失败",
+      "conflict": "保存冲突",
+      "conflictDescription": "项目已在其他地方修改",
+      "reload": "刷新",
+      "forceSave": "强制保存"
+    },
+    "assets": {
+      "title": "素材",
+      "description": "点击素材可追加到时间轴",
+      "tabs": {
+        "video": "视频",
+        "image": "图片",
+        "audio": "语音",
+        "bgm": "BGM"
+      },
+      "empty": {
+        "video": "暂无视频素材",
+        "image": "图片素材库将在 Phase 2 接入",
+        "audio": "暂无语音素材",
+        "bgm": "BGM 素材库将在 Phase 2 接入"
+      },
+      "tracks": {
+        "video": "视频",
+        "audio": "语音"
+      },
+      "duration": "{duration}s",
+      "clickToAdd": "点击添加到时间轴",
+      "voiceLine": "台词 {index}",
+      "imageHint": "当前编辑器已使用生成视频作为主素材；独立图片素材会在后续 AI 编辑能力中补齐。"
+    },
+    "rightPanel": {
+      "tabs": {
+        "ai": "AI工具",
+        "properties": "属性"
+      },
+      "ai": {
+        "roughCut": {
+          "title": "智能粗剪",
+          "description": "AI 自动排序、裁切并组织节奏。"
+        },
+        "captions": {
+          "title": "自动字幕",
+          "description": "从配音生成字幕并同步到时间轴。"
+        },
+        "polish": {
+          "title": "画面润色",
+          "description": "自动补充转场、缩放与节奏优化。"
+        },
+        "buttons": {
+          "execute": "执行",
+          "generate": "生成",
+          "open": "打开"
+        },
+        "phase2Hint": "AI 编辑能力将在 Phase 2 接入。"
+      },
+      "properties": {
+        "selection": "当前选中",
+        "noneSelected": "未选中片段",
+        "timeline": "时间轴",
+        "trackCount": "{count} 条轨道",
+        "phase2Hint": "片段属性编辑将在 Phase 2 完善。"
+      }
+    }
   }
 }

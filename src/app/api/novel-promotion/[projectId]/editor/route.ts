@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import type { TwickTimelineProject } from '@/lib/twick/types'
 import { getAuthSession, isErrorResponse, notFound, unauthorized } from '@/lib/api-auth'
 import { apiHandler, ApiError } from '@/lib/api-errors'
 
@@ -60,7 +61,7 @@ async function requireEpisode(projectId: string, episodeId: string) {
   return episode
 }
 
-function assertValidProjectData(projectData: unknown) {
+function assertValidProjectData(projectData: unknown): asserts projectData is TwickTimelineProject {
   if (
     projectData === undefined
     || projectData === null
@@ -155,11 +156,12 @@ export const PUT = apiHandler(async (
   }
 
   assertValidProjectData(projectData)
+  const projectDataJson = projectData as unknown as Prisma.InputJsonValue
 
-  if (version !== undefined && (!Number.isInteger(version) || version < 0)) {
+  if (version !== undefined && (typeof version !== 'number' || !Number.isInteger(version) || version < 0)) {
     throw new ApiError('INVALID_PARAMS')
   }
-  const submittedVersion = version as number | undefined
+  const submittedVersion = version
 
   await requireEpisode(projectId, episodeId)
 
@@ -173,7 +175,7 @@ export const PUT = apiHandler(async (
       const editorProject = await prisma.novelPromotionEditorProject.create({
         data: {
           episodeId,
-          projectData,
+          projectData: projectDataJson,
           version: 1,
         },
         select: editorProjectSelect,
@@ -198,7 +200,7 @@ export const PUT = apiHandler(async (
       version: submittedVersion,
     },
     data: {
-      projectData,
+      projectData: projectDataJson,
       version: { increment: 1 },
     },
   })

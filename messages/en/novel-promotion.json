@@ -172,5 +172,81 @@
     },
     "confirm": "Continue and Clear",
     "cancel": "Cancel"
+  },
+  "editor": {
+    "title": "AI Editor",
+    "subtitle": "Canvas {width}×{height} · autosave enabled",
+    "loading": "Loading editor...",
+    "emptyTitle": "No editable assets yet",
+    "emptyDescription": "Generate at least one storyboard video in the video stage, then return to AI Editor.",
+    "saveStatus": {
+      "idle": "Ready",
+      "loading": "Loading...",
+      "saving": "Saving...",
+      "saved": "Saved",
+      "savedAt": "Saved {time}",
+      "error": "Save failed",
+      "conflict": "Save conflict",
+      "conflictDescription": "Project changed elsewhere",
+      "reload": "Reload",
+      "forceSave": "Force save"
+    },
+    "assets": {
+      "title": "Assets",
+      "description": "Click an asset to append it to the timeline",
+      "tabs": {
+        "video": "Video",
+        "image": "Image",
+        "audio": "Voice",
+        "bgm": "BGM"
+      },
+      "empty": {
+        "video": "No video assets yet",
+        "image": "Image assets will be connected in Phase 2",
+        "audio": "No voice assets yet",
+        "bgm": "BGM assets will be connected in Phase 2"
+      },
+      "tracks": {
+        "video": "Video",
+        "audio": "Voice"
+      },
+      "duration": "{duration}s",
+      "clickToAdd": "Click to add to timeline",
+      "voiceLine": "Line {index}",
+      "imageHint": "The editor currently uses generated videos as primary assets; standalone image assets will be added with later AI editing tools."
+    },
+    "rightPanel": {
+      "tabs": {
+        "ai": "AI Tools",
+        "properties": "Properties"
+      },
+      "ai": {
+        "roughCut": {
+          "title": "Smart rough cut",
+          "description": "AI sorts, trims, and organizes pacing automatically."
+        },
+        "captions": {
+          "title": "Auto captions",
+          "description": "Create subtitles from voiceover and sync them to the timeline."
+        },
+        "polish": {
+          "title": "Visual polish",
+          "description": "Add transitions, motion, and pacing refinements automatically."
+        },
+        "buttons": {
+          "execute": "Execute",
+          "generate": "Generate",
+          "open": "Open"
+        },
+        "phase2Hint": "AI editing tools will be connected in Phase 2."
+      },
+      "properties": {
+        "selection": "Selection",
+        "noneSelected": "No clip selected",
+        "timeline": "Timeline",
+        "trackCount": "{count} tracks",
+        "phase2Hint": "Clip property editing will be completed in Phase 2."
+      }
+    }
   }
 }
