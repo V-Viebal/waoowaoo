@@ -9,6 +9,7 @@ import {
 import { BillingOperationError } from './errors'
 import { BUILTIN_PRICING_VERSION } from '@/lib/model-pricing/version'
 import { TASK_TYPE, type TaskType } from '@/lib/task/types'
+import { BILLING_ITEM, calculateBillingItemCost, type BillingItemKey } from './items'
 import type { TaskBillingInfo } from './types'
 
 type AnyPayload = Record<string, unknown> | null | undefined
@@ -55,6 +56,11 @@ const BILLABLE_TASK_TYPES = new Set<TaskType>([
   TASK_TYPE.ASSET_HUB_AI_MODIFY_LOCATION,
   TASK_TYPE.ASSET_HUB_AI_MODIFY_PROP,
   TASK_TYPE.ASSET_HUB_REFERENCE_TO_CHARACTER,
+  TASK_TYPE.EDITOR_AI_SMART_CUT,
+  TASK_TYPE.EDITOR_AI_CAPTION,
+  TASK_TYPE.EDITOR_AI_ENHANCE,
+  TASK_TYPE.EDITOR_AI_VOICE_OPTIMIZE,
+  TASK_TYPE.EDITOR_RENDER,
 ])
 
 function toNumber(value: unknown, fallback: number) {
@@ -240,6 +246,39 @@ function buildVoiceDesignTaskInfo(taskType: TaskType, payload: AnyPayload): Task
   }
 }
 
+function normalizeBillingQuantity(value: unknown, fallback: number) {
+  const numeric = toNumber(value, fallback)
+  return Math.max(1, numeric)
+}
+
+function buildEditorTaskInfo(
+  taskType: TaskType,
+  payload: AnyPayload,
+  item: BillingItemKey,
+  quantity: number,
+): TaskBillingInfo {
+  const normalizedQuantity = normalizeBillingQuantity(quantity, 1)
+  return {
+    billable: true,
+    source: 'task',
+    taskType,
+    apiType: 'text',
+    model: item,
+    quantity: normalizedQuantity,
+    unit: 'call',
+    maxFrozenCost: calculateBillingItemCost(item, normalizedQuantity),
+    pricingVersion: BUILTIN_PRICING_VERSION,
+    action: item,
+    metadata: {
+      billingItem: item,
+      quantity: normalizedQuantity,
+      route: readString(payload?.route) || undefined,
+      enhanceType: readString(payload?.enhanceType) || undefined,
+    },
+    status: 'quoted',
+  }
+}
+
 export function isBillableTaskType(taskType: TaskType) {
   return BILLABLE_TASK_TYPES.has(taskType)
 }
@@ -308,6 +347,39 @@ export function buildDefaultTaskBillingInfo(taskType: TaskType, payload: AnyPayl
     case TASK_TYPE.ASSET_HUB_AI_MODIFY_PROP:
     case TASK_TYPE.ASSET_HUB_REFERENCE_TO_CHARACTER:
       return buildTextTaskInfo(taskType, payload)
+    case TASK_TYPE.EDITOR_AI_SMART_CUT:
+      return buildEditorTaskInfo(taskType, payload, BILLING_ITEM.EDITOR_SMART_CUT, 1)
+    case TASK_TYPE.EDITOR_AI_CAPTION:
+      return buildEditorTaskInfo(
+        taskType,
+        payload,
+        BILLING_ITEM.EDITOR_CAPTION_GENERATE,
+        normalizeBillingQuantity(payload?.durationMinutes ?? payload?.quantity, 1),
+      )
+    case TASK_TYPE.EDITOR_AI_ENHANCE: {
+      const enhanceType = readString(payload?.enhanceType)
+      const item = enhanceType === 'restore'
+        ? BILLING_ITEM.EDITOR_AI_ENHANCE_RESTORE
+        : BILLING_ITEM.EDITOR_AI_ENHANCE_SMART_CROP
+      return buildEditorTaskInfo(
+        taskType,
+        payload,
+        item,
+        normalizeBillingQuantity(payload?.durationSeconds ?? payload?.quantity, 1),
+      )
+    }
+    case TASK_TYPE.EDITOR_AI_VOICE_OPTIMIZE:
+      return buildVoiceTaskInfo(taskType, {
+        ...toRecord(payload),
+        maxSeconds: normalizeBillingQuantity(payload?.durationSeconds ?? payload?.maxSeconds, 5),
+      })
+    case TASK_TYPE.EDITOR_RENDER:
+      return buildEditorTaskInfo(
+        taskType,
+        payload,
+        BILLING_ITEM.EDITOR_EXPORT,
+        normalizeBillingQuantity(payload?.durationMinutes ?? payload?.quantity, 1),
+      )
     case TASK_TYPE.PANEL_VARIANT:
       return buildImageTaskInfo(taskType, payload)
     default:

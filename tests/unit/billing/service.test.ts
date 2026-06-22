@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { calcText, calcVideo, calcVoice } from '@/lib/billing/cost'
-import type { TaskBillingInfo } from '@/lib/task/types'
+import { BILLING_ITEM } from '@/lib/billing/items'
+import { buildDefaultTaskBillingInfo } from '@/lib/billing/task-policy'
+import { TASK_TYPE, type TaskBillingInfo } from '@/lib/task/types'
 
 const ledgerMock = vi.hoisted(() => ({
   confirmChargeWithRecord: vi.fn(),
@@ -327,6 +329,51 @@ describe('billing/service', () => {
           billingInfo: buildTaskInfo(),
         }),
       ).rejects.toBeInstanceOf(InsufficientBalanceError)
+    })
+
+    it('editor smart-cut billing freezes, settles, and rolls back using configured item price', async () => {
+      const quoted = buildDefaultTaskBillingInfo(TASK_TYPE.EDITOR_AI_SMART_CUT, {
+        editorProjectId: 'editor-project-1',
+      }) as Extract<TaskBillingInfo, { billable: true }>
+      expect(quoted.action).toBe(BILLING_ITEM.EDITOR_SMART_CUT)
+      expect(quoted.maxFrozenCost).toBe(0.05)
+
+      modeMock.getBillingMode.mockResolvedValue('ENFORCE')
+      ledgerMock.freezeBalance.mockResolvedValueOnce('freeze_editor_1')
+      const prepared = await prepareTaskBilling({
+        id: 'task_editor_smart_cut',
+        userId: 'u1',
+        projectId: 'p1',
+        billingInfo: quoted,
+      }) as Extract<TaskBillingInfo, { billable: true }>
+
+      expect(prepared.status).toBe('frozen')
+      expect(prepared.freezeId).toBe('freeze_editor_1')
+      expect(ledgerMock.freezeBalance).toHaveBeenCalledWith('u1', 0.05, expect.objectContaining({
+        source: 'task',
+        taskId: 'task_editor_smart_cut',
+      }))
+
+      const settled = await settleTaskBilling({
+        id: 'task_editor_smart_cut',
+        userId: 'u1',
+        projectId: 'p1',
+        billingInfo: prepared,
+      }) as Extract<TaskBillingInfo, { billable: true }>
+      expect(settled.status).toBe('settled')
+      expect(settled.chargedCost).toBe(0.05)
+      expect(ledgerMock.confirmChargeWithRecord).toHaveBeenCalledWith(
+        'freeze_editor_1',
+        expect.objectContaining({ action: BILLING_ITEM.EDITOR_SMART_CUT }),
+        expect.objectContaining({ chargedAmount: 0.05 }),
+      )
+
+      const rollback = await rollbackTaskBilling({
+        id: 'task_editor_smart_cut_rollback',
+        billingInfo: { ...prepared, status: 'frozen', freezeId: 'freeze_editor_rollback' },
+      }) as Extract<TaskBillingInfo, { billable: true }>
+      expect(rollback.status).toBe('rolled_back')
+      expect(ledgerMock.rollbackFreeze).toHaveBeenCalledWith('freeze_editor_rollback')
     })
 
     it('settleTaskBilling handles SHADOW and non-ENFORCE snapshots', async () => {
