@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl'
 import { useTimelineContext } from '@twick/timeline'
 import { CaptionPanel } from './ai/CaptionPanel'
 import { SmartCutPanel } from './ai/SmartCutPanel'
+import { VoiceOptimizePanel } from './ai/VoiceOptimizePanel'
 import { CaptionStylePanel } from './properties/CaptionStylePanel'
 
 type RightPanelTab = 'ai' | 'properties'
@@ -44,27 +45,12 @@ export function RightPanel() {
 
 function AiPanel() {
   const t = useTranslations('novelPromotion.editor.rightPanel.ai')
-  const cards = [
-    { key: 'polish', button: 'open' },
-  ] as const
 
   return (
     <div className="space-y-3 text-xs text-slate-500">
       <SmartCutPanel />
       <CaptionPanel />
-      {cards.map((card) => (
-        <div key={card.key} className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-          <div className="font-medium text-slate-950">{t(`${card.key}.title`)}</div>
-          <div className="mt-1 leading-5">{t(`${card.key}.description`)}</div>
-          <button
-            type="button"
-            disabled
-            className="mt-3 w-full rounded-xl bg-slate-900 px-3 py-2 text-xs font-medium text-white opacity-50"
-          >
-            {t(`buttons.${card.button}`)}
-          </button>
-        </div>
-      ))}
+      <VoiceOptimizePanel />
       <div className="text-center text-[10px] text-slate-400">{t('phase2Hint')}</div>
     </div>
   )

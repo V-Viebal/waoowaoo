@@ -79,4 +79,16 @@ describe('billing/task-policy', () => {
     expect(info.model).toBe('vidu::vidu-lipsync')
     expect(info.quantity).toBe(1)
   })
+
+  it('bills editor voice optimize through the existing voice seconds policy', () => {
+    const info = expectBillableInfo(buildDefaultTaskBillingInfo(TASK_TYPE.EDITOR_AI_VOICE_OPTIMIZE, {
+      durationSeconds: 6.8,
+      maxSeconds: 4,
+    }))
+    expect(info.apiType).toBe('voice')
+    expect(info.model).toBe('index-tts2')
+    expect(info.unit).toBe('second')
+    expect(info.quantity).toBe(6)
+    expect(info.action).toBe(TASK_TYPE.EDITOR_AI_VOICE_OPTIMIZE)
+  })
 })

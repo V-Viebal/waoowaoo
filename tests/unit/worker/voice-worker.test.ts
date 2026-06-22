@@ -10,6 +10,7 @@ const workerState = vi.hoisted(() => ({
 
 const generateVoiceLineMock = vi.hoisted(() => vi.fn())
 const handleVoiceDesignTaskMock = vi.hoisted(() => vi.fn())
+const handleEditorVoiceOptimizeTaskMock = vi.hoisted(() => vi.fn())
 const reportTaskProgressMock = vi.hoisted(() => vi.fn(async () => undefined))
 const withTaskLifecycleMock = vi.hoisted(() =>
   vi.fn(async (job: Job<TaskJobData>, handler: WorkerProcessor) => await handler(job)),
@@ -51,6 +52,10 @@ vi.mock('@/lib/workers/handlers/voice-design', () => ({
   handleVoiceDesignTask: handleVoiceDesignTaskMock,
 }))
 
+vi.mock('@/lib/workers/handlers/editor-voice-optimize-task-handler', () => ({
+  handleEditorVoiceOptimizeTask: handleEditorVoiceOptimizeTaskMock,
+}))
+
 function buildJob(params: {
   type: TaskJobData['type']
   targetType?: string
@@ -85,6 +90,10 @@ describe('worker voice processor behavior', () => {
     handleVoiceDesignTaskMock.mockResolvedValue({
       presetId: 'preset-1',
       previewAudioUrl: 'cos/preset-1.mp3',
+    })
+    handleEditorVoiceOptimizeTaskMock.mockResolvedValue({
+      success: true,
+      audioMediaObjectId: 'new-audio-media',
     })
 
     const mod = await import('@/lib/workers/voice.worker')
@@ -155,6 +164,27 @@ describe('worker voice processor behavior', () => {
     await processor!(assetHubJob)
 
     expect(handleVoiceDesignTaskMock).toHaveBeenCalledTimes(2)
+    expect(generateVoiceLineMock).not.toHaveBeenCalled()
+  })
+
+  it('EDITOR_AI_VOICE_OPTIMIZE: 路由到 editor voice optimize handler', async () => {
+    const processor = workerState.processor
+    expect(processor).toBeTruthy()
+
+    const job = buildJob({
+      type: TASK_TYPE.EDITOR_AI_VOICE_OPTIMIZE,
+      targetType: 'NovelPromotionEditorProject',
+      targetId: 'editor-project-1',
+      payload: {
+        episodeId: 'episode-1',
+        editorProjectId: 'editor-project-1',
+        voiceLineId: 'voice-1',
+      },
+    })
+
+    const result = await processor!(job)
+    expect(result).toEqual({ success: true, audioMediaObjectId: 'new-audio-media' })
+    expect(handleEditorVoiceOptimizeTaskMock).toHaveBeenCalledWith(job)
     expect(generateVoiceLineMock).not.toHaveBeenCalled()
   })
 

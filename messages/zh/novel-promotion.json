@@ -254,6 +254,28 @@
           "noVoiceLines": "请先生成或添加配音文本。",
           "estimate": "预计 {count} 条字幕，约 {minutes} 分钟。"
         },
+        "voiceOptimize": {
+          "title": "配音优化",
+          "description": "选中一段语音后，可编辑文案、切换发言人音色或调整语速并重新生成。",
+          "button": "重新生成配音",
+          "runningButton": "生成中...",
+          "running": "正在优化配音（{progress}%）",
+          "done": "配音已替换，时间轴已刷新。",
+          "failed": "配音优化失败，请稍后重试。",
+          "saveConflict": "编辑器项目存在保存冲突，请先解决冲突后再优化配音。",
+          "unsavedChanges": "当前编辑内容尚未保存，请保存成功后再优化配音。",
+          "missingContext": "缺少当前剧集、编辑项目或选中的语音片段。",
+          "loading": "正在加载编辑器数据...",
+          "selectAudio": "请先在时间轴选中一个语音片段。",
+          "emptyText": "配音文案不能为空。",
+          "emptySpeaker": "发言人不能为空。",
+          "noVoiceLine": "找不到对应的配音文本。",
+          "audioElementNotFound": "时间轴中找不到选中的语音片段。",
+          "textLabel": "配音文案（MVP：直接编辑文案后重新生成）",
+          "speakerLabel": "发言人 / 音色",
+          "speedLabel": "语速 {speed}x",
+          "selected": "已选台词 {id} · 原时长约 {seconds}s"
+        },
         "polish": {
           "title": "画面润色",
           "description": "自动补充转场、缩放与节奏优化。"

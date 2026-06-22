@@ -4,6 +4,7 @@ export type TwickTimelineProject = ProjectJSON
 export type TwickTrack = TrackJSON
 export type TwickTimelineElement = ElementJSON & {
   props?: Record<string, unknown>
+  metadata?: TwickSourceMetadata
 }
 
 export type TwickMediaElement = TwickTimelineElement & {

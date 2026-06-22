@@ -5,6 +5,7 @@ import { QUEUE_NAME } from '@/lib/task/queues'
 import { TASK_TYPE, type TaskJobData } from '@/lib/task/types'
 import { reportTaskProgress, withTaskLifecycle } from './shared'
 import { handleVoiceDesignTask } from './handlers/voice-design'
+import { handleEditorVoiceOptimizeTask } from './handlers/editor-voice-optimize-task-handler'
 
 type AnyObj = Record<string, unknown>
 
@@ -46,6 +47,8 @@ async function processVoiceTask(job: Job<TaskJobData>) {
     case TASK_TYPE.VOICE_DESIGN:
     case TASK_TYPE.ASSET_HUB_VOICE_DESIGN:
       return await handleVoiceDesignTask(job)
+    case TASK_TYPE.EDITOR_AI_VOICE_OPTIMIZE:
+      return await handleEditorVoiceOptimizeTask(job)
     default:
       throw new Error(`Unsupported voice task type: ${job.data.type}`)
   }

@@ -139,6 +139,8 @@ describe('generate voice line with bailian provider', () => {
       audioUrl: 'signed://voice/storage/line-1.wav',
       storageKey: 'voice/storage/line-1.wav',
       audioDuration: 1,
+      audioDurationSeconds: 0.001,
+      sizeBytes: 12,
     })
   })
 

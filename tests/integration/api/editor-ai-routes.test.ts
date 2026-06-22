@@ -50,6 +50,7 @@ const prismaMock = vi.hoisted(() => ({
   },
   novelPromotionVoiceLine: {
     findMany: vi.fn(),
+    findFirst: vi.fn(),
   },
 }))
 
@@ -176,7 +177,7 @@ const routeCases: RouteCase[] = [
     load: () => import('@/app/api/novel-promotion/[projectId]/editor/ai/voice-optimize/route'),
     taskType: TASK_TYPE.EDITOR_AI_VOICE_OPTIMIZE,
     action: 'voice-optimize',
-    body: defaultBody({ durationSeconds: 9 }),
+    body: defaultBody({ voiceLineId: 'voice-1', durationSeconds: 9 }),
     expectedBilling: {
       quantity: 9,
       unit: 'second',
@@ -189,7 +190,7 @@ const routeCases: RouteCase[] = [
     load: () => import('@/app/api/novel-promotion/[projectId]/editor/ai/voice-optimize/route'),
     taskType: TASK_TYPE.EDITOR_AI_VOICE_OPTIMIZE,
     action: 'voice-optimize',
-    body: defaultBody({ maxSeconds: 4 }),
+    body: defaultBody({ voiceLineId: 'voice-1', maxSeconds: 4 }),
     expectedBilling: {
       quantity: 4,
       unit: 'second',
@@ -223,6 +224,12 @@ describe('editor AI route skeletons', () => {
       audioDuration: 4200,
       audioMedia: { durationMs: 4200 },
     }])
+    prismaMock.novelPromotionVoiceLine.findFirst.mockResolvedValue({
+      id: 'voice-1',
+      content: 'hello',
+      audioDuration: 4200,
+      audioMedia: { durationMs: 4200 },
+    })
     submitTaskMock.mockResolvedValue({ taskId: 'task-1', async: true, success: true })
   })
 
@@ -275,7 +282,9 @@ describe('editor AI route skeletons', () => {
     )
     const expectedPayload = routeCase.name === 'caption'
       ? { ...body, durationMinutes: routeCase.expectedBilling?.quantity }
-      : body
+      : routeCase.name.startsWith('voice-optimize')
+        ? { ...body, voiceLineId: 'voice-1', durationSeconds: routeCase.expectedBilling?.quantity, maxSeconds: routeCase.expectedBilling?.quantity }
+        : body
 
     expect(res.status).toBe(200)
     const json = await res.json() as { data: { taskId: string } }
@@ -398,6 +407,51 @@ describe('editor AI route skeletons', () => {
     const json = await res.json() as Record<string, unknown>
     expect(json.code).toBe('INVALID_PARAMS')
     expect(json.message).toBe('CAPTION_NO_VOICE_LINES')
+    expect(submitTaskMock).not.toHaveBeenCalled()
+  })
+
+  it('voice-optimize returns 400 and does not enqueue when voiceLineId is missing', async () => {
+    const routeCase = routeCases.find((item) => item.name === 'voice-optimize durationSeconds')!
+    const { POST } = await routeCase.load()
+
+    const res = await POST(
+      buildEditorAiRequest(routeCase.path, defaultBody({ durationSeconds: 9 })),
+      buildContext(),
+    )
+
+    expect(res.status).toBe(400)
+    const json = await res.json() as Record<string, unknown>
+    expect(json.code).toBe('INVALID_PARAMS')
+    expect(json.message).toBe('voiceLineId is required')
+    expect(submitTaskMock).not.toHaveBeenCalled()
+  })
+
+  it('voice-optimize returns 400 and does not enqueue for an invalid voiceLineId', async () => {
+    const routeCase = routeCases.find((item) => item.name === 'voice-optimize durationSeconds')!
+    const { POST } = await routeCase.load()
+    prismaMock.novelPromotionVoiceLine.findFirst.mockResolvedValueOnce(null)
+
+    const res = await POST(
+      buildEditorAiRequest(routeCase.path, defaultBody({ voiceLineId: 'missing-voice', durationSeconds: 9 })),
+      buildContext(),
+    )
+
+    expect(res.status).toBe(400)
+    const json = await res.json() as Record<string, unknown>
+    expect(json.code).toBe('INVALID_PARAMS')
+    expect(json.message).toBe('VOICE_OPTIMIZE_NO_VOICE_LINE')
+    expect(prismaMock.novelPromotionVoiceLine.findFirst).toHaveBeenCalledWith({
+      where: {
+        id: 'missing-voice',
+        episodeId: 'episode-1',
+      },
+      select: {
+        id: true,
+        content: true,
+        audioDuration: true,
+        audioMedia: { select: { durationMs: true } },
+      },
+    })
     expect(submitTaskMock).not.toHaveBeenCalled()
   })
 

@@ -254,6 +254,28 @@
           "noVoiceLines": "Generate or add voice-line text first.",
           "estimate": "Estimated {count} captions, about {minutes} minutes."
         },
+        "voiceOptimize": {
+          "title": "Voice optimize",
+          "description": "Select a voice clip, edit the script, switch speaker voice, or adjust speed, then regenerate audio.",
+          "button": "Regenerate voice",
+          "runningButton": "Generating...",
+          "running": "Optimizing voice ({progress}%)",
+          "done": "Voice replaced. Timeline refreshed.",
+          "failed": "Voice optimization failed. Please try again.",
+          "saveConflict": "The editor project has a save conflict. Resolve it before optimizing voice.",
+          "unsavedChanges": "Current editor changes have not been saved. Save successfully before optimizing voice.",
+          "missingContext": "Missing current episode, editor project, or selected voice clip.",
+          "loading": "Loading editor data...",
+          "selectAudio": "Select a voice clip on the timeline first.",
+          "emptyText": "Voice script cannot be empty.",
+          "emptySpeaker": "Speaker cannot be empty.",
+          "noVoiceLine": "Could not find the corresponding voice line.",
+          "audioElementNotFound": "Could not find the selected voice clip in the timeline.",
+          "textLabel": "Voice script (MVP: edit directly, then regenerate)",
+          "speakerLabel": "Speaker / voice",
+          "speedLabel": "Speed {speed}x",
+          "selected": "Selected line {id} · original duration about {seconds}s"
+        },
         "polish": {
           "title": "Visual polish",
           "description": "Add transitions, motion, and pacing refinements automatically."
