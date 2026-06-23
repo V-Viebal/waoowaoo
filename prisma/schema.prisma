@@ -210,6 +210,7 @@ model NovelPromotionPanel {
   firstLastFramePrompt String?                @db.Text
   videoUrl          String?                   @db.Text
   videoGenerationMode String?                 @db.Text // 视频生成方式：normal | firstlastframe
+  gridVideoPromptAt DateTime?                 // 宫格视频提示词 LLM 重写标记：非空=已重写过
   videoMediaId      String?
   videoMedia        MediaObject?              @relation("NovelPromotionPanelVideoMedia", fields: [videoMediaId], references: [id], onDelete: SetNull)
   createdAt         DateTime                  @default(now())
