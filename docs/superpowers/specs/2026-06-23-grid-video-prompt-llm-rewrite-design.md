@@ -75,7 +75,7 @@
 - 原 `buildGridVideoPrompt(...)` 调用替换为缓存判断 + `rewriteGridVideoPrompt(...)`：
   - 缓存命中（见 4.3）→ 直接用 `panel.videoPrompt`。
   - 否则调 LLM 重写 → 回写 `panel.videoPrompt` + 缓存标记 → 用新提示词生成视频。
-- LLM token 计入计费：把 usage 累加进 video task 的计费 payload（参考 commit `616f851` 给 route 补 `analysisModel` 计费的做法）。
+- LLM token 计费：**不能**累加进 video task 的计费 payload —— 计费架构是「一个 task = 单一 `apiType` + 单一 `model`」，video task 用单一视频模型结算（`resolveTaskActual` / `settleTaskBilling`，`src/lib/billing/service.ts`），没有「视频费之外附加一笔文本费」的机制。改用 `withTextBilling(userId, analysisModel, maxIn, maxOut, recordParams, fn)`（`src/lib/billing/service.ts:624`）在重写调用处即时、独立地记一笔 text 费用。
 - 失败回退：`rewriteGridVideoPrompt` 返回 null 时，退回当前 basePrompt，不阻塞视频生成（仅记日志）。
 
 **④ 缓存标记字段（新，Prisma schema）**
@@ -87,7 +87,7 @@
 - 进度/intent/计费接线参照 `AI_MODIFY_SHOT_PROMPT` 现有模式（`intent.ts` / `progress-message.ts`）。
 
 **⑥ UI：手动重生按钮**
-- 位置：视频阶段面板卡片提示词编辑区（`panel-card/runtime/hooks` + `useVideoMutations`）。
+- 位置：视频阶段面板卡片提示词编辑区（`panel-card/runtime/hooks` + `useVideoMutations`）。现有 `useUpdateProjectPanelVideoPrompt`（`src/lib/query/mutations/useVideoMutations.ts:51`）已提供 videoPrompt 回写通道，可在其旁新增一个触发 `AI_GRID_VIDEO_PROMPT` task 的 mutation。
 - 仅对宫格面板（`imageLayout==='grid'`）显示「重新生成宫格视频提示词」。
 - 触发 mutation → enqueue `AI_GRID_VIDEO_PROMPT` → task 完成后刷新 `videoPrompt`。
 
@@ -114,7 +114,7 @@
   - 手动 task：task 失败，UI 提示用户重试（不改 `videoPrompt`）。
 - 分析模型未配置：`resolveAnalysisModel` 抛错。自动路径捕获后回退 basePrompt；手动 task 直接失败并提示「请先配置分析模型」。
 - 非宫格面板：完全不走此逻辑（`isGridLayout` 守卫）。
-- 计费：LLM usage 计入 token，失败/回退时不计入 LLM 费用。
+- 计费：用 `withTextBilling` 包裹重写 LLM 调用，独立记一笔 text 费用。失败/回退（返回 null）时该笔费用按其正常结算逻辑处理（实际 usage 为 0 / 调用未发生则不产生费用）。
 
 ## 6. 测试策略
 
@@ -128,9 +128,18 @@
 
 - Prisma：新增 `gridVideoPromptAt`，需 `prisma db push` / migration。
 - i18n：新增按钮文案、task 进度文案（`messages/{zh,en}`）。
-- Prompt 模板内容改写：`panel_grid_video.{zh,en}.txt`（注意：当前工作区这两个文件已有未提交改动，需在其基础上改写为「LLM 重写指令」）。
-- TASK_TYPE / 队列路由 / intent / progress-message 新增 `AI_GRID_VIDEO_PROMPT` 接线。
+- Prompt 模板内容改写：`panel_grid_video.{zh,en}.txt`（这两个文件已在 commit `f8dcec4` 提交、当前工作区干净；需在现有「视频模型包装指令」内容基础上**改写为「给 LLM 的重写指令」**）。
+- TASK_TYPE / 队列路由 / intent / progress-message 新增 `AI_GRID_VIDEO_PROMPT` 接线。队列路由无需改动 `getQueueTypeByTaskType`——未列入 IMAGE/VIDEO/VOICE 集合的 type 默认进 text 队列（`src/lib/task/queues.ts:71`）；但需在 `text.worker.ts` 的 switch 中注册 handler（参照 `AI_MODIFY_SHOT_PROMPT`，`text.worker.ts:691`）。
 
 ## 8. 开放问题
 
 - 暂无阻塞项。`gridVideoPromptAt` 命名/类型在实现时可再微调（布尔 vs 时间戳），不影响整体设计。
+
+## 9. 审计记录（2026-06-23）
+
+对照实际代码核实假设，修正两处错误：
+
+1. **计费**（实质修正）：原 spec 称「把 LLM token 累加进 video task 计费 payload」。核实 `resolveTaskActual`/`settleTaskBilling`（`src/lib/billing/service.ts`）后确认：计费是「一 task = 单一 apiType + 单一 model」，video task 无法附加文本费。已改为用 `withTextBilling`（`service.ts:624`）即时独立计费。commit `616f851` 实为给「创建独立 text task 的 route」补 analysisModel，与本场景不同。
+2. **模板状态**（事实修正）：原 spec 称两个 `panel_grid_video` 模板「有未提交改动」。实际它们已在 commit `f8dcec4` 提交、工作区干净。
+
+核实无误的假设：text 队列路由（默认分支，无需改 `getQueueTypeByTaskType`）；`text.worker.ts` switch 注册 handler 的模式（`AI_MODIFY_SHOT_PROMPT`）；`executeAiTextStep` + `resolveAnalysisModel` 复用路径；UI 回写通道 `useUpdateProjectPanelVideoPrompt` 已存在；现有 grid 测试 `tests/unit/storyboard-images/grid-video-prompt.test.ts` 测的是模板填充行为，需更新。
