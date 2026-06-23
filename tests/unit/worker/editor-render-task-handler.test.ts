@@ -111,6 +111,21 @@ describe('editor render worker handler', () => {
       id: 'editor-project-1',
       projectData: buildProjectData(),
     })
+    prismaMock.novelPromotionEditorProject.updateMany.mockResolvedValue({ count: 1 })
+    mediaMock.ensureMediaObjectFromStorageKey.mockResolvedValue({
+      id: 'media-render-1',
+      publicId: 'public-render-1',
+      url: '/m/public-render-1',
+      storageKey: 'videos/editor-render-editor-project-1.mp4',
+      sha256: null,
+      mimeType: 'video/mp4',
+      sizeBytes: 14,
+      width: 720,
+      height: 1280,
+      durationMs: 6000,
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    })
+    renderServerMock.renderTwickVideo.mockResolvedValue('/tmp/rendered-video.mp4')
   })
 
   it('buildTwickRenderInput resolves mediaobj:// refs to server-fetchable URLs', async () => {
@@ -164,6 +179,7 @@ describe('editor render worker handler', () => {
       where: {
         id: 'editor-project-1',
         renderTaskId: 'task-render-1',
+        renderStatus: 'PROCESSING',
       },
       data: expect.objectContaining({
         renderStatus: 'DONE',
@@ -187,6 +203,85 @@ describe('editor render worker handler', () => {
     expect(fsMock.unlink).toHaveBeenCalledWith('/tmp/rendered-video.mp4')
   })
 
+  it('does not overwrite a cancellation FAILED state when an old worker reaches DONE write-back', async () => {
+    let renderStatus = 'PROCESSING'
+    vi.mocked(prismaMock.novelPromotionEditorProject.updateMany).mockImplementation(async (...callArgs: unknown[]) => {
+      const args = callArgs[0] as { where: { renderStatus?: string }, data: { renderStatus?: string } }
+      const where = args.where
+      const data = args.data
+      const matchesStatus = !where.renderStatus || where.renderStatus === renderStatus
+      if (!matchesStatus) return { count: 0 }
+      if (data.renderStatus) renderStatus = data.renderStatus
+      return { count: 1 }
+    })
+    mediaMock.ensureMediaObjectFromStorageKey.mockImplementationOnce(async () => {
+      renderStatus = 'FAILED'
+      return {
+        id: 'media-render-1',
+        publicId: 'public-render-1',
+        url: '/m/public-render-1',
+        storageKey: 'videos/editor-render-editor-project-1.mp4',
+        sha256: null,
+        mimeType: 'video/mp4',
+        sizeBytes: 14,
+        width: 720,
+        height: 1280,
+        durationMs: 6000,
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      }
+    })
+
+    const result = await handleEditorRenderTask(buildJob())
+
+    expect(result).toEqual(expect.objectContaining({ success: true, mediaObjectId: 'media-render-1' }))
+    expect(renderStatus).toBe('FAILED')
+    expect(prismaMock.novelPromotionEditorProject.updateMany).toHaveBeenNthCalledWith(2, {
+      where: {
+        id: 'editor-project-1',
+        renderTaskId: 'task-render-1',
+        renderStatus: 'PROCESSING',
+      },
+      data: expect.objectContaining({
+        renderStatus: 'DONE',
+        renderOutputMediaObjectId: 'media-render-1',
+        renderTaskId: 'task-render-1',
+      }),
+    })
+  })
+
+  it('does not overwrite a cancellation FAILED state when an old worker reaches FAILED write-back', async () => {
+    renderServerMock.renderTwickVideo.mockRejectedValueOnce(new Error('render failed after cancel'))
+    let renderStatus = 'PROCESSING'
+    vi.mocked(prismaMock.novelPromotionEditorProject.updateMany).mockImplementation(async (...callArgs: unknown[]) => {
+      const args = callArgs[0] as { where: { renderStatus?: string }, data: { renderStatus?: string } }
+      const where = args.where
+      const data = args.data
+      const matchesStatus = !where.renderStatus || where.renderStatus === renderStatus
+      if (!matchesStatus) return { count: 0 }
+      if (data.renderStatus) renderStatus = data.renderStatus
+      return { count: 1 }
+    })
+    vi.mocked(workerMock.assertTaskActive).mockImplementation(async (...callArgs: unknown[]) => {
+      const stage = callArgs[1]
+      if (stage === 'editor_render_render_video') renderStatus = 'FAILED'
+    })
+
+    await expect(handleEditorRenderTask(buildJob())).rejects.toThrow('render failed after cancel')
+
+    expect(renderStatus).toBe('FAILED')
+    expect(prismaMock.novelPromotionEditorProject.updateMany).toHaveBeenLastCalledWith({
+      where: {
+        id: 'editor-project-1',
+        renderTaskId: 'task-render-1',
+        renderStatus: 'PROCESSING',
+      },
+      data: {
+        renderStatus: 'FAILED',
+        renderTaskId: 'task-render-1',
+      },
+    })
+  })
+
   it('marks editor render as FAILED and cleans expected temp output on render failure', async () => {
     renderServerMock.renderTwickVideo.mockRejectedValueOnce(new Error('puppeteer missing'))
 
@@ -196,6 +291,7 @@ describe('editor render worker handler', () => {
       where: {
         id: 'editor-project-1',
         renderTaskId: 'task-render-1',
+        renderStatus: 'PROCESSING',
       },
       data: {
         renderStatus: 'FAILED',
@@ -218,6 +314,7 @@ describe('editor render worker handler', () => {
       where: {
         id: 'editor-project-1',
         renderTaskId: 'task-render-1',
+        renderStatus: 'PROCESSING',
       },
       data: {
         renderStatus: 'FAILED',
@@ -236,6 +333,7 @@ describe('editor render worker handler', () => {
       where: {
         id: 'editor-project-1',
         renderTaskId: 'task-render-1',
+        renderStatus: 'PROCESSING',
       },
       data: {
         renderStatus: 'FAILED',

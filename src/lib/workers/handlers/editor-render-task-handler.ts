@@ -252,6 +252,7 @@ export async function handleEditorRenderTask(job: Job<TaskJobData>) {
       where: {
         id: editorProjectId,
         renderTaskId: job.data.taskId,
+        renderStatus: 'PROCESSING',
       },
       data: {
         renderStatus: 'DONE',
@@ -282,6 +283,7 @@ export async function handleEditorRenderTask(job: Job<TaskJobData>) {
       where: {
         id: editorProjectId,
         renderTaskId: job.data.taskId,
+        renderStatus: 'PROCESSING',
       },
       data: {
         renderStatus: 'FAILED',
