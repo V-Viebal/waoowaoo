@@ -192,6 +192,31 @@ describe('editor render route', () => {
     })
   })
 
+  it('binds renderTaskId even when submitTask returns a deduped task', async () => {
+    const { POST } = await import('@/app/api/novel-promotion/[projectId]/editor/render/route')
+    submitTaskMock.mockResolvedValueOnce({
+      success: true,
+      async: true,
+      taskId: 'task-render-deduped',
+      status: TASK_STATUS.QUEUED,
+      deduped: true,
+    })
+
+    const res = await POST(buildPostRequest({ requestId: 'request-deduped' }), buildContext())
+
+    expect(res.status).toBe(200)
+    const json = await res.json() as { data: { taskId: string; deduped: boolean } }
+    expect(json.data.taskId).toBe('task-render-deduped')
+    expect(json.data.deduped).toBe(true)
+    expect(prismaMock.novelPromotionEditorProject.update).toHaveBeenCalledWith({
+      where: { id: 'editor-project-1' },
+      data: expect.objectContaining({
+        renderStatus: 'PROCESSING',
+        renderTaskId: 'task-render-deduped',
+      }),
+    })
+  })
+
   it('rejects concurrent active render tasks for the same editor project when the atomic render lock is held', async () => {
     const { POST } = await import('@/app/api/novel-promotion/[projectId]/editor/render/route')
     prismaMock.novelPromotionEditorProject.updateMany.mockResolvedValueOnce({ count: 0 })
@@ -264,6 +289,36 @@ describe('editor render route', () => {
     expect(billingInfo.maxFrozenCost).toBe(0.0001)
   })
 
+  it('cancels processing render task and moves render status to FAILED for retry', async () => {
+    const { DELETE } = await import('@/app/api/novel-promotion/[projectId]/editor/render/route')
+    getTaskByIdMock.mockResolvedValueOnce({
+      id: 'task-render-1',
+      userId: 'user-1',
+      projectId: 'project-1',
+      episodeId: 'episode-1',
+      type: TASK_TYPE.EDITOR_RENDER,
+      targetType: 'NovelPromotionEditorProject',
+      targetId: 'editor-project-1',
+      status: TASK_STATUS.PROCESSING,
+      progress: 50,
+      payload: {},
+      errorCode: null,
+      errorMessage: null,
+    })
+
+    const res = await DELETE(buildMockRequest({
+      path: '/api/novel-promotion/project-1/editor/render',
+      method: 'DELETE',
+      query: { taskId: 'task-render-1' },
+    }), buildContext())
+
+    expect(res.status).toBe(200)
+    expect(prismaMock.novelPromotionEditorProject.updateMany).toHaveBeenCalledWith({
+      where: { id: 'editor-project-1', renderTaskId: 'task-render-1' },
+      data: { renderStatus: 'FAILED', renderTaskId: 'task-render-1' },
+    })
+  })
+
   it('cancels queued render task, removes BullMQ job, and resets render status', async () => {
     const { DELETE } = await import('@/app/api/novel-promotion/[projectId]/editor/render/route')
 
@@ -278,7 +333,7 @@ describe('editor render route', () => {
     expect(removeTaskJobMock).toHaveBeenCalledWith('task-render-1')
     expect(prismaMock.novelPromotionEditorProject.updateMany).toHaveBeenCalledWith({
       where: { id: 'editor-project-1', renderTaskId: 'task-render-1' },
-      data: { renderStatus: 'IDLE' },
+      data: { renderStatus: 'IDLE', renderTaskId: null },
     })
   })
 })

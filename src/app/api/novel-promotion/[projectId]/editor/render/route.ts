@@ -208,16 +208,14 @@ export const POST = apiHandler(async (request: NextRequest, context: RouteContex
       dedupeKey: `editor-render:${editorProjectId}:${clientRequestId || fingerprint(payload)}`,
     })
 
-    if (!result.deduped) {
-      await prisma.novelPromotionEditorProject.update({
-        where: { id: editorProjectId },
-        data: {
-          renderStatus: 'PROCESSING',
-          renderTaskId: result.taskId,
-          renderSettings: settings,
-        },
-      })
-    }
+    await prisma.novelPromotionEditorProject.update({
+      where: { id: editorProjectId },
+      data: {
+        renderStatus: 'PROCESSING',
+        renderTaskId: result.taskId,
+        renderSettings: settings,
+      },
+    })
 
     return NextResponse.json({
       data: {
@@ -309,6 +307,7 @@ export const DELETE = apiHandler(async (request: NextRequest, context: RouteCont
         },
         data: {
           renderStatus: task.status === TASK_STATUS.QUEUED ? 'IDLE' : 'FAILED',
+          renderTaskId: task.status === TASK_STATUS.QUEUED ? null : taskId,
         },
       })
     }

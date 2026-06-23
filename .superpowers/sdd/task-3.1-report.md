@@ -217,3 +217,75 @@ No whitespace errors.
 ### Concerns
 - `@twick/render-server` production runtime concern remains: worker host/image must provide Node 20+, browser/Puppeteer dependencies, and FFmpeg/ffprobe.
 - Server-render media access is intentionally allowlist-based through existing `MediaObject` relation graph. If future editor timelines reference new MediaObject-owning tables, those relations must be added to the resolver allowlist before export can sign them.
+
+
+## 修复轮次 2
+
+### 2 个 Important 状态机问题修复说明
+1. **deduped 分支不绑定 `renderTaskId`**
+   - `POST /editor/render` 在拿到 `renderStatus` 原子锁并调用 `submitTask()` 后，不再只在 `!result.deduped` 时写回 `renderTaskId`。
+   - 无论 `submitTask()` 返回新任务还是 `deduped: true` 的既有任务，都会把 `renderTaskId = result.taskId`、`renderStatus = PROCESSING`、`renderSettings` 写回 `NovelPromotionEditorProject`。
+   - 这样避免 `PROCESSING + renderTaskId = null` 导致后续 POST 被 409、DELETE 无法按 taskId 匹配、项目永久无法重新导出的死锁。
+
+2. **旧 worker 失败/取消后覆盖新导出状态**
+   - worker 完成与失败持久化从 `update({ where: { id } })` 改为 `updateMany({ where: { id, renderTaskId: job.data.taskId } })`。
+   - 只有当前 editor project 仍绑定本 job 的 `taskId` 时，旧 worker 才能写 `DONE` 或 `FAILED`；如果用户取消 A 后启动 B，A 的后续失败/完成写回影响 0 行，不会覆盖 B。
+   - 同步加固了 worker 开始阶段的 `PROCESSING` 写回：仅允许当前状态仍是 `PROCESSING` 且 `renderTaskId` 为本 job 或空占位时绑定；若绑定已切到新任务，旧 worker 抛 `EDITOR_RENDER_TASK_STALE` 并且 catch 的条件失败写回也影响 0 行。
+
+### 状态机恢复路径验证
+- 正常完成：`POST` 抢锁后绑定 `renderTaskId`，worker 仅在 `renderTaskId` 匹配本 job 时 `PROCESSING -> DONE`。
+- 失败：worker catch 仅在 `renderTaskId` 匹配本 job 时 `PROCESSING -> FAILED`；`FAILED` 属于下一次 POST 可抢锁状态。
+- 取消：`DELETE` 只按 `{ id, renderTaskId: taskId }` 更新；queued 取消回到 `IDLE + renderTaskId = null`，processing 取消回到 `FAILED + renderTaskId = taskId`，两者均可重新 POST。
+- deduped 重试：锁被抢到后即使 `submitTask()` 返回 `deduped: true`，也会绑定返回的 `taskId`，不再留下 `PROCESSING + renderTaskId = null`。
+- 陈旧 worker：Task A 取消后 Task B 重新绑定时，A 的开始/成功/失败状态写回都带 `renderTaskId = A` 条件；当前已是 B 时更新 0 行，不覆盖新任务。
+- 无死锁确认：正常、失败、取消、deduped、陈旧 worker 路径都不会在可预期异常路径下留下不可恢复的 `PROCESSING + renderTaskId = null`；`renderStatus` 与 `renderTaskId` 绑定保持一致。
+
+### Tests / verification
+
+#### Command
+`BILLING_TEST_BOOTSTRAP=0 npx vitest run tests/unit/worker/editor-render-task-handler.test.ts tests/integration/api/editor-render-route.test.ts tests/unit/lib/twick/media-url-resolver.test.ts tests/unit/billing/task-policy.test.ts --reporter=dot`
+
+#### Output
+```text
+The CJS build of Vite's Node API is deprecated. See https://vite.dev/guide/troubleshooting.html#vite-cjs-node-api-deprecated for more details.
+
+ RUN  v2.1.9 /Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor
+
+stderr | tests/integration/api/editor-render-route.test.ts > editor render route > rejects concurrent active render tasks for the same editor project when the atomic render lock is held
+{"ts":"2026-06-23T15:11:46.458+08:00","level":"ERROR","service":"vvicat","audit":false,"module":"api","action":"api.request.error","message":"Editor render task already in progress","requestId":"req-render-1","projectId":"project-1","errorCode":"CONFLICT","retryable":false,"durationMs":0,"details":{"method":"POST","path":"/api/novel-promotion/project-1/editor/render","errorType":"ApiError"},"error":{"name":"ApiError","message":"Editor render task already in progress","stack":"ApiError: Editor render task already in progress\n    at /Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/src/app/api/novel-promotion/[projectId]/editor/render/route.ts:190:11\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at /Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/src/lib/api-errors.ts:473:94\n    at Module.withInternalLLMStreamCallbacks (/Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/src/lib/llm-observe/internal-stream-context.ts:36:10)\n    at /Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/src/lib/api-errors.ts:473:28\n    at /Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/src/lib/api-errors.ts:453:12\n    at /Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/tests/integration/api/editor-render-route.test.ts:225:17\n    at file:///Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/node_modules/@vitest/runner/dist/index.js:533:5\n    at runTest (file:///Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/node_modules/@vitest/runner/dist/index.js:1056:11)\n    at runSuite (file:///Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/node_modules/@vitest/runner/dist/index.js:1205:15)","code":"CONFLICT"}}
+
+stderr | tests/integration/api/editor-render-route.test.ts > editor render route > allows only one of two concurrent POST requests to create a render task
+{"ts":"2026-06-23T15:11:46.461+08:00","level":"ERROR","service":"vvicat","audit":false,"module":"api","action":"api.request.error","message":"Editor render task already in progress","requestId":"req-render-1","projectId":"project-1","errorCode":"CONFLICT","retryable":false,"durationMs":1,"details":{"method":"POST","path":"/api/novel-promotion/project-1/editor/render","errorType":"ApiError"},"error":{"name":"ApiError","message":"Editor render task already in progress","stack":"ApiError: Editor render task already in progress\n    at /Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/src/app/api/novel-promotion/[projectId]/editor/render/route.ts:190:11\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at /Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/src/lib/api-errors.ts:473:94\n    at Module.withInternalLLMStreamCallbacks (/Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/src/lib/llm-observe/internal-stream-context.ts:36:10)\n    at /Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/src/lib/api-errors.ts:473:28\n    at /Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/src/lib/api-errors.ts:453:12\n    at async Promise.all (index 1)\n    at /Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/tests/integration/api/editor-render-route.test.ts:238:29\n    at file:///Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/node_modules/@vitest/runner/dist/index.js:533:5\n    at runTest (file:///Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor/node_modules/@vitest/runner/dist/index.js:1056:11)","code":"CONFLICT"}}
+
+ ✓ tests/integration/api/editor-render-route.test.ts (10 tests) 238ms
+ ✓ tests/unit/worker/editor-render-task-handler.test.ts (6 tests) 6ms
+ ✓ tests/unit/lib/twick/media-url-resolver.test.ts (15 tests) 5ms
+ ✓ tests/unit/billing/task-policy.test.ts (10 tests) 17ms
+
+ Test Files  4 passed (4)
+      Tests  41 passed (41)
+   Start at  15:11:45
+   Duration  1.22s (transform 244ms, setup 10ms, collect 165ms, tests 266ms, environment 0ms, prepare 118ms)
+```
+
+#### Command
+`npx tsc --noEmit 2>&1 | grep -iE "render|Render|editor.*handler"`
+
+#### Output
+```text
+
+```
+No render/editor-handler typecheck output.
+
+#### Command
+`git -C /Users/xiaomao/Documents/fuyang/waoowaoo/.claude/worktrees/twick-editor diff --check`
+
+#### Output
+```text
+
+```
+No whitespace errors.
+
+### Concerns
+- `@twick/render-server` production runtime concern remains unchanged: worker host/image still needs Node 20+, Puppeteer/headless browser dependencies, and FFmpeg/ffprobe.
+- The worker now treats mismatched `renderTaskId` as stale and fails the old task without touching the editor project. This preserves the new render state, but task history may show the old task failed with `EDITOR_RENDER_TASK_STALE` if it races after cancellation/retry.

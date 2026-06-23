@@ -6,6 +6,7 @@ const prismaMock = vi.hoisted(() => ({
   novelPromotionEditorProject: {
     findFirst: vi.fn(),
     update: vi.fn(async () => undefined),
+    updateMany: vi.fn(async () => ({ count: 1 })),
   },
 }))
 const fsMock = vi.hoisted(() => ({
@@ -145,15 +146,25 @@ describe('editor render worker handler', () => {
       'videos/editor-render-editor-project-1.mp4',
       expect.objectContaining({ mimeType: 'video/mp4', width: 720, height: 1280, durationMs: 8000 }),
     )
-    expect(prismaMock.novelPromotionEditorProject.update).toHaveBeenNthCalledWith(1, {
-      where: { id: 'editor-project-1' },
+    expect(prismaMock.novelPromotionEditorProject.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: 'editor-project-1',
+        renderStatus: 'PROCESSING',
+        OR: [
+          { renderTaskId: 'task-render-1' },
+          { renderTaskId: null },
+        ],
+      },
       data: expect.objectContaining({
         renderStatus: 'PROCESSING',
         renderTaskId: 'task-render-1',
       }),
     })
-    expect(prismaMock.novelPromotionEditorProject.update).toHaveBeenNthCalledWith(2, {
-      where: { id: 'editor-project-1' },
+    expect(prismaMock.novelPromotionEditorProject.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: 'editor-project-1',
+        renderTaskId: 'task-render-1',
+      },
       data: expect.objectContaining({
         renderStatus: 'DONE',
         renderOutputMediaObjectId: 'media-render-1',
@@ -181,8 +192,11 @@ describe('editor render worker handler', () => {
 
     await expect(handleEditorRenderTask(buildJob())).rejects.toThrow('puppeteer missing')
 
-    expect(prismaMock.novelPromotionEditorProject.update).toHaveBeenLastCalledWith({
-      where: { id: 'editor-project-1' },
+    expect(prismaMock.novelPromotionEditorProject.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: 'editor-project-1',
+        renderTaskId: 'task-render-1',
+      },
       data: {
         renderStatus: 'FAILED',
         renderTaskId: 'task-render-1',
@@ -190,6 +204,44 @@ describe('editor render worker handler', () => {
     })
     expect(mediaMock.ensureMediaObjectFromStorageKey).not.toHaveBeenCalled()
     expect(fsMock.unlink).toHaveBeenCalledWith(expect.stringContaining('vvicat-twick-renders/editor-render-task-render-1.mp4'))
+  })
+
+  it('does not let a stale failed worker overwrite a newer render task binding', async () => {
+    renderServerMock.renderTwickVideo.mockRejectedValueOnce(new Error('cancelled old task'))
+    prismaMock.novelPromotionEditorProject.updateMany
+      .mockResolvedValueOnce({ count: 1 })
+      .mockResolvedValueOnce({ count: 0 })
+
+    await expect(handleEditorRenderTask(buildJob())).rejects.toThrow('cancelled old task')
+
+    expect(prismaMock.novelPromotionEditorProject.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: 'editor-project-1',
+        renderTaskId: 'task-render-1',
+      },
+      data: {
+        renderStatus: 'FAILED',
+        renderTaskId: 'task-render-1',
+      },
+    })
+  })
+
+  it('stops a stale worker before rendering when the task binding already moved on', async () => {
+    prismaMock.novelPromotionEditorProject.updateMany.mockResolvedValueOnce({ count: 0 })
+
+    await expect(handleEditorRenderTask(buildJob())).rejects.toThrow('EDITOR_RENDER_TASK_STALE')
+
+    expect(renderServerMock.renderTwickVideo).not.toHaveBeenCalled()
+    expect(prismaMock.novelPromotionEditorProject.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: 'editor-project-1',
+        renderTaskId: 'task-render-1',
+      },
+      data: {
+        renderStatus: 'FAILED',
+        renderTaskId: 'task-render-1',
+      },
+    })
   })
 
   it('throws when the editor project does not belong to the episode', async () => {

@@ -213,14 +213,24 @@ export async function handleEditorRenderTask(job: Job<TaskJobData>) {
     const durationMinutes = Math.max(0.01, durationSeconds / 60)
 
     await assertTaskActive(job, 'editor_render_mark_processing')
-    await prisma.novelPromotionEditorProject.update({
-      where: { id: editorProjectId },
+    const processingUpdate = await prisma.novelPromotionEditorProject.updateMany({
+      where: {
+        id: editorProjectId,
+        renderStatus: 'PROCESSING',
+        OR: [
+          { renderTaskId: job.data.taskId },
+          { renderTaskId: null },
+        ],
+      },
       data: {
         renderStatus: 'PROCESSING',
         renderTaskId: job.data.taskId,
         renderSettings: settings as unknown as object,
       },
     })
+    if (processingUpdate.count === 0) {
+      throw new Error('EDITOR_RENDER_TASK_STALE')
+    }
 
     await reportTaskProgress(job, 25, {
       stage: 'editor_render_resolved_media',
@@ -238,8 +248,11 @@ export async function handleEditorRenderTask(job: Job<TaskJobData>) {
     const mediaObject = await uploadRenderedVideo(renderedFilePath, editorProjectId, settings, durationSeconds)
 
     await assertTaskActive(job, 'editor_render_persist_output')
-    await prisma.novelPromotionEditorProject.update({
-      where: { id: editorProjectId },
+    await prisma.novelPromotionEditorProject.updateMany({
+      where: {
+        id: editorProjectId,
+        renderTaskId: job.data.taskId,
+      },
       data: {
         renderStatus: 'DONE',
         renderOutputMediaObjectId: mediaObject.id,
@@ -265,8 +278,11 @@ export async function handleEditorRenderTask(job: Job<TaskJobData>) {
       actualQuantity: durationMinutes,
     }
   } catch (error) {
-    await prisma.novelPromotionEditorProject.update({
-      where: { id: editorProjectId },
+    await prisma.novelPromotionEditorProject.updateMany({
+      where: {
+        id: editorProjectId,
+        renderTaskId: job.data.taskId,
+      },
       data: {
         renderStatus: 'FAILED',
         renderTaskId: job.data.taskId,
