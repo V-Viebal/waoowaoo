@@ -6,7 +6,8 @@ import { prisma } from '@/lib/prisma'
 import { ensureMediaObjectFromStorageKey } from '@/lib/media/service'
 import { generateUniqueKey, uploadObject } from '@/lib/storage'
 import type { TaskJobData } from '@/lib/task/types'
-import { resolveMediaUrlForServerRender } from '@/lib/twick/media-url-resolver'
+import { isMediaObjRef, resolveMediaUrlForServerRender } from '@/lib/twick/media-url-resolver'
+import { calculateTwickTimelineDurationSeconds } from '@/lib/twick/caption-duration'
 import type { TwickTimelineProject } from '@/lib/twick/types'
 import { reportTaskProgress } from '@/lib/workers/shared'
 import { assertTaskActive } from '@/lib/workers/utils'
@@ -71,23 +72,8 @@ function readProjectMetadata(projectData: unknown) {
     width: readPositiveNumber(custom.width ?? properties.width ?? project.width, DEFAULT_RENDER_WIDTH),
     height: readPositiveNumber(custom.height ?? properties.height ?? project.height, DEFAULT_RENDER_HEIGHT),
     fps: readPositiveNumber(custom.fps ?? properties.fps ?? project.fps, DEFAULT_RENDER_FPS),
-    durationSeconds: readPositiveNumber(custom.duration ?? project.duration, calculateTimelineDuration(project)),
+    durationSeconds: calculateTwickTimelineDurationSeconds(project),
   }
-}
-
-function calculateTimelineDuration(project: JsonRecord): number {
-  const tracks = Array.isArray(project.tracks) ? project.tracks : []
-  let duration = 0
-  for (const track of tracks) {
-    const trackRecord = asRecord(track)
-    const elements = Array.isArray(trackRecord?.elements) ? trackRecord.elements : []
-    for (const element of elements) {
-      const elementRecord = asRecord(element)
-      const end = readPositiveNumber(elementRecord?.e, 0)
-      duration = Math.max(duration, end)
-    }
-  }
-  return duration > 0 ? duration : 1
 }
 
 function normalizeRenderSettings(projectData: unknown, rawSettings: JsonRecord): RenderSettings {
@@ -114,24 +100,31 @@ function cloneWithProperties(projectData: TwickTimelineProject, settings: Render
   }
 }
 
-async function resolveMediaRefsDeep(value: unknown): Promise<unknown> {
+type ServerRenderContext = {
+  userId: string
+  projectId: string
+  editorProjectId: string
+  episodeId: string
+}
+
+async function resolveMediaRefsDeep(value: unknown, context?: ServerRenderContext): Promise<unknown> {
   if (typeof value === 'string') {
-    return await resolveMediaUrlForServerRender(value)
+    return isMediaObjRef(value) ? await resolveMediaUrlForServerRender(value, context) : value
   }
   if (Array.isArray(value)) {
-    return await Promise.all(value.map((item) => resolveMediaRefsDeep(item)))
+    return await Promise.all(value.map((item) => resolveMediaRefsDeep(item, context)))
   }
   const record = asRecord(value)
   if (!record) return value
 
   const entries = await Promise.all(Object.entries(record).map(async ([key, entryValue]) => [
     key,
-    await resolveMediaRefsDeep(entryValue),
+    await resolveMediaRefsDeep(entryValue, context),
   ] as const))
   return Object.fromEntries(entries)
 }
 
-export async function buildTwickRenderInput(projectData: unknown, settingsInput?: JsonRecord): Promise<{
+export async function buildTwickRenderInput(projectData: unknown, settingsInput?: JsonRecord, context?: ServerRenderContext): Promise<{
   variables: JsonRecord
   settings: RenderSettings
   durationSeconds: number
@@ -144,7 +137,7 @@ export async function buildTwickRenderInput(projectData: unknown, settingsInput?
   const settings = normalizeRenderSettings(projectData, settingsInput || {})
   const durationSeconds = readProjectMetadata(projectData).durationSeconds
   const input = cloneWithProperties(projectData as TwickTimelineProject, settings)
-  const resolvedInput = await resolveMediaRefsDeep(input) as JsonRecord
+  const resolvedInput = await resolveMediaRefsDeep(input, context) as JsonRecord
 
   return {
     variables: { input: resolvedInput },
@@ -153,9 +146,13 @@ export async function buildTwickRenderInput(projectData: unknown, settingsInput?
   }
 }
 
+function buildRenderOutputPath(taskId: string, format: RenderSettings['format']): string {
+  return path.join(RENDER_OUTPUT_DIR, `editor-render-${taskId}.${format}`)
+}
+
 async function renderTwickVideoToFile(variables: JsonRecord, settings: RenderSettings, taskId: string): Promise<string> {
   await fs.mkdir(RENDER_OUTPUT_DIR, { recursive: true })
-  const outFile = `editor-render-${taskId}.${settings.format}`
+  const outFile = path.basename(buildRenderOutputPath(taskId, settings.format))
   const renderSettings = {
     outDir: RENDER_OUTPUT_DIR,
     outFile,
@@ -189,6 +186,7 @@ async function uploadRenderedVideo(filePath: string, editorProjectId: string, se
 export async function handleEditorRenderTask(job: Job<TaskJobData>) {
   const { episodeId, editorProjectId, settings: rawSettings } = parseRenderPayload(job)
   let renderedFilePath: string | null = null
+  let expectedOutputPath: string | null = null
 
   try {
     await reportTaskProgress(job, 10, { stage: 'editor_render_load_project' })
@@ -204,7 +202,14 @@ export async function handleEditorRenderTask(job: Job<TaskJobData>) {
     })
     if (!editorProject) throw new Error('EDITOR_PROJECT_NOT_FOUND')
 
-    const { variables, settings, durationSeconds } = await buildTwickRenderInput(editorProject.projectData, rawSettings)
+    const renderContext = {
+      userId: job.data.userId,
+      projectId: job.data.projectId,
+      editorProjectId,
+      episodeId,
+    }
+    const { variables, settings, durationSeconds } = await buildTwickRenderInput(editorProject.projectData, rawSettings, renderContext)
+    expectedOutputPath = buildRenderOutputPath(job.data.taskId, settings.format)
     const durationMinutes = Math.max(0.01, durationSeconds / 60)
 
     await assertTaskActive(job, 'editor_render_mark_processing')
@@ -269,8 +274,19 @@ export async function handleEditorRenderTask(job: Job<TaskJobData>) {
     }).catch(() => undefined)
     throw error
   } finally {
-    if (renderedFilePath) {
-      await fs.unlink(renderedFilePath).catch(() => undefined)
+    const cleanupPaths = new Set<string>()
+    if (expectedOutputPath) cleanupPaths.add(expectedOutputPath)
+    if (renderedFilePath) cleanupPaths.add(renderedFilePath)
+    for (const filePath of cleanupPaths) {
+      await fs.unlink(filePath).catch(() => undefined)
+    }
+    if (expectedOutputPath) {
+      const basename = path.basename(expectedOutputPath, path.extname(expectedOutputPath))
+      const outputDir = path.dirname(expectedOutputPath)
+      const entries = await fs.readdir(outputDir).catch(() => [])
+      await Promise.all(entries
+        .filter((entry) => entry.startsWith(basename) && path.join(outputDir, entry) !== expectedOutputPath)
+        .map((entry) => fs.unlink(path.join(outputDir, entry)).catch(() => undefined)))
     }
   }
 }

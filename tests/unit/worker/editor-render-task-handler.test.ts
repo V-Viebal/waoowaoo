@@ -12,6 +12,7 @@ const fsMock = vi.hoisted(() => ({
   mkdir: vi.fn(async () => undefined),
   readFile: vi.fn(async () => Buffer.from('rendered-video')),
   unlink: vi.fn(async () => undefined),
+  readdir: vi.fn(async () => [] as string[]),
 }))
 const storageMock = vi.hoisted(() => ({
   generateUniqueKey: vi.fn(() => 'videos/editor-render-editor-project-1.mp4'),
@@ -33,6 +34,7 @@ const mediaMock = vi.hoisted(() => ({
   })),
 }))
 const resolverMock = vi.hoisted(() => ({
+  isMediaObjRef: vi.fn((src: string) => src.startsWith('mediaobj://') && src.length > 'mediaobj://'.length),
   resolveMediaUrlForServerRender: vi.fn(async (src: string) => src.startsWith('mediaobj://')
     ? `https://media.example/${src.slice('mediaobj://'.length)}`
     : src),
@@ -65,7 +67,7 @@ function buildProjectData() {
         id: 'track-video',
         type: 'video',
         elements: [
-          { id: 'video-1', type: 'video', s: 0, e: 6, props: { src: 'mediaobj://video-media-1' } },
+          { id: 'video-1', type: 'video', s: 0, e: 8, props: { src: 'mediaobj://video-media-1', label: '/subtitle/not-media' } },
         ],
       },
       {
@@ -114,11 +116,13 @@ describe('editor render worker handler', () => {
     const result = await buildTwickRenderInput(buildProjectData(), { width: 720, height: 1280, fps: 30, format: 'mp4' })
 
     expect(result.settings).toEqual(expect.objectContaining({ width: 720, height: 1280, fps: 30, format: 'mp4' }))
-    expect(result.durationSeconds).toBe(6)
-    const tracks = (result.variables.input as { tracks: Array<{ elements: Array<{ props: { src: string } }> }> }).tracks
+    expect(result.durationSeconds).toBe(8)
+    const tracks = (result.variables.input as { tracks: Array<{ elements: Array<{ props: { src: string; label?: string } }> }> }).tracks
     expect(tracks[0].elements[0].props.src).toBe('https://media.example/video-media-1')
+    expect(tracks[0].elements[0].props.label).toBe('/subtitle/not-media')
     expect(tracks[1].elements[0].props.src).toBe('https://media.example/audio-media-1')
-    expect(resolverMock.resolveMediaUrlForServerRender).toHaveBeenCalledWith('mediaobj://video-media-1')
+    expect(resolverMock.resolveMediaUrlForServerRender).toHaveBeenCalledWith('mediaobj://video-media-1', undefined)
+    expect(resolverMock.resolveMediaUrlForServerRender).not.toHaveBeenCalledWith('/subtitle/not-media', expect.anything())
   })
 
   it('renders, uploads to storage, creates MediaObject, updates editor render fields, and returns actual billing quantity', async () => {
@@ -139,7 +143,7 @@ describe('editor render worker handler', () => {
     )
     expect(mediaMock.ensureMediaObjectFromStorageKey).toHaveBeenCalledWith(
       'videos/editor-render-editor-project-1.mp4',
-      expect.objectContaining({ mimeType: 'video/mp4', width: 720, height: 1280, durationMs: 6000 }),
+      expect.objectContaining({ mimeType: 'video/mp4', width: 720, height: 1280, durationMs: 8000 }),
     )
     expect(prismaMock.novelPromotionEditorProject.update).toHaveBeenNthCalledWith(1, {
       where: { id: 'editor-project-1' },
@@ -156,16 +160,23 @@ describe('editor render worker handler', () => {
         renderTaskId: 'task-render-1',
       }),
     })
+    expect(resolverMock.resolveMediaUrlForServerRender).toHaveBeenCalledWith('mediaobj://video-media-1', {
+      userId: 'user-1',
+      projectId: 'project-1',
+      editorProjectId: 'editor-project-1',
+      episodeId: 'episode-1',
+    })
     expect(result).toEqual(expect.objectContaining({
       success: true,
       mediaObjectId: 'media-render-1',
       outputUrl: '/m/public-render-1',
-      actualQuantity: 0.1,
+      actualQuantity: 8 / 60,
     }))
+    expect(fsMock.unlink).toHaveBeenCalledWith(expect.stringContaining('vvicat-twick-renders/editor-render-task-render-1.mp4'))
     expect(fsMock.unlink).toHaveBeenCalledWith('/tmp/rendered-video.mp4')
   })
 
-  it('marks editor render as FAILED and rethrows so lifecycle rolls back billing on render failure', async () => {
+  it('marks editor render as FAILED and cleans expected temp output on render failure', async () => {
     renderServerMock.renderTwickVideo.mockRejectedValueOnce(new Error('puppeteer missing'))
 
     await expect(handleEditorRenderTask(buildJob())).rejects.toThrow('puppeteer missing')
@@ -178,6 +189,7 @@ describe('editor render worker handler', () => {
       },
     })
     expect(mediaMock.ensureMediaObjectFromStorageKey).not.toHaveBeenCalled()
+    expect(fsMock.unlink).toHaveBeenCalledWith(expect.stringContaining('vvicat-twick-renders/editor-render-task-render-1.mp4'))
   })
 
   it('throws when the editor project does not belong to the episode', async () => {

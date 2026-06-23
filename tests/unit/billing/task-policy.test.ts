@@ -108,4 +108,13 @@ describe('billing/task-policy', () => {
       quantity: 1.25,
     }))
   })
+
+  it('uses 0.01 minute minimum for short editor render exports', () => {
+    const info = expectBillableInfo(buildDefaultTaskBillingInfo(TASK_TYPE.EDITOR_RENDER, {
+      durationMinutes: 0.005,
+    }))
+    expect(info.unit).toBe('minute')
+    expect(info.quantity).toBe(0.01)
+    expect(info.maxFrozenCost).toBe(0.0001)
+  })
 })

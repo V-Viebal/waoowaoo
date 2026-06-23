@@ -9,6 +9,7 @@ import { cancelTask, getTaskById } from '@/lib/task/service'
 import { submitTask } from '@/lib/task/submitter'
 import { TASK_STATUS, TASK_TYPE } from '@/lib/task/types'
 import { normalizeTaskError } from '@/lib/errors/normalize'
+import { calculateEditorRenderBillingMinutes, calculateTwickTimelineDurationSeconds } from '@/lib/twick/caption-duration'
 
 type RouteContext = { params: Promise<{ projectId: string }> }
 type JsonRecord = Record<string, unknown>
@@ -34,26 +35,6 @@ function readPositiveNumber(value: unknown, fallback: number): number {
 
 function readInteger(value: unknown, fallback: number): number {
   return Math.max(1, Math.floor(readPositiveNumber(value, fallback)))
-}
-
-function calculateTimelineDuration(projectData: unknown): number {
-  const project = asRecord(projectData) || {}
-  const metadata = asRecord(project.metadata) || {}
-  const custom = asRecord(metadata.custom) || {}
-  const explicitDuration = readPositiveNumber(custom.duration ?? project.duration, 0)
-  if (explicitDuration > 0) return explicitDuration
-
-  const tracks = Array.isArray(project.tracks) ? project.tracks : []
-  let duration = 0
-  for (const track of tracks) {
-    const trackRecord = asRecord(track)
-    const elements = Array.isArray(trackRecord?.elements) ? trackRecord.elements : []
-    for (const element of elements) {
-      const elementRecord = asRecord(element)
-      duration = Math.max(duration, readPositiveNumber(elementRecord?.e, 0))
-    }
-  }
-  return duration > 0 ? duration : 1
 }
 
 function normalizeSettings(rawSettings: unknown, projectData: unknown) {
@@ -165,29 +146,9 @@ export const POST = apiHandler(async (request: NextRequest, context: RouteContex
   }
 
   const editorProject = await requireOwnedEditorProject({ projectId, episodeId, editorProjectId })
-
-  const activeTask = await prisma.task.findFirst({
-    where: {
-      projectId,
-      type: TASK_TYPE.EDITOR_RENDER,
-      targetType: 'NovelPromotionEditorProject',
-      targetId: editorProjectId,
-      status: { in: [...ACTIVE_TASK_STATUSES] },
-    },
-    orderBy: { createdAt: 'desc' },
-    select: { id: true, status: true },
-  })
-  if (activeTask) {
-    throw new ApiError('CONFLICT', {
-      message: 'Editor render task already in progress',
-      taskId: activeTask.id,
-      status: activeTask.status,
-    })
-  }
-
   const settings = normalizeSettings(body.settings, editorProject.projectData)
-  const durationSeconds = calculateTimelineDuration(editorProject.projectData)
-  const durationMinutes = Math.max(MIN_BILLING_MINUTES, durationSeconds / 60)
+  const durationSeconds = calculateTwickTimelineDurationSeconds(editorProject.projectData)
+  const durationMinutes = calculateEditorRenderBillingMinutes(editorProject.projectData, MIN_BILLING_MINUTES)
   const requestId = getRequestId(request) || null
   const clientRequestId = readString(body.requestId) || request.headers.get('x-request-id') || getIdempotencyKey(request)
   const locale = resolveRequiredTaskLocale(request, body)
@@ -202,40 +163,84 @@ export const POST = apiHandler(async (request: NextRequest, context: RouteContex
     route: 'editor-render',
   }
 
-  const result = await submitTask({
-    userId: authResult.session.user.id,
-    locale,
-    requestId,
-    projectId,
-    episodeId,
-    type: TASK_TYPE.EDITOR_RENDER,
-    targetType: 'NovelPromotionEditorProject',
-    targetId: editorProjectId,
-    payload,
-    dedupeKey: `editor-render:${editorProjectId}:${clientRequestId || fingerprint(payload)}`,
+  const lockResult = await prisma.novelPromotionEditorProject.updateMany({
+    where: {
+      id: editorProjectId,
+      episodeId,
+      renderStatus: { in: ['IDLE', 'FAILED', 'DONE'] },
+    },
+    data: {
+      renderStatus: 'PROCESSING',
+      renderTaskId: null,
+      renderSettings: settings,
+    },
   })
-
-  if (!result.deduped) {
-    await prisma.novelPromotionEditorProject.update({
-      where: { id: editorProjectId },
-      data: {
-        renderStatus: 'PROCESSING',
-        renderTaskId: result.taskId,
-        renderSettings: settings,
+  if (lockResult.count === 0) {
+    const activeTask = await prisma.task.findFirst({
+      where: {
+        projectId,
+        type: TASK_TYPE.EDITOR_RENDER,
+        targetType: 'NovelPromotionEditorProject',
+        targetId: editorProjectId,
+        status: { in: [...ACTIVE_TASK_STATUSES] },
       },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, status: true },
+    })
+    throw new ApiError('CONFLICT', {
+      message: 'Editor render task already in progress',
+      taskId: activeTask?.id,
+      status: activeTask?.status || editorProject.renderStatus,
     })
   }
 
-  return NextResponse.json({
-    data: {
-      taskId: result.taskId,
-      status: result.status,
-      settings,
-      durationSeconds,
-      durationMinutes,
-      deduped: result.deduped,
-    },
-  })
+  try {
+    const result = await submitTask({
+      userId: authResult.session.user.id,
+      locale,
+      requestId,
+      projectId,
+      episodeId,
+      type: TASK_TYPE.EDITOR_RENDER,
+      targetType: 'NovelPromotionEditorProject',
+      targetId: editorProjectId,
+      payload,
+      dedupeKey: `editor-render:${editorProjectId}:${clientRequestId || fingerprint(payload)}`,
+    })
+
+    if (!result.deduped) {
+      await prisma.novelPromotionEditorProject.update({
+        where: { id: editorProjectId },
+        data: {
+          renderStatus: 'PROCESSING',
+          renderTaskId: result.taskId,
+          renderSettings: settings,
+        },
+      })
+    }
+
+    return NextResponse.json({
+      data: {
+        taskId: result.taskId,
+        status: result.status,
+        settings,
+        durationSeconds,
+        durationMinutes,
+        deduped: result.deduped,
+      },
+    })
+  } catch (error) {
+    await prisma.novelPromotionEditorProject.updateMany({
+      where: {
+        id: editorProjectId,
+        renderStatus: 'PROCESSING',
+        renderTaskId: null,
+      },
+      data: { renderStatus: editorProject.renderStatus },
+    }).catch(() => undefined)
+    throw error
+  }
+
 })
 
 export const GET = apiHandler(async (request: NextRequest, context: RouteContext) => {

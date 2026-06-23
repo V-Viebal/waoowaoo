@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   extractMediaObjectId,
   isMediaObjRef,
@@ -8,6 +8,14 @@ import {
   resolveMediaUrlsForServerRender,
   toMediaObjRef,
 } from '@/lib/twick/media-url-resolver'
+
+const prismaMock = vi.hoisted(() => ({
+  project: { findFirst: vi.fn<() => Promise<{ id: string } | null>>(async () => null) },
+  novelPromotionEditorAsset: { findFirst: vi.fn<() => Promise<{ id: string } | null>>(async () => null) },
+  user: { findFirst: vi.fn<() => Promise<{ id: string } | null>>(async () => null) },
+}))
+
+vi.mock('@/lib/prisma', () => ({ prisma: prismaMock }))
 
 vi.mock('@/lib/media/service', () => ({
   getMediaObjectById: vi.fn(async (id: string) => {
@@ -33,7 +41,21 @@ vi.mock('@/lib/storage', () => ({
   toFetchableUrl: vi.fn((url: string) => url.startsWith('/') ? `http://localhost:3000${url}` : url),
 }))
 
+const serverRenderContext = {
+  userId: 'user-1',
+  projectId: 'project-1',
+  editorProjectId: 'editor-project-1',
+  episodeId: 'episode-1',
+}
+
 describe('media-url-resolver', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    prismaMock.project.findFirst.mockResolvedValue({ id: 'project-1' })
+    prismaMock.novelPromotionEditorAsset.findFirst.mockResolvedValue(null)
+    prismaMock.user.findFirst.mockResolvedValue(null)
+  })
+
   describe('isMediaObjRef', () => {
     it('returns true for mediaobj references with a non-empty id', () => {
       expect(isMediaObjRef('mediaobj://abc123')).toBe(true)
@@ -96,14 +118,31 @@ describe('media-url-resolver', () => {
   })
 
   describe('resolveMediaUrlForServerRender', () => {
-    it('returns absolute fetchable URLs for external and root-relative refs', async () => {
-      await expect(resolveMediaUrlForServerRender('/api/files/video.mp4')).resolves.toBe('http://localhost:3000/api/files/video.mp4')
+    it('returns non-mediaobj refs unchanged for server rendering', async () => {
+      await expect(resolveMediaUrlForServerRender('/api/files/video.mp4')).resolves.toBe('/api/files/video.mp4')
       await expect(resolveMediaUrlForServerRender('https://example.com/video.mp4')).resolves.toBe('https://example.com/video.mp4')
     })
 
-    it('resolves mediaobj references to signed fetchable storage URLs', async () => {
-      await expect(resolveMediaUrlForServerRender('mediaobj://mo-video-1'))
+    it('resolves accessible mediaobj references to signed fetchable storage URLs', async () => {
+      await expect(resolveMediaUrlForServerRender('mediaobj://mo-video-1', serverRenderContext))
         .resolves.toBe('http://localhost:3000/api/storage/sign?key=videos%2Fmo-video-1.mp4')
+      expect(prismaMock.project.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+        where: expect.objectContaining({ id: 'project-1', userId: 'user-1' }),
+      }))
+    })
+
+    it('rejects mediaobj references without server render ownership context', async () => {
+      await expect(resolveMediaUrlForServerRender('mediaobj://mo-video-1'))
+        .rejects.toThrow('Media object render context is required: mo-video-1')
+    })
+
+    it('rejects mediaobj references that are not reachable from project, editor assets, or user global assets', async () => {
+      prismaMock.project.findFirst.mockResolvedValueOnce(null)
+      prismaMock.novelPromotionEditorAsset.findFirst.mockResolvedValueOnce(null)
+      prismaMock.user.findFirst.mockResolvedValueOnce(null)
+
+      await expect(resolveMediaUrlForServerRender('mediaobj://mo-video-foreign', serverRenderContext))
+        .rejects.toThrow('Media object is not accessible for editor render: mo-video-foreign')
     })
   })
 
@@ -112,10 +151,10 @@ describe('media-url-resolver', () => {
       const result = await resolveMediaUrlsForServerRender([
         'mediaobj://mo-video-1',
         '/api/files/audio.mp3',
-      ])
+      ], serverRenderContext)
 
       expect(result.get('mediaobj://mo-video-1')).toBe('http://localhost:3000/api/storage/sign?key=videos%2Fmo-video-1.mp4')
-      expect(result.get('/api/files/audio.mp3')).toBe('http://localhost:3000/api/files/audio.mp3')
+      expect(result.get('/api/files/audio.mp3')).toBe('/api/files/audio.mp3')
     })
   })
 })

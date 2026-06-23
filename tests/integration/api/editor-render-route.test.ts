@@ -48,7 +48,7 @@ function buildProjectData() {
     version: 1,
     metadata: { custom: { width: 1080, height: 1920, fps: 24, duration: 75 } },
     tracks: [
-      { id: 'track-video', type: 'video', elements: [{ id: 'video-1', type: 'video', s: 0, e: 75, props: { src: 'mediaobj://video-1' } }] },
+      { id: 'track-video', type: 'video', elements: [{ id: 'video-1', type: 'video', s: 0, e: 90, props: { src: 'mediaobj://video-1' } }] },
     ],
   }
 }
@@ -145,7 +145,7 @@ describe('editor render route', () => {
     expect(res.status).toBe(200)
     const json = await res.json() as { data: { taskId: string; durationMinutes: number } }
     expect(json.data.taskId).toBe('task-render-1')
-    expect(json.data.durationMinutes).toBeCloseTo(1.25, 8)
+    expect(json.data.durationMinutes).toBeCloseTo(1.5, 8)
     expect(submitTaskMock).toHaveBeenCalledWith(expect.objectContaining({
       userId: 'user-1',
       locale: 'zh',
@@ -156,9 +156,9 @@ describe('editor render route', () => {
       targetId: 'editor-project-1',
       payload: expect.objectContaining({
         editorProjectId: 'editor-project-1',
-        durationSeconds: 75,
-        durationMinutes: 1.25,
-        quantity: 1.25,
+        durationSeconds: 90,
+        durationMinutes: 1.5,
+        quantity: 1.5,
         route: 'editor-render',
       }),
     }))
@@ -169,9 +169,20 @@ describe('editor render route', () => {
       model: BILLING_ITEM.EDITOR_EXPORT,
       action: BILLING_ITEM.EDITOR_EXPORT,
       unit: 'minute',
-      quantity: 1.25,
-      maxFrozenCost: 0.0125,
+      quantity: 1.5,
+      maxFrozenCost: 0.015,
     }))
+    expect(prismaMock.novelPromotionEditorProject.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: 'editor-project-1',
+        episodeId: 'episode-1',
+        renderStatus: { in: ['IDLE', 'FAILED', 'DONE'] },
+      },
+      data: expect.objectContaining({
+        renderStatus: 'PROCESSING',
+        renderTaskId: null,
+      }),
+    })
     expect(prismaMock.novelPromotionEditorProject.update).toHaveBeenCalledWith({
       where: { id: 'editor-project-1' },
       data: expect.objectContaining({
@@ -181,14 +192,32 @@ describe('editor render route', () => {
     })
   })
 
-  it('rejects concurrent active render tasks for the same editor project', async () => {
+  it('rejects concurrent active render tasks for the same editor project when the atomic render lock is held', async () => {
     const { POST } = await import('@/app/api/novel-promotion/[projectId]/editor/render/route')
+    prismaMock.novelPromotionEditorProject.updateMany.mockResolvedValueOnce({ count: 0 })
     prismaMock.task.findFirst.mockResolvedValueOnce({ id: 'task-active', status: TASK_STATUS.PROCESSING })
 
     const res = await POST(buildPostRequest(), buildContext())
 
     expect(res.status).toBe(409)
     expect(submitTaskMock).not.toHaveBeenCalled()
+  })
+
+  it('allows only one of two concurrent POST requests to create a render task', async () => {
+    const { POST } = await import('@/app/api/novel-promotion/[projectId]/editor/render/route')
+    prismaMock.novelPromotionEditorProject.updateMany
+      .mockResolvedValueOnce({ count: 1 })
+      .mockResolvedValueOnce({ count: 0 })
+    prismaMock.task.findFirst.mockResolvedValueOnce({ id: 'task-render-1', status: TASK_STATUS.QUEUED })
+
+    const [first, second] = await Promise.all([
+      POST(buildPostRequest({ requestId: 'request-a' }), buildContext()),
+      POST(buildPostRequest({ requestId: 'request-b' }), buildContext()),
+    ])
+
+    const statuses = [first.status, second.status].sort()
+    expect(statuses).toEqual([200, 409])
+    expect(submitTaskMock).toHaveBeenCalledTimes(1)
   })
 
   it('returns task status for an owned render task', async () => {
@@ -204,6 +233,35 @@ describe('editor render route', () => {
     const json = await res.json() as { data: { task: { id: string }; editorProject: { id: string } } }
     expect(json.data.task.id).toBe('task-render-1')
     expect(json.data.editorProject.id).toBe('editor-project-1')
+  })
+
+  it('uses the 0.01 minute minimum for very short render billing', async () => {
+    const { POST } = await import('@/app/api/novel-promotion/[projectId]/editor/render/route')
+    prismaMock.novelPromotionEditorProject.findFirst.mockResolvedValueOnce({
+      id: 'editor-project-1',
+      episodeId: 'episode-1',
+      projectData: {
+        version: 1,
+        metadata: { custom: { width: 1080, height: 1920, fps: 24, duration: 0.2 } },
+        tracks: [
+          { id: 'track-video', type: 'video', elements: [{ id: 'video-1', type: 'video', s: 0, e: 0.3, props: { src: 'mediaobj://video-1' } }] },
+        ],
+      },
+      renderStatus: 'IDLE',
+      renderTaskId: null,
+      renderOutputMediaObjectId: null,
+      renderSettings: null,
+    })
+
+    const res = await POST(buildPostRequest(), buildContext())
+
+    expect(res.status).toBe(200)
+    const submitArg = submitTaskMock.mock.calls[0][0]
+    expect(submitArg.payload.durationSeconds).toBe(0.3)
+    expect(submitArg.payload.durationMinutes).toBe(0.01)
+    const billingInfo = buildDefaultTaskBillingInfo(TASK_TYPE.EDITOR_RENDER, submitArg.payload) as Extract<TaskBillingInfo, { billable: true }>
+    expect(billingInfo.quantity).toBe(0.01)
+    expect(billingInfo.maxFrozenCost).toBe(0.0001)
   })
 
   it('cancels queued render task, removes BullMQ job, and resets render status', async () => {

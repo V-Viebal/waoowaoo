@@ -13,7 +13,17 @@ export interface CaptionDurationVoiceLineInput {
 }
 
 function readNumber(value: unknown): number | null {
-  return typeof value === 'number' && Number.isFinite(value) ? value : null
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null
+  if (typeof value === 'string' && value.trim()) {
+    const numeric = Number(value)
+    return Number.isFinite(numeric) ? numeric : null
+  }
+  return null
+}
+
+function readPositiveNumber(value: unknown): number {
+  const numeric = readNumber(value)
+  return numeric !== null && numeric > 0 ? numeric : 0
 }
 
 function readJsonRecord(value: unknown): Record<string, unknown> | null {
@@ -118,6 +128,40 @@ export function calculateCaptionTimelineDurationSeconds(
   voiceLines: CaptionVoiceLineSource[],
 ): number {
   return calculateCaptionSourceDurationSeconds(alignCaptionSourcesToAudioRanges(projectData, voiceLines))
+}
+
+export function calculateTwickTimelineMaxEndSeconds(projectData: unknown): number {
+  const projectRecord = readJsonRecord(projectData)
+  const tracks = Array.isArray(projectRecord?.tracks) ? projectRecord.tracks : []
+  let maxEnd = 0
+
+  for (const track of tracks) {
+    const trackRecord = readJsonRecord(track)
+    const elements = Array.isArray(trackRecord?.elements) ? trackRecord.elements : []
+    for (const element of elements) {
+      const elementRecord = readJsonRecord(element)
+      maxEnd = Math.max(maxEnd, readPositiveNumber(elementRecord?.e))
+    }
+  }
+
+  return maxEnd
+}
+
+export function calculateTwickTimelineDurationSeconds(projectData: unknown, fallbackSeconds = 1): number {
+  const projectRecord = readJsonRecord(projectData) || {}
+  const metadata = readJsonRecord(projectRecord.metadata) || {}
+  const custom = readJsonRecord(metadata.custom) || {}
+  const explicitDuration = Math.max(
+    readPositiveNumber(custom.duration),
+    readPositiveNumber(projectRecord.duration),
+  )
+  const maxTrackEnd = calculateTwickTimelineMaxEndSeconds(projectData)
+  const duration = Math.max(explicitDuration, maxTrackEnd)
+  return duration > 0 ? duration : fallbackSeconds
+}
+
+export function calculateEditorRenderBillingMinutes(projectData: unknown, minMinutes = 0.01): number {
+  return Math.max(minMinutes, calculateTwickTimelineDurationSeconds(projectData) / 60)
 }
 
 export function calculateCaptionBillingDurationSeconds(

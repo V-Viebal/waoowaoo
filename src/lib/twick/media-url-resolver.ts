@@ -1,8 +1,16 @@
+import { prisma } from '@/lib/prisma'
 import { getMediaObjectById } from '@/lib/media/service'
 import { getSignedObjectUrl, toFetchableUrl } from '@/lib/storage'
 import type { MediaObjRef } from './types'
 
 const MEDIA_OBJ_PREFIX = 'mediaobj://'
+
+type ServerRenderMediaContext = {
+  userId: string
+  projectId: string
+  editorProjectId: string
+  episodeId?: string | null
+}
 
 export function isMediaObjRef(src: string): src is MediaObjRef {
   return src.startsWith(MEDIA_OBJ_PREFIX) && src.slice(MEDIA_OBJ_PREFIX.length).trim().length > 0
@@ -39,9 +47,75 @@ export async function resolveMediaUrl(ref: string): Promise<string> {
   return mediaObject.url
 }
 
-export async function resolveMediaUrlForServerRender(ref: string): Promise<string> {
+async function canAccessMediaObjectForServerRender(mediaObjectId: string, context: ServerRenderMediaContext): Promise<boolean> {
+  const [projectMedia, editorAsset, globalMedia] = await Promise.all([
+    prisma.project.findFirst({
+      where: {
+        id: context.projectId,
+        userId: context.userId,
+        novelPromotionData: {
+          episodes: {
+            some: {
+              ...(context.episodeId ? { id: context.episodeId } : {}),
+              OR: [
+                { audioMediaId: mediaObjectId },
+                { voiceLines: { some: { audioMediaId: mediaObjectId } } },
+                { shots: { some: { imageMediaId: mediaObjectId } } },
+                { storyboards: { some: { panels: { some: { imageMediaId: mediaObjectId } } } } },
+                { storyboards: { some: { panels: { some: { videoMediaId: mediaObjectId } } } } },
+                { storyboards: { some: { panels: { some: { lipSyncVideoMediaId: mediaObjectId } } } } },
+                { storyboards: { some: { panels: { some: { sketchImageMediaId: mediaObjectId } } } } },
+                { storyboards: { some: { panels: { some: { previousImageMediaId: mediaObjectId } } } } },
+                { storyboards: { some: { supplementaryPanels: { some: { imageMediaId: mediaObjectId } } } } },
+                { storyboards: { some: { imageVersions: { some: { imageMediaId: mediaObjectId } } } } },
+              ],
+            },
+          },
+        },
+      },
+      select: { id: true },
+    }),
+    prisma.novelPromotionEditorAsset.findFirst({
+      where: {
+        editorProjectId: context.editorProjectId,
+        mediaObjectId,
+        editorProject: {
+          episode: {
+            ...(context.episodeId ? { id: context.episodeId } : {}),
+            novelPromotionProject: {
+              projectId: context.projectId,
+              project: { userId: context.userId },
+            },
+          },
+        },
+      },
+      select: { id: true },
+    }),
+    prisma.user.findFirst({
+      where: {
+        id: context.userId,
+        OR: [
+          { globalCharacters: { some: { customVoiceMediaId: mediaObjectId } } },
+          { globalCharacters: { some: { appearances: { some: { imageMediaId: mediaObjectId } } } } },
+          { globalCharacters: { some: { appearances: { some: { previousImageMediaId: mediaObjectId } } } } },
+          { globalLocations: { some: { images: { some: { imageMediaId: mediaObjectId } } } } },
+          { globalLocations: { some: { images: { some: { previousImageMediaId: mediaObjectId } } } } },
+          { globalVoices: { some: { customVoiceMediaId: mediaObjectId } } },
+        ],
+      },
+      select: { id: true },
+    }),
+  ])
+
+  return !!projectMedia || !!editorAsset || !!globalMedia
+}
+
+export async function resolveMediaUrlForServerRender(
+  ref: string,
+  context?: ServerRenderMediaContext,
+): Promise<string> {
   if (!isMediaObjRef(ref)) {
-    return toFetchableUrl(ref)
+    return ref
   }
 
   const mediaObjectId = extractMediaObjectId(ref)
@@ -52,6 +126,15 @@ export async function resolveMediaUrlForServerRender(ref: string): Promise<strin
   const mediaObject = await getMediaObjectById(mediaObjectId)
   if (!mediaObject) {
     throw new Error(`Media object not found: ${mediaObjectId}`)
+  }
+
+  if (!context) {
+    throw new Error(`Media object render context is required: ${mediaObjectId}`)
+  }
+
+  const canAccess = await canAccessMediaObjectForServerRender(mediaObjectId, context)
+  if (!canAccess) {
+    throw new Error(`Media object is not accessible for editor render: ${mediaObjectId}`)
   }
 
   if (!mediaObject.storageKey) {
@@ -71,11 +154,14 @@ export async function resolveMediaUrls(refs: string[]): Promise<Map<string, stri
   return resolved
 }
 
-export async function resolveMediaUrlsForServerRender(refs: string[]): Promise<Map<string, string>> {
+export async function resolveMediaUrlsForServerRender(
+  refs: string[],
+  context?: ServerRenderMediaContext,
+): Promise<Map<string, string>> {
   const resolved = new Map<string, string>()
 
   await Promise.all(refs.map(async (ref) => {
-    resolved.set(ref, await resolveMediaUrlForServerRender(ref))
+    resolved.set(ref, await resolveMediaUrlForServerRender(ref, context))
   }))
 
   return resolved

@@ -386,7 +386,8 @@ export function buildDefaultTaskBillingInfo(taskType: TaskType, payload: AnyPayl
         taskType,
         payload,
         BILLING_ITEM.EDITOR_EXPORT,
-        normalizeBillingQuantity(payload?.durationMinutes ?? payload?.quantity, 1),
+        normalizeCaptionBillingMinutes(payload?.durationMinutes ?? payload?.quantity, 1),
+        { minQuantity: 0.01 },
       )
     case TASK_TYPE.PANEL_VARIANT:
       return buildImageTaskInfo(taskType, payload)
