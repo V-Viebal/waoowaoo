@@ -15,6 +15,7 @@ export type TimelineTransitionInput = {
 type TransitionEditorLike = {
   addTransition?: (fromElementId: string, toElementId: string, kind: string, duration: number) => boolean
   updateElements?: (updates: Array<{ elementId: string; updates: Partial<TwickTimelineElement> }>) => void
+  getProject?: () => ProjectJSON
 }
 
 function isSupportedKind(kind: string): kind is TwickTransitionKind {
@@ -80,11 +81,13 @@ export function applyTwickTransitionToProject<TProject extends Pick<ProjectJSON,
   }
 }
 
-export function setTimelineElementTransition(editor: TransitionEditorLike, input: TimelineTransitionInput): boolean {
+export function setTimelineElementTransition(editor: TransitionEditorLike, input: TimelineTransitionInput): ProjectJSON | null {
   const transition = createTwickTransition(input)
 
   if (typeof editor.addTransition === 'function') {
-    return editor.addTransition(input.fromElementId, input.toElementId, transition.kind, transition.duration)
+    const ok = editor.addTransition(input.fromElementId, input.toElementId, transition.kind, transition.duration)
+    if (!ok) return null
+    return typeof editor.getProject === 'function' ? editor.getProject() : null
   }
 
   if (typeof editor.updateElements === 'function') {
@@ -94,8 +97,8 @@ export function setTimelineElementTransition(editor: TransitionEditorLike, input
         updates: { transition },
       },
     ])
-    return true
+    return typeof editor.getProject === 'function' ? editor.getProject() : null
   }
 
-  return false
+  return null
 }

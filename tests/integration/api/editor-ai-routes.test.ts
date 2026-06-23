@@ -749,5 +749,52 @@ describe('editor AI route skeletons', () => {
       expect(json.data.recommendations[0].kind).toBe('fade')
       expect(submitTaskMock).not.toHaveBeenCalled()
     })
+
+    it('returns 400 when transition clips are not adjacent on the same track', async () => {
+      const { POST } = await import('@/app/api/novel-promotion/[projectId]/editor/ai/transition/route')
+      prismaMock.novelPromotionEditorProject.findFirst.mockResolvedValueOnce({
+        id: 'editor-project-1',
+        episodeId: 'episode-1',
+        projectData: {
+          version: 1,
+          tracks: [{ id: 'track-video-main', type: 'video', elements: [
+            { id: 'video-1', type: 'video', s: 0, e: 6, props: { src: 'mediaobj://video-1' }, metadata: { panelId: 'panel-1', storyboardId: 'storyboard-1' } },
+            { id: 'video-middle', type: 'video', s: 6, e: 8, props: { src: 'mediaobj://video-middle' }, metadata: { panelId: 'panel-middle', storyboardId: 'storyboard-middle' } },
+            { id: 'video-2', type: 'video', s: 8, e: 10, props: { src: 'mediaobj://video-2' }, metadata: { panelId: 'panel-2', storyboardId: 'storyboard-2' } },
+          ] }],
+        },
+      })
+
+      const res = await POST(buildEditorAiRequest(path, body), buildContext())
+
+      expect(res.status).toBe(400)
+      const json = await res.json() as Record<string, unknown>
+      expect(json.code).toBe('INVALID_PARAMS')
+      expect(json.message).toBe('TRANSITION_ELEMENTS_NOT_ADJACENT')
+      expect(submitTaskMock).not.toHaveBeenCalled()
+    })
+
+    it('returns 400 when transition target type is not video or image', async () => {
+      const { POST } = await import('@/app/api/novel-promotion/[projectId]/editor/ai/transition/route')
+      prismaMock.novelPromotionEditorProject.findFirst.mockResolvedValueOnce({
+        id: 'editor-project-1',
+        episodeId: 'episode-1',
+        projectData: {
+          version: 1,
+          tracks: [{ id: 'track-video-main', type: 'video', elements: [
+            { id: 'video-1', type: 'video', s: 0, e: 6, props: { src: 'mediaobj://video-1' }, metadata: { panelId: 'panel-1', storyboardId: 'storyboard-1' } },
+            { id: 'video-2', type: 'audio', s: 6, e: 10, props: { src: 'mediaobj://audio-1' }, metadata: { panelId: 'panel-2', storyboardId: 'storyboard-2' } },
+          ] }],
+        },
+      })
+
+      const res = await POST(buildEditorAiRequest(path, body), buildContext())
+
+      expect(res.status).toBe(400)
+      const json = await res.json() as Record<string, unknown>
+      expect(json.code).toBe('INVALID_PARAMS')
+      expect(json.message).toBe('TRANSITION_UNSUPPORTED_ELEMENT_TYPE')
+      expect(submitTaskMock).not.toHaveBeenCalled()
+    })
   })
 })

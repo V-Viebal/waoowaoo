@@ -333,6 +333,7 @@
           "selectedPair": "已选片段对：{from} → {to}",
           "duration": "时长 {seconds}s",
           "freeNote": "免费：仅使用规则分析，不调用 provider，也不预冻结费用。",
+          "renderSupportNote": "转场已保存到 Twick 时间轴；预览/导出中的视觉转场效果取决于当前安装的 Twick 渲染器版本支持。",
           "kinds": {
             "fade": "淡入淡出",
             "dissolve": "叠化",

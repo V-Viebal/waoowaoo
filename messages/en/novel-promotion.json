@@ -333,6 +333,7 @@
           "selectedPair": "Selected pair: {from} → {to}",
           "duration": "Duration {seconds}s",
           "freeNote": "Free: rule-based local analysis only, no provider call and no billing freeze.",
+          "renderSupportNote": "Saved to the Twick timeline. Visual transition rendering in preview/export depends on renderer support in the installed Twick version.",
           "kinds": {
             "fade": "Fade",
             "dissolve": "Dissolve",

@@ -102,7 +102,7 @@ export function TransitionPanel() {
   const t = useTranslations('novelPromotion.editor.rightPanel.ai')
   const { projectId, episodeId } = useWorkspaceProvider()
   const { present, selectedItem, editor } = useTimelineContext()
-  const { editorProjectId, isLoadingData, isLoadingProject, flushProjectSave } = useEditorStageRuntime()
+  const { editorProjectId, isLoadingData, isLoadingProject, updateProjectData, flushProjectSave } = useEditorStageRuntime()
   const [recommendations, setRecommendations] = useState<SmartTransitionRecommendation[]>([])
   const [localError, setLocalError] = useState<string | null>(null)
   const [appliedKind, setAppliedKind] = useState<string | null>(null)
@@ -161,17 +161,18 @@ export function TransitionPanel() {
   const applyRecommendation = async (recommendation: SmartTransitionRecommendation) => {
     if (!pair) return
     setLocalError(null)
-    const ok = setTimelineElementTransition(editor, {
+    const latestProject = setTimelineElementTransition(editor, {
       fromElementId: pair.fromElementId,
       toElementId: pair.toElementId,
       kind: recommendation.kind,
       duration: recommendation.duration,
     })
-    if (!ok) {
+    if (!latestProject) {
       setLocalError(t('transition.applyFailed'))
       return
     }
     try {
+      updateProjectData(latestProject)
       await flushProjectSave()
       setAppliedKind(recommendation.kind)
     } catch (error) {
@@ -241,6 +242,7 @@ export function TransitionPanel() {
         </div>
       ) : null}
       <div className="mt-2 text-[10px] leading-4 text-slate-400">{t('transition.freeNote')}</div>
+      <div className="mt-1 text-[10px] leading-4 text-amber-600">{t('transition.renderSupportNote')}</div>
     </div>
   )
 }

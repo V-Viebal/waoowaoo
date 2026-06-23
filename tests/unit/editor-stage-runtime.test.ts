@@ -16,6 +16,7 @@ import {
   mapStoryboardsToPanelVideos,
   mapVoiceLinesToSources,
 } from '@/lib/novel-promotion/stages/editor-stage-runtime/useEditorStageDataLoader'
+import { applyTwickTransitionToProject } from '@/lib/twick/transition'
 
 const apiFetchMock = vi.hoisted(() => vi.fn())
 
@@ -426,6 +427,75 @@ describe('useEditorProjectSync', () => {
       await new Promise((resolve) => setTimeout(resolve, EDITOR_PROJECT_SAVE_DEBOUNCE_MS + 20))
     })
     expect(savedProjects).toHaveLength(3)
+  })
+
+  it('flushProjectSave saves the transition revision when the caller updates projectData before flushing', async () => {
+    const savedProjects: TwickTimelineProject[] = []
+
+    apiFetchMock.mockImplementation(async (url: string, options?: RequestInit) => {
+      if (options?.method === 'PUT') {
+        const body = JSON.parse(String(options.body)) as { projectData: TwickTimelineProject }
+        savedProjects.push(body.projectData)
+        return okJson({
+          data: {
+            id: 'editor-project-1',
+            version: savedProjects.length + 1,
+            updatedAt: '2026-01-01T00:00:00.000Z',
+          },
+        })
+      }
+
+      if (url.includes('/editor?episodeId=')) {
+        return okJson({
+          data: {
+            id: 'editor-project-1',
+            version: 1,
+            updatedAt: '2026-01-01T00:00:00.000Z',
+            projectData: createProject({
+              tracks: [{
+                id: 'track-video-main',
+                type: 'video',
+                elements: [
+                  { id: 'clip-1', type: 'video', s: 0, e: 4, props: { src: 'mediaobj://video-1' }, metadata: { panelId: 'panel-1', storyboardId: 'storyboard-1' } },
+                  { id: 'clip-2', type: 'video', s: 4, e: 8, props: { src: 'mediaobj://video-2' }, metadata: { panelId: 'panel-2', storyboardId: 'storyboard-1' } },
+                ],
+              }],
+            }),
+          },
+        })
+      }
+
+      return okJson({ data: null })
+    })
+
+    const hook = renderEditorProjectSyncHook(defaultHookProps)
+
+    await waitForExpectation(() => {
+      expect(hook.result.current?.projectData?.tracks[0]?.elements).toHaveLength(2)
+    })
+
+    const latestProject = applyTwickTransitionToProject(hook.result.current!.projectData!, {
+      fromElementId: 'clip-1',
+      toElementId: 'clip-2',
+      kind: 'fade',
+      duration: 0.5,
+    })
+    act(() => {
+      hook.result.current?.updateProjectData(latestProject)
+    })
+
+    await act(async () => {
+      await hook.result.current?.flushProjectSave()
+    })
+
+    expect(savedProjects).toHaveLength(1)
+    expect(savedProjects[0].tracks[0].elements[0]).toEqual(expect.objectContaining({
+      transition: {
+        toElementId: 'clip-2',
+        duration: 0.5,
+        kind: 'fade',
+      },
+    }))
   })
 
   it('flushProjectSave waits for a pending debounced save to finish before resolving', async () => {

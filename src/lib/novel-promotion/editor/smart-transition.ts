@@ -1,6 +1,6 @@
 import type { ProjectJSON } from '@twick/timeline'
 import type { TwickTimelineElement } from '@/lib/twick/types'
-import { TWICK_TRANSITION_KINDS, type TwickTransitionKind, findTimelineElement } from '@/lib/twick/transition'
+import { TWICK_TRANSITION_KINDS, type TwickTransitionKind } from '@/lib/twick/transition'
 
 export type SmartTransitionClip = {
   elementId: string
@@ -29,6 +29,10 @@ function readString(value: unknown): string | null {
 
 function readNumber(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null
+}
+
+function isTransitionMediaElement(element: TwickTimelineElement): boolean {
+  return element.type === 'video' || element.type === 'image'
 }
 
 function clipFromElement(element: TwickTimelineElement): SmartTransitionClip {
@@ -124,15 +128,52 @@ export function buildSmartTransitionInputFromProject(params: {
   fromElementId: string
   toElementId: string
 }): SmartTransitionInput {
-  const fromElement = findTimelineElement(params.projectData, params.fromElementId)
-  const toElement = findTimelineElement(params.projectData, params.toElementId)
+  if (params.fromElementId === params.toElementId) throw new Error('TRANSITION_SAME_ELEMENT')
 
-  if (!fromElement) throw new Error('TRANSITION_FROM_ELEMENT_NOT_FOUND')
-  if (!toElement) throw new Error('TRANSITION_TO_ELEMENT_NOT_FOUND')
-  if (fromElement.id === toElement.id) throw new Error('TRANSITION_SAME_ELEMENT')
-
-  return {
-    from: clipFromElement(fromElement),
-    to: clipFromElement(toElement),
+  const allElements = (params.projectData.tracks || []).flatMap((track) => (
+    Array.isArray(track.elements) ? track.elements as TwickTimelineElement[] : []
+  ))
+  if (!allElements.some((element) => element.id === params.fromElementId)) {
+    throw new Error('TRANSITION_FROM_ELEMENT_NOT_FOUND')
   }
+  if (!allElements.some((element) => element.id === params.toElementId)) {
+    throw new Error('TRANSITION_TO_ELEMENT_NOT_FOUND')
+  }
+
+  for (const track of params.projectData.tracks || []) {
+    const elements = Array.isArray(track.elements) ? track.elements as TwickTimelineElement[] : []
+    const fromElement = elements.find((element) => element.id === params.fromElementId)
+    const toElement = elements.find((element) => element.id === params.toElementId)
+
+    if (!fromElement && !toElement) continue
+    if (!fromElement) throw new Error('TRANSITION_FROM_TO_DIFFERENT_TRACKS')
+    if (!toElement) throw new Error('TRANSITION_FROM_TO_DIFFERENT_TRACKS')
+    if (!isTransitionMediaElement(fromElement) || !isTransitionMediaElement(toElement)) {
+      throw new Error('TRANSITION_UNSUPPORTED_ELEMENT_TYPE')
+    }
+
+    const orderedMediaElements = elements
+      .filter(isTransitionMediaElement)
+      .slice()
+      .sort((a, b) => (readNumber(a.s) ?? 0) - (readNumber(b.s) ?? 0))
+    const fromIndex = orderedMediaElements.findIndex((element) => element.id === params.fromElementId)
+    const expectedToElement = fromIndex >= 0 ? orderedMediaElements[fromIndex + 1] : null
+
+    if (!expectedToElement || expectedToElement.id !== params.toElementId) {
+      throw new Error('TRANSITION_ELEMENTS_NOT_ADJACENT')
+    }
+
+    const fromEnd = readNumber(fromElement.e)
+    const toStart = readNumber(toElement.s)
+    if (fromEnd !== null && toStart !== null && toStart < fromEnd - 0.01) {
+      throw new Error('TRANSITION_ELEMENTS_NOT_ADJACENT')
+    }
+
+    return {
+      from: clipFromElement(fromElement),
+      to: clipFromElement(toElement),
+    }
+  }
+
+  throw new Error('TRANSITION_FROM_TO_DIFFERENT_TRACKS')
 }
