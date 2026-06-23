@@ -92,4 +92,20 @@ describe('billing/task-policy', () => {
     expect(info.metadata).toEqual(expect.objectContaining({ maxSeconds: 10 }))
     expect(info.action).toBe(TASK_TYPE.EDITOR_AI_VOICE_OPTIMIZE)
   })
+
+  it('bills editor render export as editor_export per minute with pre-freeze quantity', () => {
+    const info = expectBillableInfo(buildDefaultTaskBillingInfo(TASK_TYPE.EDITOR_RENDER, {
+      durationMinutes: 1.25,
+    }))
+    expect(info.apiType).toBe('editor')
+    expect(info.model).toBe('editor_export')
+    expect(info.action).toBe('editor_export')
+    expect(info.unit).toBe('minute')
+    expect(info.quantity).toBe(1.25)
+    expect(info.maxFrozenCost).toBe(0.0125)
+    expect(info.metadata).toEqual(expect.objectContaining({
+      billingItem: 'editor_export',
+      quantity: 1.25,
+    }))
+  })
 })

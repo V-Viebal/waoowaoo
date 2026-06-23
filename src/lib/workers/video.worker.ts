@@ -19,6 +19,7 @@ import { resolveBuiltinCapabilitiesByModelKey } from '@/lib/model-capabilities/l
 import { parseModelKeyStrict } from '@/lib/model-config-contract'
 import { getProviderConfig } from '@/lib/api-config'
 import { buildGridVideoPrompt, isGridLayout } from '@/lib/storyboard-images/grid-video-prompt'
+import { handleEditorRenderTask } from './handlers/editor-render-task-handler'
 
 type AnyObj = Record<string, unknown>
 type VideoOptionValue = string | number | boolean
@@ -323,6 +324,8 @@ async function processVideoTask(job: Job<TaskJobData>) {
       return await handleVideoPanelTask(job)
     case TASK_TYPE.LIP_SYNC:
       return await handleLipSyncTask(job)
+    case TASK_TYPE.EDITOR_RENDER:
+      return await handleEditorRenderTask(job)
     default:
       throw new Error(`Unsupported video task type: ${job.data.type}`)
   }

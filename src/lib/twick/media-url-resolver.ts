@@ -1,4 +1,5 @@
 import { getMediaObjectById } from '@/lib/media/service'
+import { getSignedObjectUrl, toFetchableUrl } from '@/lib/storage'
 import type { MediaObjRef } from './types'
 
 const MEDIA_OBJ_PREFIX = 'mediaobj://'
@@ -38,11 +39,43 @@ export async function resolveMediaUrl(ref: string): Promise<string> {
   return mediaObject.url
 }
 
+export async function resolveMediaUrlForServerRender(ref: string): Promise<string> {
+  if (!isMediaObjRef(ref)) {
+    return toFetchableUrl(ref)
+  }
+
+  const mediaObjectId = extractMediaObjectId(ref)
+  if (!mediaObjectId) {
+    throw new Error(`Invalid media object reference: ${ref}`)
+  }
+
+  const mediaObject = await getMediaObjectById(mediaObjectId)
+  if (!mediaObject) {
+    throw new Error(`Media object not found: ${mediaObjectId}`)
+  }
+
+  if (!mediaObject.storageKey) {
+    throw new Error(`Media object has no storage key: ${mediaObjectId}`)
+  }
+
+  return toFetchableUrl(await getSignedObjectUrl(mediaObject.storageKey, 24 * 60 * 60))
+}
+
 export async function resolveMediaUrls(refs: string[]): Promise<Map<string, string>> {
   const resolved = new Map<string, string>()
 
   await Promise.all(refs.map(async (ref) => {
     resolved.set(ref, await resolveMediaUrl(ref))
+  }))
+
+  return resolved
+}
+
+export async function resolveMediaUrlsForServerRender(refs: string[]): Promise<Map<string, string>> {
+  const resolved = new Map<string, string>()
+
+  await Promise.all(refs.map(async (ref) => {
+    resolved.set(ref, await resolveMediaUrlForServerRender(ref))
   }))
 
   return resolved

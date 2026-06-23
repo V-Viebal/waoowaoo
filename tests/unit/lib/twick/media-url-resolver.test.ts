@@ -3,7 +3,9 @@ import {
   extractMediaObjectId,
   isMediaObjRef,
   resolveMediaUrl,
+  resolveMediaUrlForServerRender,
   resolveMediaUrls,
+  resolveMediaUrlsForServerRender,
   toMediaObjRef,
 } from '@/lib/twick/media-url-resolver'
 
@@ -24,6 +26,11 @@ vi.mock('@/lib/media/service', () => ({
       updatedAt: '2026-01-01T00:00:00.000Z',
     }
   }),
+}))
+
+vi.mock('@/lib/storage', () => ({
+  getSignedObjectUrl: vi.fn(async (key: string) => `/api/storage/sign?key=${encodeURIComponent(key)}`),
+  toFetchableUrl: vi.fn((url: string) => url.startsWith('/') ? `http://localhost:3000${url}` : url),
 }))
 
 describe('media-url-resolver', () => {
@@ -85,6 +92,30 @@ describe('media-url-resolver', () => {
       expect(result.get('mediaobj://mo-video-1')).toBe('/m/public-mo-video-1')
       expect(result.get('https://example.com/audio.mp3')).toBe('https://example.com/audio.mp3')
       expect(result.get('mediaobj://mo-audio-1')).toBe('/m/public-mo-audio-1')
+    })
+  })
+
+  describe('resolveMediaUrlForServerRender', () => {
+    it('returns absolute fetchable URLs for external and root-relative refs', async () => {
+      await expect(resolveMediaUrlForServerRender('/api/files/video.mp4')).resolves.toBe('http://localhost:3000/api/files/video.mp4')
+      await expect(resolveMediaUrlForServerRender('https://example.com/video.mp4')).resolves.toBe('https://example.com/video.mp4')
+    })
+
+    it('resolves mediaobj references to signed fetchable storage URLs', async () => {
+      await expect(resolveMediaUrlForServerRender('mediaobj://mo-video-1'))
+        .resolves.toBe('http://localhost:3000/api/storage/sign?key=videos%2Fmo-video-1.mp4')
+    })
+  })
+
+  describe('resolveMediaUrlsForServerRender', () => {
+    it('resolves a batch for server rendering', async () => {
+      const result = await resolveMediaUrlsForServerRender([
+        'mediaobj://mo-video-1',
+        '/api/files/audio.mp3',
+      ])
+
+      expect(result.get('mediaobj://mo-video-1')).toBe('http://localhost:3000/api/storage/sign?key=videos%2Fmo-video-1.mp4')
+      expect(result.get('/api/files/audio.mp3')).toBe('http://localhost:3000/api/files/audio.mp3')
     })
   })
 })
