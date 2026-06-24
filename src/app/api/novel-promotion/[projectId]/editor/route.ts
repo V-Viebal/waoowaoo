@@ -18,7 +18,6 @@ const MEDIA_FIELD_KEYS = new Set([
   'videoSrc',
   'audioSrc',
 ])
-const URL_SCHEME_PATTERN = /^[a-z][a-z0-9+.-]*:/i
 
 const editorProjectSelect = {
   id: true,
@@ -78,14 +77,18 @@ function isMediaFieldKey(key: string) {
   return MEDIA_FIELD_KEYS.has(key) || key.endsWith('Src') || key.endsWith('Url')
 }
 
-function isPotentialUrl(value: string) {
-  return URL_SCHEME_PATTERN.test(value.trim())
+function isMediaElementRecord(record: Record<string, unknown>) {
+  return record.type === 'video' || record.type === 'audio' || record.type === 'image'
 }
 
-function assertNoRawMediaUrls(value: unknown, mediaContext = false, pathParts: string[] = []): void {
+function isPropsPath(pathParts: string[]) {
+  return pathParts[pathParts.length - 1] === 'props'
+}
+
+function assertValidMediaSources(value: unknown, mediaContext = false, pathParts: string[] = []): void {
   if (typeof value === 'string') {
     const trimmed = value.trim()
-    if (mediaContext && trimmed && !trimmed.startsWith(MEDIA_OBJ_PREFIX) && isPotentialUrl(trimmed)) {
+    if (mediaContext && trimmed && !(value.startsWith(MEDIA_OBJ_PREFIX) && value.slice(MEDIA_OBJ_PREFIX.length).trim().length > 0)) {
       throw new ApiError('INVALID_PARAMS', {
         message: 'EDITOR_RENDER_INVALID_MEDIA_SOURCE',
         path: pathParts.join('.') || 'media',
@@ -94,13 +97,17 @@ function assertNoRawMediaUrls(value: unknown, mediaContext = false, pathParts: s
     return
   }
   if (Array.isArray(value)) {
-    value.forEach((item, index) => assertNoRawMediaUrls(item, mediaContext, [...pathParts, String(index)]))
+    value.forEach((item, index) => assertValidMediaSources(item, mediaContext, [...pathParts, String(index)]))
     return
   }
   if (!value || typeof value !== 'object') return
 
-  for (const [key, entryValue] of Object.entries(value as Record<string, unknown>)) {
-    assertNoRawMediaUrls(entryValue, mediaContext || isMediaFieldKey(key), [...pathParts, key])
+  const record = value as Record<string, unknown>
+  const isMediaElement = isMediaElementRecord(record)
+  const insideProps = isPropsPath(pathParts)
+  for (const [key, entryValue] of Object.entries(record)) {
+    const nextMediaContext = mediaContext || (isMediaFieldKey(key) && (insideProps || isMediaElement))
+    assertValidMediaSources(entryValue, nextMediaContext, [...pathParts, key])
   }
 }
 
@@ -125,7 +132,7 @@ function assertValidProjectData(projectData: unknown): asserts projectData is Tw
     throw new ApiError('INVALID_PARAMS')
   }
 
-  assertNoRawMediaUrls(projectData)
+  assertValidMediaSources(projectData)
 }
 
 function isUniqueConstraintError(error: unknown) {

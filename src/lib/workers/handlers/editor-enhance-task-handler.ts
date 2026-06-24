@@ -32,6 +32,10 @@ function readPositiveNumber(value: unknown): number | null {
   return Number.isFinite(numeric) && numeric > 0 ? numeric : null
 }
 
+function ceilBillableSeconds(value: number | null | undefined) {
+  return Math.max(1, Math.ceil(value || 1))
+}
+
 function parseEnhancePayload(job: Job<TaskJobData>) {
   const payload = asJsonRecord(job.data.payload) || {}
   const episodeId = readString(payload.episodeId) || readString(job.data.episodeId) || null
@@ -111,6 +115,7 @@ async function persistEnhancedProjectWithVersionRetry(params: {
   targetAspectRatio?: string | null
   anchor?: string | null
   cropStrength?: number | null
+  frozenSeconds: number
 }) {
   let expectedVersion = params.initialVersion
   let currentProjectData = params.initialProjectData
@@ -124,6 +129,10 @@ async function persistEnhancedProjectWithVersionRetry(params: {
       anchor: params.anchor,
       cropStrength: params.cropStrength,
     })
+    const buildActualSeconds = ceilBillableSeconds(buildResult.durationSeconds)
+    if (buildActualSeconds > params.frozenSeconds) {
+      throw new Error('ENHANCE_BILLING_FREEZE_UNDERESTIMATED')
+    }
 
     await assertTaskActive(params.job, 'enhance_persist_editor_project')
     const updateResult = await prisma.novelPromotionEditorProject.updateMany({
@@ -168,9 +177,8 @@ export async function handleEditorEnhanceTask(job: Job<TaskJobData>) {
     throw new Error(ENHANCE_RESTORE_PROVIDER_UNAVAILABLE)
   }
 
-  const inputDurationSeconds = payload.durationSeconds || selectedVideo.durationSeconds || 1
-  const actualSeconds = Math.max(1, Math.ceil(inputDurationSeconds))
-  const frozenSeconds = Math.ceil(inputDurationSeconds)
+  const frozenSeconds = ceilBillableSeconds(payload.durationSeconds ?? selectedVideo.durationSeconds)
+  const actualSeconds = ceilBillableSeconds(selectedVideo.durationSeconds)
   if (actualSeconds > frozenSeconds) {
     throw new Error('ENHANCE_BILLING_FREEZE_UNDERESTIMATED')
   }
@@ -178,7 +186,7 @@ export async function handleEditorEnhanceTask(job: Job<TaskJobData>) {
   await reportTaskProgress(job, 60, {
     stage: 'enhance_apply_smart_crop',
     selectedElementId: payload.selectedElementId,
-    durationSeconds: inputDurationSeconds,
+    durationSeconds: selectedVideo.durationSeconds || 1,
   })
 
   const replacement = await persistEnhancedProjectWithVersionRetry({
@@ -192,6 +200,7 @@ export async function handleEditorEnhanceTask(job: Job<TaskJobData>) {
     targetAspectRatio: payload.targetAspectRatio,
     anchor: payload.anchor,
     cropStrength: payload.cropStrength,
+    frozenSeconds,
   })
 
   await reportTaskProgress(job, 95, {
@@ -209,7 +218,7 @@ export async function handleEditorEnhanceTask(job: Job<TaskJobData>) {
     replacedElementId: replacement.replacedElementId,
     sourcePanelId: replacement.sourcePanelId,
     oldSrc: replacement.oldSrc,
-    durationSeconds: replacement.durationSeconds || inputDurationSeconds,
+    durationSeconds: replacement.durationSeconds || selectedVideo.durationSeconds || 1,
     targetAspectRatio: replacement.targetAspectRatio,
     anchor: replacement.anchor,
     actualSeconds,

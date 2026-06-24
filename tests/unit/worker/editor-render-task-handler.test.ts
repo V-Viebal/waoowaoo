@@ -145,26 +145,23 @@ describe('editor render worker handler', () => {
   })
 
 
-  it('rejects non-mediaobj URL schemes in media fields before render-server sees them', async () => {
+  it.each([
+    'http://127.0.0.1:8080/internal',
+    'file:///etc/passwd',
+    'data:text/html;base64,PHNjcmlwdD4=',
+    '//169.254.169.254/latest/meta-data',
+    '//127.0.0.1:8080/internal',
+    '/etc/passwd',
+    'relative.mp4',
+  ])('rejects non-mediaobj media field source %s before render-server sees it', async (src) => {
     const maliciousProject = buildProjectData()
-    maliciousProject.tracks[0].elements[0].props.src = 'http://127.0.0.1:8080/internal'
+    maliciousProject.tracks[0].elements[0].props.src = src
+    ;(maliciousProject.tracks[0].elements[0].props as Record<string, unknown>).label = 'ordinary text may contain http://127.0.0.1 or /etc/passwd'
+    ;(maliciousProject.tracks[0].elements[0] as Record<string, unknown>).metadata = { source: 'generated' }
 
     await expect(buildTwickRenderInput(maliciousProject, { width: 720, height: 1280, fps: 30, format: 'mp4' }))
       .rejects.toThrow('EDITOR_RENDER_INVALID_MEDIA_SOURCE')
-    expect(resolverMock.resolveMediaUrlForServerRender).not.toHaveBeenCalledWith('http://127.0.0.1:8080/internal', expect.anything())
-  })
-
-  it('rejects file/data URL schemes in media fields but leaves ordinary text untouched', async () => {
-    const fileProject = buildProjectData()
-    fileProject.tracks[0].elements[0].props.src = 'file:///etc/passwd'
-    ;(fileProject.tracks[0].elements[0].props as Record<string, unknown>).label = 'http://127.0.0.1 appears as subtitle text'
-    await expect(buildTwickRenderInput(fileProject, { width: 720, height: 1280, fps: 30, format: 'mp4' }))
-      .rejects.toThrow('EDITOR_RENDER_INVALID_MEDIA_SOURCE')
-
-    const dataProject = buildProjectData()
-    dataProject.tracks[0].elements[0].props.src = 'data:text/html;base64,PHNjcmlwdD4='
-    await expect(buildTwickRenderInput(dataProject, { width: 720, height: 1280, fps: 30, format: 'mp4' }))
-      .rejects.toThrow('EDITOR_RENDER_INVALID_MEDIA_SOURCE')
+    expect(resolverMock.resolveMediaUrlForServerRender).not.toHaveBeenCalledWith(src, expect.anything())
   })
 
   it('fails before rendering when actual render duration exceeds frozen billing minutes', async () => {

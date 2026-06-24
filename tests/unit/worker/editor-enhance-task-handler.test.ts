@@ -141,13 +141,36 @@ describe('editor enhance worker handler', () => {
     }))
   })
 
-  it('ceil-bills fractional smart crop duration seconds', async () => {
+  it('ceil-bills current smart crop duration seconds', async () => {
+    const projectData = buildEditorProjectData()
+    projectData.tracks[0].elements[0].e = 6.2
+    prismaMock.novelPromotionEditorProject.findFirst.mockResolvedValueOnce({
+      id: 'editor-project-1',
+      version: 3,
+      projectData,
+    })
+
     const result = await handleEditorEnhanceTask(buildJob({ durationSeconds: 6.2 }))
 
     expect(result).toEqual(expect.objectContaining({
       actualSeconds: 7,
       actualQuantity: 7,
     }))
+  })
+
+  it('fails before persisting when current smart crop segment exceeds frozen payload seconds', async () => {
+    const projectData = buildEditorProjectData()
+    projectData.tracks[0].elements[0].e = 60
+    prismaMock.novelPromotionEditorProject.findFirst.mockResolvedValueOnce({
+      id: 'editor-project-1',
+      version: 3,
+      projectData,
+    })
+
+    await expect(handleEditorEnhanceTask(buildJob({ durationSeconds: 6 })))
+      .rejects.toThrow('ENHANCE_BILLING_FREEZE_UNDERESTIMATED')
+
+    expect(prismaMock.novelPromotionEditorProject.updateMany).not.toHaveBeenCalled()
   })
 
   it('rereads latest projectData and retries replacement when version changed before persist', async () => {

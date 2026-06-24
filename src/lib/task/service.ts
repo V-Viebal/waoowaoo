@@ -445,10 +445,10 @@ async function releaseEditorRenderLockForTask(taskId: string, nextStatus: 'FAILE
   await prisma.novelPromotionEditorProject.updateMany({
     where: {
       renderTaskId: taskId,
-      renderStatus: 'PROCESSING',
     },
     data: {
       renderStatus: nextStatus,
+      ...(nextStatus === 'FAILED' ? { renderOutputMediaObjectId: null } : {}),
       ...(nextStatus === 'IDLE' ? { renderTaskId: null } : {}),
     },
   })

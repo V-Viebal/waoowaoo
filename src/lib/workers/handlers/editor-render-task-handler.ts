@@ -124,14 +124,16 @@ const MEDIA_FIELD_KEYS = new Set([
   'videoSrc',
   'audioSrc',
 ])
-const URL_SCHEME_PATTERN = /^[a-z][a-z0-9+.-]*:/i
-
 function isMediaFieldKey(key: string) {
   return MEDIA_FIELD_KEYS.has(key) || key.endsWith('Src') || key.endsWith('Url')
 }
 
-function isPotentialUrl(value: string) {
-  return URL_SCHEME_PATTERN.test(value.trim())
+function isMediaElementRecord(record: JsonRecord) {
+  return record.type === 'video' || record.type === 'audio' || record.type === 'image'
+}
+
+function isPropsPath(pathParts: string[]) {
+  return pathParts[pathParts.length - 1] === 'props'
 }
 
 async function resolveMediaRefsDeep(
@@ -144,7 +146,7 @@ async function resolveMediaRefsDeep(
     if (isMediaObjRef(value)) {
       return await resolveMediaUrlForServerRender(value, context)
     }
-    if (mediaContext && value.trim() && isPotentialUrl(value)) {
+    if (mediaContext && value.trim()) {
       throw new Error(`EDITOR_RENDER_INVALID_MEDIA_SOURCE: ${pathParts.join('.') || 'media'} must use mediaobj://`)
     }
     return value
@@ -155,8 +157,10 @@ async function resolveMediaRefsDeep(
   const record = asRecord(value)
   if (!record) return value
 
+  const isMediaElement = isMediaElementRecord(record)
+  const insideProps = isPropsPath(pathParts)
   const entries = await Promise.all(Object.entries(record).map(async ([key, entryValue]) => {
-    const nextMediaContext = mediaContext || isMediaFieldKey(key)
+    const nextMediaContext = mediaContext || (isMediaFieldKey(key) && (insideProps || isMediaElement))
     return [
       key,
       await resolveMediaRefsDeep(entryValue, context, nextMediaContext, [...pathParts, key]),

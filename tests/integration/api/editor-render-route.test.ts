@@ -149,7 +149,13 @@ describe('editor render route', () => {
     expect(submitTaskMock).not.toHaveBeenCalled()
   })
 
-  it('rejects saving raw URL media sources before they can reach server render', async () => {
+  it.each([
+    'http://127.0.0.1/internal',
+    '//169.254.169.254/latest/meta-data',
+    '//127.0.0.1/internal',
+    '/etc/passwd',
+    'relative.mp4',
+  ])('rejects saving non-mediaobj media source %s before it can reach server render', async (src) => {
     const { PUT } = await import('@/app/api/novel-promotion/[projectId]/editor/route')
 
     const res = await PUT(buildMockRequest({
@@ -161,7 +167,7 @@ describe('editor render route', () => {
         projectData: {
           ...buildProjectData(),
           tracks: [
-            { id: 'track-video', type: 'video', elements: [{ id: 'video-1', type: 'video', s: 0, e: 2, props: { src: 'http://127.0.0.1/internal', label: 'ordinary text may contain http://127.0.0.1' } }] },
+            { id: 'track-video', type: 'video', elements: [{ id: 'video-1', type: 'video', s: 0, e: 2, props: { src, label: 'ordinary text may contain http://127.0.0.1 or /etc/passwd' }, metadata: { source: 'generated' } }] },
           ],
         },
       },
