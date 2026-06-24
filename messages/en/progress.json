@@ -71,6 +71,7 @@
     "aiModifyLocation": "Location description modify",
     "aiModifyProp": "Prop description modify",
     "aiModifyShotPrompt": "Shot prompt modify",
+    "aiGridVideoPrompt": "Grid video prompt rewrite",
     "analyzeShotVariants": "Shot variant analysis",
     "aiCreateCharacter": "Project character design",
     "aiCreateLocation": "Project location design",

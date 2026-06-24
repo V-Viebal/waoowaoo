@@ -36,6 +36,7 @@ const TASK_TYPE_OWNER_MAP = {
   [TASK_TYPE.AI_MODIFY_LOCATION]: 'tests/unit/worker/shot-ai-prompt-location.test.ts',
   [TASK_TYPE.AI_MODIFY_PROP]: 'tests/unit/helpers/prop-modify-task-registration.test.ts',
   [TASK_TYPE.AI_MODIFY_SHOT_PROMPT]: 'tests/unit/worker/shot-ai-prompt-shot.test.ts',
+  [TASK_TYPE.AI_GRID_VIDEO_PROMPT]: 'tests/unit/worker/shot-ai-prompt-shot.test.ts',
   [TASK_TYPE.ANALYZE_SHOT_VARIANTS]: 'tests/unit/worker/shot-ai-variants.test.ts',
   [TASK_TYPE.AI_CREATE_CHARACTER]: 'tests/unit/worker/shot-ai-tasks.test.ts',
   [TASK_TYPE.AI_CREATE_LOCATION]: 'tests/unit/worker/shot-ai-tasks.test.ts',

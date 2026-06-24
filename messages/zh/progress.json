@@ -71,6 +71,7 @@
     "aiModifyLocation": "场景描述修改",
     "aiModifyProp": "道具描述修改",
     "aiModifyShotPrompt": "镜头提示词修改",
+    "aiGridVideoPrompt": "宫格视频提示词重写",
     "analyzeShotVariants": "镜头变体分析",
     "aiCreateCharacter": "项目角色设计",
     "aiCreateLocation": "项目场景设计",

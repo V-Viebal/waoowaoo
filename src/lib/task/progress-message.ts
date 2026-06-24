@@ -28,6 +28,7 @@ const TASK_TYPE_LABELS: Record<string, string> = {
   [TASK_TYPE.AI_MODIFY_LOCATION]: 'progress.taskType.aiModifyLocation',
   [TASK_TYPE.AI_MODIFY_PROP]: 'progress.taskType.aiModifyProp',
   [TASK_TYPE.AI_MODIFY_SHOT_PROMPT]: 'progress.taskType.aiModifyShotPrompt',
+  [TASK_TYPE.AI_GRID_VIDEO_PROMPT]: 'progress.taskType.aiGridVideoPrompt',
   [TASK_TYPE.ANALYZE_SHOT_VARIANTS]: 'progress.taskType.analyzeShotVariants',
   [TASK_TYPE.AI_CREATE_CHARACTER]: 'progress.taskType.aiCreateCharacter',
   [TASK_TYPE.AI_CREATE_LOCATION]: 'progress.taskType.aiCreateLocation',

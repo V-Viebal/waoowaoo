@@ -49,6 +49,7 @@ const TASK_INTENT_BY_TYPE: Record<TaskType, TaskIntent> = {
   [TASK_TYPE.AI_MODIFY_LOCATION]: 'modify',
   [TASK_TYPE.AI_MODIFY_PROP]: 'modify',
   [TASK_TYPE.AI_MODIFY_SHOT_PROMPT]: 'modify',
+  [TASK_TYPE.AI_GRID_VIDEO_PROMPT]: 'regenerate',
   [TASK_TYPE.ANALYZE_SHOT_VARIANTS]: 'analyze',
   [TASK_TYPE.AI_CREATE_CHARACTER]: 'generate',
   [TASK_TYPE.AI_CREATE_LOCATION]: 'generate',
