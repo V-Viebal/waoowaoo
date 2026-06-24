@@ -129,57 +129,61 @@ async function generateVideoForPanel(
       ? payloadGridSize
       : (defaultGridSize > 1 ? defaultGridSize : 4)
     const alreadyRewritten = panel.gridVideoPromptAt != null
-    let analysisModel = ''
-    try {
-      analysisModel = await resolveAnalysisModel({
+
+    if (alreadyRewritten) {
+      // 缓存命中：直接复用已持久化的宫格重写提示词，不调模型、不计费
+      const cached = panel.videoPrompt || basePrompt
+      prompt = cached
+      usedGridPrompt = panel.videoPrompt != null
+    } else {
+      let analysisModel = ''
+      try {
+        analysisModel = await resolveAnalysisModel({
+          userId: job.data.userId,
+          inputModel: payload.analysisModel,
+        })
+      } catch (error) {
+        logger.warn({ message: 'grid video prompt rewrite skipped: analysis model unresolved', details: { panelId: panel.id, error: String(error) } })
+      }
+      const locale = (job.data.locale as 'zh' | 'en') || 'zh'
+      const panelContext = {
+        shot_type: panel.shotType || '',
+        camera_move: panel.cameraMove || '',
+        description: panel.description || '',
+        location: panel.location || '',
+        characters: panel.characters || '',
+        text_segment: panel.srtSegment || '',
+      }
+      const runResolve = () => resolveGridVideoPrompt({
+        basePrompt,
+        panelContext,
+        gridSize,
+        shotType: panel.shotType || '',
+        cameraMove: panel.cameraMove || '',
+        locale,
+        projectId: job.data.projectId,
         userId: job.data.userId,
-        inputModel: payload.analysisModel,
+        model: analysisModel,
+        alreadyRewritten: false,
       })
-    } catch (error) {
-      logger.warn({ message: 'grid video prompt rewrite skipped: analysis model unresolved', details: { panelId: panel.id, error: String(error) } })
-    }
-    const locale = (job.data.locale as 'zh' | 'en') || 'zh'
-    const panelContext = {
-      shot_type: panel.shotType || '',
-      camera_move: panel.cameraMove || '',
-      description: panel.description || '',
-      location: panel.location || '',
-      characters: panel.characters || '',
-      text_segment: panel.srtSegment || '',
-    }
-
-    const runResolve = () => resolveGridVideoPrompt({
-      basePrompt,
-      panelContext,
-      gridSize,
-      shotType: panel.shotType || '',
-      cameraMove: panel.cameraMove || '',
-      locale,
-      projectId: job.data.projectId,
-      userId: job.data.userId,
-      model: analysisModel,
-      alreadyRewritten,
-    })
-
-    // 缓存命中或无可用模型：不计费直接解析；需要重写时用 withTextBilling 包裹
-    const resolved = (alreadyRewritten || !analysisModel)
-      ? await runResolve()
-      : await withTextBilling(
-          job.data.userId,
-          analysisModel,
-          3000,
-          1200,
-          { projectId: job.data.projectId, action: 'grid_video_prompt_rewrite', metadata: { panelId: panel.id } },
-          runResolve,
-        )
-
-    prompt = resolved.prompt
-    usedGridPrompt = resolved.prompt !== basePrompt
-    if (resolved.rewritten) {
-      await prisma.novelPromotionPanel.update({
-        where: { id: panel.id },
-        data: { videoPrompt: resolved.prompt, gridVideoPromptAt: new Date() },
-      })
+      const resolved = analysisModel
+        ? await withTextBilling(
+            job.data.userId,
+            analysisModel,
+            3000,
+            1200,
+            { projectId: job.data.projectId, action: 'grid_video_prompt_rewrite', metadata: { panelId: panel.id } },
+            runResolve,
+          )
+        : await runResolve()
+      prompt = resolved.prompt
+      usedGridPrompt = resolved.prompt !== basePrompt
+      if (resolved.rewritten) {
+        await prisma.novelPromotionPanel.update({
+          where: { id: panel.id },
+          data: { videoPrompt: resolved.prompt, gridVideoPromptAt: new Date() },
+        })
+      }
     }
   }
 
