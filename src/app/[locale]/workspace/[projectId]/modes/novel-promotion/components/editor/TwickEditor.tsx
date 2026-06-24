@@ -7,7 +7,6 @@ import VideoEditor, {
   DEFAULT_TIMELINE_ZOOM_CONFIG,
 } from '@twick/video-editor'
 import '@twick/video-editor/dist/video-editor.css'
-import '@twick/timeline/dist/timeline.css'
 import { LivePlayerProvider } from '@twick/live-player'
 import { TimelineProvider, useTimelineContext } from '@twick/timeline'
 import { useTranslations } from 'next-intl'
