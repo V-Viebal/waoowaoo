@@ -6,8 +6,8 @@ import { TaskTerminatedError } from '@/lib/task/errors'
 import {
   rollbackTaskBillingForTask,
   touchTaskHeartbeat,
-  tryMarkTaskCompleted,
   tryMarkTaskFailed,
+  tryMarkTaskCompleted,
   tryMarkTaskProcessing,
   tryUpdateTaskProgress,
   updateTaskBillingInfo,
@@ -413,16 +413,32 @@ export async function withTaskLifecycle(job: Job<TaskJobData>, handler: (job: Jo
 
     const { result, textUsage } = await withTextUsageCollection(async () => await handler(job))
     if (billingInfo?.billable) {
-      billingInfo = (await settleTaskBilling({
-        id: taskId,
-        projectId: data.projectId,
-        userId: data.userId,
-        billingInfo,
-      }, {
-        result: (result || undefined) as Record<string, unknown> | void,
-        textUsage,
-      })) as TaskBillingInfo
-      await updateTaskBillingInfo(taskId, billingInfo)
+      try {
+        billingInfo = (await settleTaskBilling({
+          id: taskId,
+          projectId: data.projectId,
+          userId: data.userId,
+          billingInfo,
+        }, {
+          result: (result || undefined) as Record<string, unknown> | void,
+          textUsage,
+        })) as TaskBillingInfo
+        await updateTaskBillingInfo(taskId, billingInfo)
+      } catch (settleError) {
+        if (data.type === TASK_TYPE.EDITOR_RENDER) {
+          await prisma.novelPromotionEditorProject.updateMany({
+            where: {
+              renderTaskId: taskId,
+              renderStatus: 'DONE',
+            },
+            data: {
+              renderStatus: 'FAILED',
+              renderOutputMediaObjectId: null,
+            },
+          }).catch(() => undefined)
+        }
+        throw settleError
+      }
     }
     const markedCompleted = await tryMarkTaskCompleted(taskId, result || null)
     if (!markedCompleted) {
@@ -597,6 +613,18 @@ export async function withTaskLifecycle(job: Job<TaskJobData>, handler: (job: Jo
         billingInfo,
       })) as TaskBillingInfo
       await updateTaskBillingInfo(taskId, billingInfo)
+    }
+    if (data.type === TASK_TYPE.EDITOR_RENDER) {
+      await prisma.novelPromotionEditorProject.updateMany({
+        where: {
+          renderTaskId: taskId,
+          renderStatus: 'DONE',
+        },
+        data: {
+          renderStatus: 'FAILED',
+          renderOutputMediaObjectId: null,
+        },
+      }).catch(() => undefined)
     }
     const markedFailed = await tryMarkTaskFailed(taskId, normalizedError.code, normalizedError.message)
     if (!markedFailed) {

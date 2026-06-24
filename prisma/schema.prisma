@@ -118,6 +118,25 @@ model NovelPromotionLocation {
   @@map("novel_promotion_locations")
 }
 
+enum EditorRenderStatus {
+  IDLE
+  PROCESSING
+  DONE
+  FAILED
+}
+
+enum EditorAssetType {
+  VIDEO
+  IMAGE
+  AUDIO
+}
+
+enum EditorAssetSourceType {
+  GENERATED
+  AI_ENHANCED
+  UPLOADED
+}
+
 model NovelPromotionEpisode {
   id                      String                     @id @default(uuid())
   novelPromotionProjectId String
@@ -138,11 +157,49 @@ model NovelPromotionEpisode {
   storyboards             NovelPromotionStoryboard[]
   voiceLines              NovelPromotionVoiceLine[]
   editorProject           VideoEditorProject?
+  twickEditorProject      NovelPromotionEditorProject?
 
   @@unique([novelPromotionProjectId, episodeNumber])
   @@index([novelPromotionProjectId])
   @@index([audioMediaId])
   @@map("novel_promotion_episodes")
+}
+
+model NovelPromotionEditorProject {
+  id                        String                      @id @default(uuid())
+  episodeId                 String                      @unique
+  projectData               Json
+  version                   Int                         @default(0)
+  renderStatus              EditorRenderStatus          @default(IDLE)
+  renderOutputMediaObjectId String?
+  renderSettings            Json?
+  renderTaskId              String?
+  createdAt                 DateTime                    @default(now())
+  updatedAt                 DateTime                    @default(now()) @updatedAt
+  assets                    NovelPromotionEditorAsset[]
+  episode                   NovelPromotionEpisode       @relation(fields: [episodeId], references: [id], onDelete: Cascade)
+  renderOutputMediaObject   MediaObject?                @relation("NovelPromotionEditorRenderOutputMedia", fields: [renderOutputMediaObjectId], references: [id], onDelete: SetNull)
+
+  @@index([renderOutputMediaObjectId])
+  @@map("novel_promotion_editor_projects")
+}
+
+model NovelPromotionEditorAsset {
+  id              String                      @id @default(uuid())
+  editorProjectId String
+  mediaObjectId   String
+  type            EditorAssetType
+  sourceType      EditorAssetSourceType
+  sourcePanelId   String?
+  enhanceType     String?
+  metadata        Json?
+  createdAt       DateTime                    @default(now())
+  editorProject   NovelPromotionEditorProject @relation(fields: [editorProjectId], references: [id], onDelete: Cascade)
+  mediaObject     MediaObject                 @relation("NovelPromotionEditorAssetMedia", fields: [mediaObjectId], references: [id])
+
+  @@index([editorProjectId, type])
+  @@index([mediaObjectId])
+  @@map("novel_promotion_editor_assets")
 }
 
 // 视频编辑器项目 - 存储剪辑数据
@@ -1137,6 +1194,8 @@ model MediaObject {
   globalVoiceCustomVoices               GlobalVoice[]               @relation("GlobalVoiceCustomVoiceMedia")
   artStylePreviewMedias                 ArtStyle[]                  @relation("ArtStylePreviewMedia")
   storyboardImageVersionMedia           StoryboardImageVersion[]     @relation("StoryboardImageVersionMedia")
+  novelPromotionEditorRenderOutputs     NovelPromotionEditorProject[] @relation("NovelPromotionEditorRenderOutputMedia")
+  novelPromotionEditorAssets            NovelPromotionEditorAsset[]  @relation("NovelPromotionEditorAssetMedia")
 
   @@index([createdAt])
   @@map("media_objects")

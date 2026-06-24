@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { calcText, calcVideo, calcVoice } from '@/lib/billing/cost'
-import type { TaskBillingInfo } from '@/lib/task/types'
+import { BILLING_ITEM, calculateBillingItemCost } from '@/lib/billing/items'
+import { buildDefaultTaskBillingInfo } from '@/lib/billing/task-policy'
+import { TASK_TYPE, type TaskBillingInfo } from '@/lib/task/types'
 
 const ledgerMock = vi.hoisted(() => ({
   confirmChargeWithRecord: vi.fn(),
@@ -327,6 +329,270 @@ describe('billing/service', () => {
           billingInfo: buildTaskInfo(),
         }),
       ).rejects.toBeInstanceOf(InsufficientBalanceError)
+    })
+
+    it('editor smart-cut billing freezes, settles, and rolls back using configured item price', async () => {
+      const quoted = buildDefaultTaskBillingInfo(TASK_TYPE.EDITOR_AI_SMART_CUT, {
+        editorProjectId: 'editor-project-1',
+      }) as Extract<TaskBillingInfo, { billable: true }>
+      expect(quoted.action).toBe(BILLING_ITEM.EDITOR_SMART_CUT)
+      expect(quoted.apiType).toBe('editor')
+      expect(quoted.unit).toBe('call')
+      expect(quoted.maxFrozenCost).toBe(0.05)
+
+      modeMock.getBillingMode.mockResolvedValue('ENFORCE')
+      ledgerMock.freezeBalance.mockResolvedValueOnce('freeze_editor_1')
+      const prepared = await prepareTaskBilling({
+        id: 'task_editor_smart_cut',
+        userId: 'u1',
+        projectId: 'p1',
+        billingInfo: quoted,
+      }) as Extract<TaskBillingInfo, { billable: true }>
+
+      expect(prepared.status).toBe('frozen')
+      expect(prepared.freezeId).toBe('freeze_editor_1')
+      expect(ledgerMock.freezeBalance).toHaveBeenCalledWith('u1', 0.05, expect.objectContaining({
+        source: 'task',
+        taskId: 'task_editor_smart_cut',
+      }))
+
+      const settled = await settleTaskBilling({
+        id: 'task_editor_smart_cut',
+        userId: 'u1',
+        projectId: 'p1',
+        billingInfo: prepared,
+      }) as Extract<TaskBillingInfo, { billable: true }>
+      expect(settled.status).toBe('settled')
+      expect(settled.chargedCost).toBe(0.05)
+      expect(ledgerMock.confirmChargeWithRecord).toHaveBeenCalledWith(
+        'freeze_editor_1',
+        expect.objectContaining({ action: BILLING_ITEM.EDITOR_SMART_CUT }),
+        expect.objectContaining({ chargedAmount: 0.05 }),
+      )
+
+      const rollback = await rollbackTaskBilling({
+        id: 'task_editor_smart_cut_rollback',
+        billingInfo: { ...prepared, status: 'frozen', freezeId: 'freeze_editor_rollback' },
+      }) as Extract<TaskBillingInfo, { billable: true }>
+      expect(rollback.status).toBe('rolled_back')
+      expect(ledgerMock.rollbackFreeze).toHaveBeenCalledWith('freeze_editor_rollback')
+    })
+
+    it('editor catalog settlement ignores collected text usage and charges fixed item price', async () => {
+      modeMock.getBillingMode.mockResolvedValue('ENFORCE')
+      ledgerMock.confirmChargeWithRecord.mockResolvedValueOnce(true)
+      const quoted = buildDefaultTaskBillingInfo(TASK_TYPE.EDITOR_AI_CAPTION, {
+        editorProjectId: 'editor-project-1',
+        durationMinutes: 3,
+      }) as Extract<TaskBillingInfo, { billable: true }>
+
+      const settled = await settleTaskBilling({
+        id: 'task_editor_caption_text_usage',
+        userId: 'u1',
+        projectId: 'p1',
+        billingInfo: {
+          ...quoted,
+          modeSnapshot: 'ENFORCE',
+          status: 'frozen',
+          freezeId: 'freeze_editor_caption_text_usage',
+        },
+      }, {
+        textUsage: [{ model: 'anthropic/claude-sonnet-4', inputTokens: 1_000_000, outputTokens: 1_000_000 }],
+      }) as Extract<TaskBillingInfo, { billable: true }>
+
+      expect(settled.chargedCost).toBe(calculateBillingItemCost(BILLING_ITEM.EDITOR_CAPTION_GENERATE, 3))
+      expect(ledgerMock.increasePendingFreezeAmount).not.toHaveBeenCalled()
+      expect(ledgerMock.confirmChargeWithRecord).toHaveBeenCalledWith(
+        'freeze_editor_caption_text_usage',
+        expect.objectContaining({
+          apiType: 'editor',
+          model: BILLING_ITEM.EDITOR_CAPTION_GENERATE,
+          quantity: 3,
+          unit: 'minute',
+        }),
+        expect.objectContaining({ chargedAmount: 0.06 }),
+      )
+    })
+
+    it('editor catalog settlement uses actual quantity without resolving text model pricing', async () => {
+      modeMock.getBillingMode.mockResolvedValue('ENFORCE')
+      ledgerMock.confirmChargeWithRecord.mockResolvedValueOnce(true)
+      const quoted = buildDefaultTaskBillingInfo(TASK_TYPE.EDITOR_AI_ENHANCE, {
+        editorProjectId: 'editor-project-1',
+        enhanceType: 'restore',
+        durationSeconds: 5,
+      }) as Extract<TaskBillingInfo, { billable: true }>
+
+      const settled = await settleTaskBilling({
+        id: 'task_editor_enhance_actual_seconds',
+        userId: 'u1',
+        projectId: 'p1',
+        billingInfo: {
+          ...quoted,
+          modeSnapshot: 'ENFORCE',
+          status: 'frozen',
+          freezeId: 'freeze_editor_enhance_actual_seconds',
+        },
+      }, {
+        result: { actualSeconds: 8 },
+      }) as Extract<TaskBillingInfo, { billable: true }>
+
+      expect(settled.chargedCost).toBe(calculateBillingItemCost(BILLING_ITEM.EDITOR_AI_ENHANCE_RESTORE, 8))
+      expect(ledgerMock.increasePendingFreezeAmount).toHaveBeenCalledTimes(1)
+      expect(ledgerMock.confirmChargeWithRecord).toHaveBeenCalledWith(
+        'freeze_editor_enhance_actual_seconds',
+        expect.objectContaining({
+          apiType: 'editor',
+          model: BILLING_ITEM.EDITOR_AI_ENHANCE_RESTORE,
+          quantity: 8,
+          unit: 'second',
+        }),
+        expect.objectContaining({ chargedAmount: 0.12 }),
+      )
+    })
+
+    it('editor smart-crop MVP can settle with actualQuantity=0 and release the frozen amount', async () => {
+      modeMock.getBillingMode.mockResolvedValue('ENFORCE')
+      ledgerMock.confirmChargeWithRecord.mockResolvedValueOnce(true)
+      const quoted = buildDefaultTaskBillingInfo(TASK_TYPE.EDITOR_AI_ENHANCE, {
+        editorProjectId: 'editor-project-1',
+        enhanceType: 'smart_crop',
+        durationSeconds: 6,
+      }) as Extract<TaskBillingInfo, { billable: true }>
+
+      const settled = await settleTaskBilling({
+        id: 'task_editor_enhance_smart_crop_zero_actual',
+        userId: 'u1',
+        projectId: 'p1',
+        billingInfo: {
+          ...quoted,
+          modeSnapshot: 'ENFORCE',
+          status: 'frozen',
+          freezeId: 'freeze_editor_enhance_smart_crop_zero_actual',
+        },
+      }, {
+        result: { actualQuantity: 0, actualSeconds: 0 },
+      }) as Extract<TaskBillingInfo, { billable: true }>
+
+      expect(settled.chargedCost).toBe(0)
+      expect(ledgerMock.increasePendingFreezeAmount).not.toHaveBeenCalled()
+      expect(ledgerMock.confirmChargeWithRecord).toHaveBeenCalledWith(
+        'freeze_editor_enhance_smart_crop_zero_actual',
+        expect.objectContaining({
+          apiType: 'editor',
+          model: BILLING_ITEM.EDITOR_AI_ENHANCE_SMART_CROP,
+          quantity: 0,
+          unit: 'second',
+        }),
+        expect.objectContaining({ chargedAmount: 0 }),
+      )
+    })
+
+    it('editor per-use smart-cut ignores actualSeconds and charges one call unless actualQuantity is explicit', async () => {
+      modeMock.getBillingMode.mockResolvedValue('ENFORCE')
+      ledgerMock.confirmChargeWithRecord.mockResolvedValueOnce(true)
+      const quoted = buildDefaultTaskBillingInfo(TASK_TYPE.EDITOR_AI_SMART_CUT, {
+        editorProjectId: 'editor-project-1',
+      }) as Extract<TaskBillingInfo, { billable: true }>
+
+      const settled = await settleTaskBilling({
+        id: 'task_editor_smart_cut_actual_seconds',
+        userId: 'u1',
+        projectId: 'p1',
+        billingInfo: {
+          ...quoted,
+          modeSnapshot: 'ENFORCE',
+          status: 'frozen',
+          freezeId: 'freeze_editor_smart_cut_actual_seconds',
+        },
+      }, {
+        result: { actualSeconds: 999 },
+      }) as Extract<TaskBillingInfo, { billable: true }>
+
+      expect(settled.chargedCost).toBe(calculateBillingItemCost(BILLING_ITEM.EDITOR_SMART_CUT, 1))
+      expect(ledgerMock.increasePendingFreezeAmount).not.toHaveBeenCalled()
+      expect(ledgerMock.confirmChargeWithRecord).toHaveBeenCalledWith(
+        'freeze_editor_smart_cut_actual_seconds',
+        expect.objectContaining({
+          apiType: 'editor',
+          model: BILLING_ITEM.EDITOR_SMART_CUT,
+          quantity: 1,
+          unit: 'call',
+        }),
+        expect.objectContaining({ chargedAmount: 0.05 }),
+      )
+    })
+
+    it('editor per-minute caption converts actualSeconds to minutes before charging', async () => {
+      modeMock.getBillingMode.mockResolvedValue('ENFORCE')
+      ledgerMock.confirmChargeWithRecord.mockResolvedValueOnce(true)
+      const quoted = buildDefaultTaskBillingInfo(TASK_TYPE.EDITOR_AI_CAPTION, {
+        editorProjectId: 'editor-project-1',
+        durationMinutes: 5,
+      }) as Extract<TaskBillingInfo, { billable: true }>
+
+      const settled = await settleTaskBilling({
+        id: 'task_editor_caption_actual_seconds',
+        userId: 'u1',
+        projectId: 'p1',
+        billingInfo: {
+          ...quoted,
+          modeSnapshot: 'ENFORCE',
+          status: 'frozen',
+          freezeId: 'freeze_editor_caption_actual_seconds',
+        },
+      }, {
+        result: { actualSeconds: 120 },
+      }) as Extract<TaskBillingInfo, { billable: true }>
+
+      expect(settled.chargedCost).toBe(calculateBillingItemCost(BILLING_ITEM.EDITOR_CAPTION_GENERATE, 2))
+      expect(ledgerMock.increasePendingFreezeAmount).not.toHaveBeenCalled()
+      expect(ledgerMock.confirmChargeWithRecord).toHaveBeenCalledWith(
+        'freeze_editor_caption_actual_seconds',
+        expect.objectContaining({
+          apiType: 'editor',
+          model: BILLING_ITEM.EDITOR_CAPTION_GENERATE,
+          quantity: 2,
+          unit: 'minute',
+        }),
+        expect.objectContaining({ chargedAmount: 0.04 }),
+      )
+    })
+
+    it('editor per-minute export converts actualDurationSeconds to minutes before charging', async () => {
+      modeMock.getBillingMode.mockResolvedValue('ENFORCE')
+      ledgerMock.confirmChargeWithRecord.mockResolvedValueOnce(true)
+      const quoted = buildDefaultTaskBillingInfo(TASK_TYPE.EDITOR_RENDER, {
+        editorProjectId: 'editor-project-1',
+        durationMinutes: 5,
+      }) as Extract<TaskBillingInfo, { billable: true }>
+
+      const settled = await settleTaskBilling({
+        id: 'task_editor_export_actual_duration_seconds',
+        userId: 'u1',
+        projectId: 'p1',
+        billingInfo: {
+          ...quoted,
+          modeSnapshot: 'ENFORCE',
+          status: 'frozen',
+          freezeId: 'freeze_editor_export_actual_duration_seconds',
+        },
+      }, {
+        result: { actualDurationSeconds: 180 },
+      }) as Extract<TaskBillingInfo, { billable: true }>
+
+      expect(settled.chargedCost).toBe(calculateBillingItemCost(BILLING_ITEM.EDITOR_EXPORT, 3))
+      expect(ledgerMock.increasePendingFreezeAmount).not.toHaveBeenCalled()
+      expect(ledgerMock.confirmChargeWithRecord).toHaveBeenCalledWith(
+        'freeze_editor_export_actual_duration_seconds',
+        expect.objectContaining({
+          apiType: 'editor',
+          model: BILLING_ITEM.EDITOR_EXPORT,
+          quantity: 3,
+          unit: 'minute',
+        }),
+        expect.objectContaining({ chargedAmount: 0.03 }),
+      )
     })
 
     it('settleTaskBilling handles SHADOW and non-ENFORCE snapshots', async () => {

@@ -79,4 +79,42 @@ describe('billing/task-policy', () => {
     expect(info.model).toBe('vidu::vidu-lipsync')
     expect(info.quantity).toBe(1)
   })
+
+  it('bills editor voice optimize through the existing voice seconds policy using ceil(maxSeconds) first', () => {
+    const info = expectBillableInfo(buildDefaultTaskBillingInfo(TASK_TYPE.EDITOR_AI_VOICE_OPTIMIZE, {
+      durationSeconds: 6.8,
+      maxSeconds: 9.2,
+    }))
+    expect(info.apiType).toBe('voice')
+    expect(info.model).toBe('index-tts2')
+    expect(info.unit).toBe('second')
+    expect(info.quantity).toBe(10)
+    expect(info.metadata).toEqual(expect.objectContaining({ maxSeconds: 10 }))
+    expect(info.action).toBe(TASK_TYPE.EDITOR_AI_VOICE_OPTIMIZE)
+  })
+
+  it('bills editor render export as editor_export per minute with pre-freeze quantity', () => {
+    const info = expectBillableInfo(buildDefaultTaskBillingInfo(TASK_TYPE.EDITOR_RENDER, {
+      durationMinutes: 1.25,
+    }))
+    expect(info.apiType).toBe('editor')
+    expect(info.model).toBe('editor_export')
+    expect(info.action).toBe('editor_export')
+    expect(info.unit).toBe('minute')
+    expect(info.quantity).toBe(1.25)
+    expect(info.maxFrozenCost).toBe(0.0125)
+    expect(info.metadata).toEqual(expect.objectContaining({
+      billingItem: 'editor_export',
+      quantity: 1.25,
+    }))
+  })
+
+  it('uses 0.01 minute minimum for short editor render exports', () => {
+    const info = expectBillableInfo(buildDefaultTaskBillingInfo(TASK_TYPE.EDITOR_RENDER, {
+      durationMinutes: 0.005,
+    }))
+    expect(info.unit).toBe('minute')
+    expect(info.quantity).toBe(0.01)
+    expect(info.maxFrozenCost).toBe(0.0001)
+  })
 })

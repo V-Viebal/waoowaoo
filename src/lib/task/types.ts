@@ -79,6 +79,12 @@ export const TASK_TYPE = {
   ASSET_HUB_AI_MODIFY_LOCATION: 'asset_hub_ai_modify_location',
   ASSET_HUB_AI_MODIFY_PROP: 'asset_hub_ai_modify_prop',
   ASSET_HUB_REFERENCE_TO_CHARACTER: 'asset_hub_reference_to_character',
+  EDITOR_AI_SMART_CUT: 'editor_ai_smart_cut',
+  EDITOR_AI_CAPTION: 'editor_ai_caption',
+  EDITOR_AI_ENHANCE: 'editor_ai_enhance',
+  EDITOR_AI_VOICE_OPTIMIZE: 'editor_ai_voice_optimize',
+  EDITOR_AI_TRANSITION: 'editor_ai_transition',
+  EDITOR_RENDER: 'editor_render',
 } as const
 
 export type TaskType = (typeof TASK_TYPE)[keyof typeof TASK_TYPE]
@@ -97,10 +103,10 @@ export type TaskBillingInfo =
     billable: true
     source: 'task'
     taskType: TaskType
-    apiType: 'text' | 'image' | 'video' | 'voice' | 'voice-design' | 'lip-sync'
+    apiType: 'text' | 'image' | 'video' | 'voice' | 'voice-design' | 'lip-sync' | 'editor'
     model: string
     quantity: number
-    unit: 'token' | 'image' | 'video' | 'second' | 'call'
+    unit: 'token' | 'image' | 'video' | 'second' | 'call' | 'minute'
     maxFrozenCost: number
     pricingVersion?: string
     action: string

@@ -176,5 +176,223 @@
     },
     "confirm": "Continue and Clear",
     "cancel": "Cancel"
+  },
+  "editor": {
+    "title": "AI Editor",
+    "subtitle": "Canvas {width}×{height} · autosave enabled",
+    "loading": "Loading editor...",
+    "emptyTitle": "No editable assets yet",
+    "emptyDescription": "Generate at least one storyboard video in the video stage, then return to AI Editor.",
+    "saveStatus": {
+      "idle": "Ready",
+      "loading": "Loading...",
+      "saving": "Saving...",
+      "saved": "Saved",
+      "savedAt": "Saved {time}",
+      "error": "Save failed",
+      "conflict": "Save conflict",
+      "conflictDescription": "Project changed elsewhere",
+      "reload": "Reload",
+      "forceSave": "Force save"
+    },
+    "assets": {
+      "title": "Assets",
+      "description": "Click an asset to append it to the timeline",
+      "tabs": {
+        "video": "Video",
+        "image": "Image",
+        "audio": "Voice",
+        "bgm": "BGM"
+      },
+      "empty": {
+        "video": "No video assets yet",
+        "image": "Image assets will be connected in Phase 2",
+        "audio": "No voice assets yet",
+        "bgm": "BGM assets will be connected in Phase 2"
+      },
+      "tracks": {
+        "video": "Video",
+        "audio": "Voice"
+      },
+      "duration": "{duration}s",
+      "clickToAdd": "Click to add to timeline",
+      "voiceLine": "Line {index}",
+      "imageHint": "The editor currently uses generated videos as primary assets; standalone image assets will be added with later AI editing tools."
+    },
+    "rightPanel": {
+      "tabs": {
+        "ai": "AI Tools",
+        "properties": "Properties"
+      },
+      "ai": {
+        "roughCut": {
+          "title": "Smart rough cut",
+          "description": "Rebuild the rough-cut timeline by stitching generated panel videos and voice lines in storyboard order."
+        },
+        "smartCut": {
+          "button": "Run smart rough cut",
+          "runningButton": "Generating...",
+          "running": "Smart cutting ({progress}%)",
+          "done": "Smart rough cut complete. Timeline refreshed.",
+          "failed": "Smart rough cut failed. Please try again.",
+          "saveConflict": "The editor project has a save conflict. Resolve it before running smart rough cut.",
+          "unsavedChanges": "Current editor changes have not been saved. Save successfully before running smart rough cut.",
+          "missingContext": "Missing current episode or editor project.",
+          "loading": "Loading editor data...",
+          "noVideos": "Generate at least one storyboard video first."
+        },
+        "captions": {
+          "title": "Auto captions",
+          "description": "Use existing voice-line text to create a timed caption track."
+        },
+        "caption": {
+          "button": "Generate captions",
+          "runningButton": "Generating...",
+          "running": "Generating captions ({progress}%)",
+          "done": "Captions generated. Timeline refreshed.",
+          "failed": "Caption generation failed. Please try again.",
+          "saveConflict": "The editor project has a save conflict. Resolve it before generating captions.",
+          "unsavedChanges": "Current editor changes have not been saved. Save successfully before generating captions.",
+          "missingContext": "Missing current episode or editor project.",
+          "loading": "Loading editor data...",
+          "noVoiceLines": "Generate or add voice-line text first.",
+          "estimate": "Estimated {count} captions, about {minutes} minutes."
+        },
+        "voiceOptimize": {
+          "title": "Voice optimize",
+          "description": "Select a voice clip, edit the script, switch speaker voice, or adjust speed, then regenerate audio.",
+          "button": "Regenerate voice",
+          "runningButton": "Generating...",
+          "running": "Optimizing voice ({progress}%)",
+          "done": "Voice replaced. Timeline refreshed.",
+          "failed": "Voice optimization failed. Please try again.",
+          "saveConflict": "The editor project has a save conflict. Resolve it before optimizing voice.",
+          "unsavedChanges": "Current editor changes have not been saved. Save successfully before optimizing voice.",
+          "missingContext": "Missing current episode, editor project, or selected voice clip.",
+          "loading": "Loading editor data...",
+          "selectAudio": "Select a voice clip on the timeline first.",
+          "emptyText": "Voice script cannot be empty.",
+          "emptySpeaker": "Speaker cannot be empty.",
+          "noVoiceLine": "Could not find the corresponding voice line.",
+          "audioElementNotFound": "Could not find the selected voice clip in the timeline.",
+          "durationOverlap": "The new voice duration would overlap the next voice clip on the same track. Shorten the script or adjust the timeline, then retry.",
+          "textLabel": "Voice script (MVP: edit directly, then regenerate)",
+          "speakerLabel": "Speaker / voice",
+          "speedLabel": "Speed {speed}x",
+          "selected": "Selected line {id} · original duration about {seconds}s"
+        },
+        "polish": {
+          "title": "Visual polish",
+          "description": "Add transitions, motion, and pacing refinements automatically."
+        },
+        "buttons": {
+          "execute": "Execute",
+          "generate": "Generate",
+          "open": "Open"
+        },
+        "phase2Hint": "AI editing tools will be connected in Phase 2.",
+        "enhance": {
+          "title": "AI enhance",
+          "description": "Select a video clip, then apply smart crop. Restore/upscale needs a video enhancement provider and is currently a placeholder.",
+          "button": "Apply enhance",
+          "runningButton": "Enhancing...",
+          "running": "Enhancing video ({progress}%)",
+          "done": "Enhance applied. Timeline refreshed.",
+          "failed": "Enhance failed. Please try again.",
+          "saveConflict": "The editor project has a save conflict. Resolve it before enhancing video.",
+          "unsavedChanges": "Current editor changes have not been saved. Save successfully before enhancing video.",
+          "missingContext": "Missing current episode, editor project, or selected video clip.",
+          "loading": "Loading editor data...",
+          "selectVideo": "Select a video clip on the timeline first.",
+          "videoElementNotFound": "Could not find the selected video clip in the timeline.",
+          "restoreUnavailable": "Restore/upscale is not available yet because no video enhancement provider is configured.",
+          "smartCrop": "Smart crop",
+          "restore": "Restore",
+          "ratioLabel": "Target ratio",
+          "anchorLabel": "Focus",
+          "anchorCenter": "Center",
+          "anchorTop": "Top",
+          "anchorBottom": "Bottom",
+          "anchorLeft": "Left",
+          "anchorRight": "Right",
+          "selected": "Selected {id} · duration about {seconds}s",
+          "mvpNote": "MVP: smart crop updates Twick objectFit/frame parameters only, so it does not create a new MediaObject or EditorAsset."
+        },
+        "transition": {
+          "title": "Smart transition",
+          "description": "Select a video/image clip, then get free rule-based recommendations for the transition to the next clip.",
+          "button": "Recommend transitions",
+          "runningButton": "Analyzing...",
+          "running": "Analyzing adjacent clips...",
+          "failed": "Transition recommendation failed. Please try again.",
+          "saveConflict": "The editor project has a save conflict. Resolve it before recommending transitions.",
+          "unsavedChanges": "Current editor changes have not been saved. Save successfully before recommending transitions.",
+          "missingContext": "Missing current episode, editor project, or selected adjacent clips.",
+          "loading": "Loading editor data...",
+          "selectClip": "Select a video or image clip on the timeline first.",
+          "noNextClip": "Select a clip that has a following video/image clip on the same track.",
+          "elementNotFound": "Could not find the selected adjacent clips in the saved timeline.",
+          "applyFailed": "Could not apply transition to the timeline.",
+          "applied": "Applied {kind} transition and saved.",
+          "selectedPair": "Selected pair: {from} → {to}",
+          "duration": "Duration {seconds}s",
+          "freeNote": "Free: rule-based local analysis only, no provider call and no billing freeze.",
+          "renderSupportNote": "Saved to the Twick timeline. Visual transition rendering in preview/export depends on renderer support in the installed Twick version.",
+          "kinds": {
+            "fade": "Fade",
+            "dissolve": "Dissolve",
+            "slide": "Slide",
+            "zoom": "Zoom"
+          }
+        }
+      },
+      "properties": {
+        "selection": "Selection",
+        "noneSelected": "No clip selected",
+        "timeline": "Timeline",
+        "trackCount": "{count} tracks",
+        "captionStyle": {
+          "title": "Caption style",
+          "noneSelected": "No caption clip selected",
+          "mvpHint": "MVP uses the default caption style (white text, black stroke, centered). Style editing will be connected later."
+        },
+        "phase2Hint": "Clip property editing will be completed in Phase 2."
+      }
+    },
+    "export": {
+      "openButton": "Export",
+      "title": "Export video",
+      "description": "Set resolution, frame rate, format, and bitrate. The latest timeline is saved automatically before export.",
+      "close": "Close export panel",
+      "resolution": "Resolution",
+      "presets": {
+        "720p": "720p Standard",
+        "1080p": "1080p HD"
+      },
+      "fps": "Frame rate",
+      "format": "Format",
+      "bitrate": "Bitrate",
+      "bitrateRequired": "Enter an export bitrate.",
+      "ready": "Ready. Click start to export.",
+      "starting": "Saving and submitting export task...",
+      "processing": "Exporting ({progress}%)",
+      "done": "Export complete. Ready to download.",
+      "failed": "Export failed. Please try again.",
+      "cancelled": "Export cancelled.",
+      "conflict": "An export is already in progress. Wait for it to finish or cancel it first.",
+      "missingContext": "Missing current episode or editor project.",
+      "loading": "Loading editor data...",
+      "saveConflict": "The editor project has a save conflict. Resolve it before exporting.",
+      "unsavedChanges": "Current editor changes have not been saved. Save successfully before exporting.",
+      "startFailed": "Failed to submit export task. Please try again.",
+      "statusFailed": "Failed to refresh export status.",
+      "cancelFailed": "Failed to cancel export. Please try again.",
+      "mediaObjectId": "Output {id}",
+      "start": "Start export",
+      "runningButton": "Exporting...",
+      "cancel": "Cancel export",
+      "retry": "Retry",
+      "download": "Download video"
+    }
   }
 }

@@ -158,34 +158,21 @@ async function downloadAudioData(audioUrl: string): Promise<Buffer> {
   return Buffer.from(await response.arrayBuffer())
 }
 
-export async function generateVoiceLine(params: {
+export async function synthesizeVoiceLineAudio(params: {
   projectId: string
-  episodeId?: string | null
-  lineId: string
+  episodeId: string
   userId: string
+  lineId: string
+  speaker: string
+  text: string
+  emotionPrompt?: string | null
+  emotionStrength?: number | null
   audioModel?: string
-  checkCancelled?: CheckCancelled
+  storageKeyPrefix?: string
 }) {
-  const checkCancelled = params.checkCancelled
-
-  const line = await prisma.novelPromotionVoiceLine.findUnique({
-    where: { id: params.lineId },
-    select: {
-      id: true,
-      episodeId: true,
-      speaker: true,
-      content: true,
-      emotionPrompt: true,
-      emotionStrength: true,
-    },
-  })
-  if (!line) {
-    throw new Error('Voice line not found')
-  }
-
-  const episodeId = params.episodeId || line.episodeId
-  if (!episodeId) {
-    throw new Error('episodeId is required')
+  const text = params.text.trim()
+  if (!text) {
+    throw new Error('Voice line text is empty')
   }
 
   const [projectData, episode] = await Promise.all([
@@ -194,7 +181,7 @@ export async function generateVoiceLine(params: {
       include: { characters: true },
     }),
     prisma.novelPromotionEpisode.findUnique({
-      where: { id: episodeId },
+      where: { id: params.episodeId },
       select: { speakerVoices: true },
     }),
   ])
@@ -204,14 +191,8 @@ export async function generateVoiceLine(params: {
   }
 
   const speakerVoices: SpeakerVoiceMap = parseSpeakerVoiceMap(episode?.speakerVoices)
-
-  const character = matchCharacterBySpeaker(line.speaker, projectData.characters || [])
-  const speakerVoice = speakerVoices[line.speaker]
-
-  const text = (line.content || '').trim()
-  if (!text) {
-    throw new Error('Voice line text is empty')
-  }
+  const character = matchCharacterBySpeaker(params.speaker, projectData.characters || [])
+  const speakerVoice = speakerVoices[params.speaker]
 
   const audioSelection = await resolveModelSelectionOrSingle(params.userId, params.audioModel, 'audio')
   const providerKey = getProviderKey(audioSelection.provider).toLowerCase()
@@ -232,8 +213,8 @@ export async function generateVoiceLine(params: {
       endpoint: audioSelection.modelId,
       referenceAudioUrl: fullAudioUrl,
       text,
-      emotionPrompt: line.emotionPrompt,
-      strength: line.emotionStrength ?? 0.4,
+      emotionPrompt: params.emotionPrompt,
+      strength: params.emotionStrength ?? 0.4,
       falApiKey,
     })
   } else if (providerKey === 'bailian') {
@@ -281,26 +262,73 @@ export async function generateVoiceLine(params: {
     throw new Error(`AUDIO_PROVIDER_UNSUPPORTED: ${audioSelection.provider}`)
   }
 
-  const audioKey = `voice/${params.projectId}/${episodeId}/${line.id}.wav`
-  const cosKey = await uploadObject(generated.audioData, audioKey)
+  const prefix = params.storageKeyPrefix || 'voice'
+  const audioKey = `${prefix}/${params.projectId}/${params.episodeId}/${params.lineId}.wav`
+  const storageKey = await uploadObject(generated.audioData, audioKey, undefined, 'audio/wav')
+  const signedUrl = getSignedUrl(storageKey, 7200)
+  return {
+    lineId: params.lineId,
+    audioUrl: signedUrl,
+    storageKey,
+    audioDuration: generated.audioDuration || null,
+    audioDurationSeconds: generated.audioDuration ? generated.audioDuration / 1000 : null,
+    sizeBytes: generated.audioData.length,
+  }
+}
+
+export async function generateVoiceLine(params: {
+  projectId: string
+  episodeId?: string | null
+  lineId: string
+  userId: string
+  audioModel?: string
+  checkCancelled?: CheckCancelled
+}) {
+  const checkCancelled = params.checkCancelled
+
+  const line = await prisma.novelPromotionVoiceLine.findUnique({
+    where: { id: params.lineId },
+    select: {
+      id: true,
+      episodeId: true,
+      speaker: true,
+      content: true,
+      emotionPrompt: true,
+      emotionStrength: true,
+    },
+  })
+  if (!line) {
+    throw new Error('Voice line not found')
+  }
+
+  const episodeId = params.episodeId || line.episodeId
+  if (!episodeId) {
+    throw new Error('episodeId is required')
+  }
+
+  const generated = await synthesizeVoiceLineAudio({
+    projectId: params.projectId,
+    episodeId,
+    lineId: line.id,
+    userId: params.userId,
+    speaker: line.speaker,
+    text: line.content || '',
+    emotionPrompt: line.emotionPrompt,
+    emotionStrength: line.emotionStrength,
+    audioModel: params.audioModel,
+  })
 
   await checkCancelled?.()
 
   await prisma.novelPromotionVoiceLine.update({
     where: { id: line.id },
     data: {
-      audioUrl: cosKey,
+      audioUrl: generated.storageKey,
       audioDuration: generated.audioDuration || null,
     },
   })
 
-  const signedUrl = getSignedUrl(cosKey, 7200)
-  return {
-    lineId: line.id,
-    audioUrl: signedUrl,
-    storageKey: cosKey,
-    audioDuration: generated.audioDuration || null,
-  }
+  return generated
 }
 
 export function estimateVoiceLineMaxSeconds(content: string | null | undefined) {

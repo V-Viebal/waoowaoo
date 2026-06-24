@@ -32,6 +32,7 @@ import type {
   BillingRecordParams,
   TaskBillingInfo,
 } from './types'
+import { BILLING_ITEMS, calculateBillingItemCost, getBillingItemDefinition, type BillingItemKey } from './items'
 import { BUILTIN_PRICING_VERSION } from '@/lib/model-pricing/version'
 
 type CostInput = {
@@ -83,6 +84,69 @@ function asNumber(value: unknown): number | null {
   return n
 }
 
+function resolveEditorBillingItem(metadata?: Record<string, unknown>): BillingItemKey | null {
+  const item = typeof metadata?.billingItem === 'string' ? metadata.billingItem : null
+  if (item && item in BILLING_ITEMS) return item as BillingItemKey
+  return null
+}
+
+function isEditorBillingInfo(info: Extract<TaskBillingInfo, { billable: true }>) {
+  return info.apiType === 'editor' || resolveEditorBillingItem(info.metadata) !== null
+}
+
+function resolveEditorBillingItemOrThrow(input: {
+  model: string
+  metadata?: Record<string, unknown>
+}): BillingItemKey {
+  const billingItem = resolveEditorBillingItem(input.metadata) || (input.model in BILLING_ITEMS ? input.model as BillingItemKey : null)
+  if (!billingItem) {
+    throw new BillingOperationError('BILLING_UNKNOWN_MODEL', `Unknown editor billing item: ${input.model}`, {
+      apiType: 'editor',
+      model: input.model,
+    })
+  }
+  return billingItem
+}
+
+function resolveEditorCatalogCost(input: {
+  model: string
+  quantity: number
+  metadata?: Record<string, unknown>
+}) {
+  const billingItem = resolveEditorBillingItemOrThrow(input)
+  return normalizeMoney(calculateBillingItemCost(billingItem, input.quantity))
+}
+
+function resolveEditorActualQuantity(
+  billingItem: BillingItemKey,
+  fallbackQuantity: number,
+  payload: Record<string, unknown> | null,
+) {
+  const definition = getBillingItemDefinition(billingItem)
+  const explicitQuantity = payload ? asNumber(payload.actualQuantity) : null
+  const actualMinutes = payload ? asNumber(payload.actualMinutes) : null
+  const actualSeconds = payload
+    ? asNumber(payload.actualSeconds ?? payload.actualDurationSeconds)
+    : null
+  const actualCharacters = payload ? asNumber(payload.actualCharacters) : null
+
+  switch (definition.type) {
+    case 'per_use':
+      return explicitQuantity !== null && explicitQuantity >= 0 ? explicitQuantity : 1
+    case 'per_second':
+      if (actualSeconds !== null && actualSeconds >= 0) return actualSeconds
+      if (explicitQuantity !== null && explicitQuantity >= 0) return explicitQuantity
+      return fallbackQuantity
+    case 'per_minute':
+      if (actualMinutes !== null && actualMinutes >= 0) return actualMinutes
+      if (actualSeconds !== null && actualSeconds >= 0) return actualSeconds / 60
+      if (explicitQuantity !== null && explicitQuantity >= 0) return explicitQuantity
+      return fallbackQuantity
+    default:
+      return actualCharacters !== null && actualCharacters >= 0 ? actualCharacters : fallbackQuantity
+  }
+}
+
 function resolveCost(input: CostInput) {
   const asMoney = (value: number) => normalizeMoney(value)
 
@@ -112,6 +176,12 @@ function resolveCost(input: CostInput) {
       return asMoney(calcVoiceDesign())
     case 'lip-sync':
       return asMoney(calcLipSync(input.model))
+    case 'editor':
+      return resolveEditorCatalogCost({
+        model: input.model,
+        quantity: input.quantity,
+        metadata: input.metadata,
+      })
     default:
       throw new BillingOperationError('BILLING_INVALID_API_TYPE', `Unsupported billing apiType: ${String(input.apiType)}`, {
         apiType: input.apiType,
@@ -292,6 +362,35 @@ function resolveTaskActual(
     textUsage?: TextUsageEntry[]
   },
 ): ResolvedActual {
+  const payload = options?.result && typeof options.result === 'object' ? options.result : null
+  const actualQuantity = payload
+    ? asNumber(
+      (payload as Record<string, unknown>).actualQuantity
+      ?? (payload as Record<string, unknown>).actualSeconds
+      ?? (payload as Record<string, unknown>).actualDurationSeconds
+      ?? (payload as Record<string, unknown>).actualCharacters
+    )
+    : null
+
+  if (isEditorBillingInfo(info)) {
+    const billingItem = resolveEditorBillingItemOrThrow({
+      model: info.model,
+      metadata: info.metadata,
+    })
+    const chargeQuantity = resolveEditorActualQuantity(billingItem, info.quantity, payload)
+    return {
+      actualCost: resolveEditorCatalogCost({
+        model: info.model,
+        quantity: chargeQuantity,
+        metadata: info.metadata,
+      }),
+      actualQuantity: chargeQuantity,
+      metadata: {
+        billingItem,
+      },
+    }
+  }
+
   const textResolved = resolveTextCostFromUsage(options?.textUsage || [])
   if (info.apiType === 'text' && textResolved) {
     if (textResolved.actualQuantity > 0) {
@@ -306,7 +405,6 @@ function resolveTaskActual(
     }
   }
 
-  const payload = options?.result && typeof options.result === 'object' ? options.result : null
   const actualVideoTokens = payload
     ? asNumber((payload as Record<string, unknown>).actualVideoTokens)
     : null
@@ -319,15 +417,6 @@ function resolveTaskActual(
       },
     }
   }
-  const actualQuantity = payload
-    ? asNumber(
-      (payload as Record<string, unknown>).actualQuantity
-      ?? (payload as Record<string, unknown>).actualSeconds
-      ?? (payload as Record<string, unknown>).actualDurationSeconds
-      ?? (payload as Record<string, unknown>).actualCharacters
-    )
-    : null
-
   if (actualQuantity !== null && actualQuantity >= 0) {
     return {
       actualCost: resolveCost({

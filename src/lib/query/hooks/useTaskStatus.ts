@@ -102,6 +102,7 @@ export function useActiveTasks(params: {
   targetId?: string | null
   type?: string[]
   enabled?: boolean
+  refetchInterval?: number | false
 }) {
   const enabled = (params.enabled ?? true) && !!params.projectId
   const typeKey = (params.type || []).slice().sort().join(',')
@@ -113,6 +114,7 @@ export function useActiveTasks(params: {
     queryKey,
     enabled,
     staleTime: 5000,
+    refetchInterval: params.refetchInterval,
     queryFn: async () => {
       const search = buildTaskSearch({
         projectId: params.projectId!,
@@ -135,6 +137,7 @@ export function useTaskSnapshot(params: {
   targetId?: string | null
   enabled?: boolean
   type?: string[]
+  refetchInterval?: number | false
 }) {
   const enabled = (params.enabled ?? true) && !!params.projectId && !!params.targetType && !!params.targetId
   const typeKey = (params.type || []).slice().sort().join(',')
@@ -143,6 +146,7 @@ export function useTaskSnapshot(params: {
     queryKey: queryKeys.tasks.snapshot(params.projectId || '', params.targetType || '', params.targetId || '', typeKey),
     enabled,
     staleTime: 5000,
+    refetchInterval: params.refetchInterval,
     queryFn: async () => {
       const search = buildTaskSearch({
         projectId: params.projectId!,
@@ -167,6 +171,7 @@ export function useTaskStatus(params: {
   targetId?: string | null
   enabled?: boolean
   type?: string[]
+  refetchInterval?: number | false
 }) {
   const query = useActiveTasks({
     projectId: params.projectId,
@@ -174,6 +179,7 @@ export function useTaskStatus(params: {
     targetId: params.targetId,
     enabled: params.enabled,
     type: params.type,
+    refetchInterval: params.refetchInterval,
   })
   const snapshotQuery = useTaskSnapshot({
     projectId: params.projectId,
@@ -181,6 +187,7 @@ export function useTaskStatus(params: {
     targetId: params.targetId,
     enabled: params.enabled,
     type: params.type,
+    refetchInterval: params.refetchInterval,
   })
 
   const data = useMemo(() => {

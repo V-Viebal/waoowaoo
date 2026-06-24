@@ -3,5 +3,6 @@
   "assets": "2. 资产分析",
   "storyboard": "3. 分镜编辑",
   "videos": "4. 视频生成",
-  "voice": "5. 配音生成"
+  "editor": "5. AI剪辑",
+  "voice": "6. 配音生成"
 }

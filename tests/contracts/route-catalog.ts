@@ -102,6 +102,11 @@ const ROUTE_FILES = [
   'src/app/api/novel-promotion/[projectId]/download-images/route.ts',
   'src/app/api/novel-promotion/[projectId]/download-videos/route.ts',
   'src/app/api/novel-promotion/[projectId]/download-voices/route.ts',
+  'src/app/api/novel-promotion/[projectId]/editor/ai/caption/route.ts',
+  'src/app/api/novel-promotion/[projectId]/editor/ai/enhance/route.ts',
+  'src/app/api/novel-promotion/[projectId]/editor/ai/smart-cut/route.ts',
+  'src/app/api/novel-promotion/[projectId]/editor/ai/transition/route.ts',
+  'src/app/api/novel-promotion/[projectId]/editor/ai/voice-optimize/route.ts',
   'src/app/api/novel-promotion/[projectId]/editor/route.ts',
   'src/app/api/novel-promotion/[projectId]/episodes/[episodeId]/route.ts',
   'src/app/api/novel-promotion/[projectId]/episodes/batch/route.ts',
@@ -208,6 +213,9 @@ function resolveContractGroup(routeFile: string): RouteContractGroup {
     || routeFile.startsWith('src/app/api/admin/config-center/art-styles/')
   ) return 'art-styles'
   if (routeFile.startsWith('src/app/api/admin/config-center/')) return 'admin-config-center-prompts'
+  if (routeFile.startsWith('src/app/api/novel-promotion/[projectId]/editor/ai/')) {
+    return 'direct-submit-routes'
+  }
   if (
     routeFile.includes('/ai-')
     || routeFile.includes('/analyze')
