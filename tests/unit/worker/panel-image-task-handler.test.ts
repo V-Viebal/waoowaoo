@@ -301,6 +301,7 @@ describe('worker panel-image-task-handler behavior', () => {
         imageUrl: 'cos/grid-1.png',
         candidateImages: JSON.stringify(['cos/grid-1.png', 'cos/grid-2.png']),
         imageLayout: 'grid',
+        gridVideoPromptAt: null,
       },
     })
   })
