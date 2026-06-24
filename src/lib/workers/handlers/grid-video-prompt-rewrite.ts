@@ -16,8 +16,8 @@ export async function handleGridVideoPromptRewriteTask(
   job: Job<TaskJobData>,
 ): Promise<{ panelId: string; rewritten: boolean }> {
   const payload = (job.data.payload || {}) as AnyObj
-  const panelId = job.data.targetType === 'NovelPromotionPanel' && job.data.targetId
-    ? job.data.targetId
+  const panelId = job.data.targetType === 'NovelPromotionPanel'
+    ? (job.data.targetId || '')
     : (typeof payload.panelId === 'string' ? payload.panelId : '')
   if (!panelId) throw new Error('AI_GRID_VIDEO_PROMPT: panelId missing')
 
