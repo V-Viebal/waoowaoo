@@ -2,31 +2,16 @@ import { prisma } from '@/lib/prisma'
 import { getMediaObjectById } from '@/lib/media/service'
 import { getSignedObjectUrl, toFetchableUrl } from '@/lib/storage'
 import type { MediaObjRef } from './types'
+import { isMediaObjRef, toMediaObjRef, extractMediaObjectId } from './media-ref'
 
-const MEDIA_OBJ_PREFIX = 'mediaobj://'
+// 纯字符串工具从 ./media-ref re-export，保持既有服务端调用方的 import 路径不变
+export { isMediaObjRef, toMediaObjRef, extractMediaObjectId }
 
 type ServerRenderMediaContext = {
   userId: string
   projectId: string
   editorProjectId: string
   episodeId?: string | null
-}
-
-export function isMediaObjRef(src: string): src is MediaObjRef {
-  return src.startsWith(MEDIA_OBJ_PREFIX) && src.slice(MEDIA_OBJ_PREFIX.length).trim().length > 0
-}
-
-export function toMediaObjRef(mediaObjectId: string): MediaObjRef {
-  const normalizedId = mediaObjectId.trim()
-  if (!normalizedId) {
-    throw new Error('Media object id is required')
-  }
-  return `${MEDIA_OBJ_PREFIX}${normalizedId}` as MediaObjRef
-}
-
-export function extractMediaObjectId(ref: MediaObjRef | string): string | null {
-  if (!isMediaObjRef(ref)) return null
-  return ref.slice(MEDIA_OBJ_PREFIX.length) || null
 }
 
 export async function resolveMediaUrl(ref: string): Promise<string> {

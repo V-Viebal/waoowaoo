@@ -1,4 +1,4 @@
-import { toMediaObjRef } from './media-url-resolver'
+import { toMediaObjRef } from './media-ref'
 import type { TwickTimelineProject, TwickTrack } from './types'
 
 type JsonRecord = Record<string, unknown>
