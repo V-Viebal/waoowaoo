@@ -1,14 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const rewriteMock = vi.hoisted(() => ({ rewriteGridVideoPrompt: vi.fn() }))
-const prismaMock = vi.hoisted(() => ({ update: vi.fn(), findUnique: vi.fn() }))
+const prismaMock = vi.hoisted(() => ({ update: vi.fn(), findFirst: vi.fn() }))
 const modelMock = vi.hoisted(() => ({ resolveAnalysisModel: vi.fn() }))
 
 vi.mock('@/lib/storyboard-images/grid-video-prompt', () => ({
   rewriteGridVideoPrompt: rewriteMock.rewriteGridVideoPrompt,
 }))
 vi.mock('@/lib/prisma', () => ({
-  prisma: { novelPromotionPanel: { update: prismaMock.update, findUnique: prismaMock.findUnique } },
+  prisma: { novelPromotionPanel: { update: prismaMock.update, findFirst: prismaMock.findFirst } },
 }))
 vi.mock('@/lib/workers/handlers/resolve-analysis-model', () => ({
   resolveAnalysisModel: modelMock.resolveAnalysisModel,
@@ -30,10 +30,10 @@ describe('handleGridVideoPromptRewriteTask', () => {
   beforeEach(() => {
     rewriteMock.rewriteGridVideoPrompt.mockReset()
     prismaMock.update.mockReset()
-    prismaMock.findUnique.mockReset()
+    prismaMock.findFirst.mockReset()
     modelMock.resolveAnalysisModel.mockReset()
     modelMock.resolveAnalysisModel.mockResolvedValue('ark:doubao')
-    prismaMock.findUnique.mockResolvedValue({
+    prismaMock.findFirst.mockResolvedValue({
       id: 'panel-1', description: '男人下班回家', shotType: '中景', cameraMove: '跟拍',
       location: '走廊', characters: '[]', srtSegment: '', videoPrompt: '旧提示词', imageLayout: 'grid',
     })
@@ -42,6 +42,12 @@ describe('handleGridVideoPromptRewriteTask', () => {
   it('rewrites and persists videoPrompt + gridVideoPromptAt', async () => {
     rewriteMock.rewriteGridVideoPrompt.mockResolvedValue({ prompt: '0-3秒：推门', promptTokens: 10, completionTokens: 5 })
     const result = await handleGridVideoPromptRewriteTask(job)
+    expect(prismaMock.findFirst).toHaveBeenCalledWith({
+      where: {
+        id: 'panel-1',
+        storyboard: { episode: { novelPromotionProject: { projectId: 'p1' } } },
+      },
+    })
     expect(modelMock.resolveAnalysisModel).toHaveBeenCalledWith({ userId: 'u1', inputModel: 'ark:doubao' })
     expect(rewriteMock.rewriteGridVideoPrompt).toHaveBeenCalledWith(expect.objectContaining({ model: 'ark:doubao' }))
     expect(prismaMock.update).toHaveBeenCalledWith(expect.objectContaining({
@@ -54,6 +60,17 @@ describe('handleGridVideoPromptRewriteTask', () => {
   it('throws when rewrite returns null (no persist)', async () => {
     rewriteMock.rewriteGridVideoPrompt.mockResolvedValue(null)
     await expect(handleGridVideoPromptRewriteTask(job)).rejects.toThrow()
+    expect(prismaMock.update).not.toHaveBeenCalled()
+  })
+
+  it('throws for non-grid panel without rewrite or persist', async () => {
+    prismaMock.findFirst.mockResolvedValue({
+      id: 'panel-1', description: '男人下班回家', shotType: '中景', cameraMove: '跟拍',
+      location: '走廊', characters: '[]', srtSegment: '', videoPrompt: '旧提示词', imageLayout: 'single',
+    })
+
+    await expect(handleGridVideoPromptRewriteTask(job)).rejects.toThrow('AI_GRID_VIDEO_PROMPT: panel is not a grid layout')
+    expect(rewriteMock.rewriteGridVideoPrompt).not.toHaveBeenCalled()
     expect(prismaMock.update).not.toHaveBeenCalled()
   })
 })

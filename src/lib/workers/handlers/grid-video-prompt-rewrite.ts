@@ -21,8 +21,16 @@ export async function handleGridVideoPromptRewriteTask(
     : (typeof payload.panelId === 'string' ? payload.panelId : '')
   if (!panelId) throw new Error('AI_GRID_VIDEO_PROMPT: panelId missing')
 
-  const panel = await prisma.novelPromotionPanel.findUnique({ where: { id: panelId } })
-  if (!panel) throw new Error('AI_GRID_VIDEO_PROMPT: panel not found')
+  const panel = await prisma.novelPromotionPanel.findFirst({
+    where: {
+      id: panelId,
+      storyboard: { episode: { novelPromotionProject: { projectId: job.data.projectId } } },
+    },
+  })
+  if (!panel) throw new Error('AI_GRID_VIDEO_PROMPT: panel not found or not in project')
+  if (panel.imageLayout !== 'grid') {
+    throw new Error('AI_GRID_VIDEO_PROMPT: panel is not a grid layout')
+  }
 
   await reportTaskProgress(job, 20, { stage: 'received' })
   await assertTaskActive(job, 'grid_video_prompt_rewrite_prepare')
