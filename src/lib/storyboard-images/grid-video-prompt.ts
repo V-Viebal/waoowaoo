@@ -6,10 +6,17 @@ function formatGridLayoutText(
   layout: ReturnType<typeof buildStoryboardGridLayout>,
   locale: 'zh' | 'en' = 'zh',
 ): string {
+  const empty = layout.capacity - layout.panelCount
   if (locale === 'zh') {
-    return `${layout.columns} 列 × ${layout.rows} 行`
+    if (empty > 0) {
+      return `${layout.columns} 列 × ${layout.rows} 行排列，实际 ${layout.panelCount} 格（末 ${empty} 格为空）`
+    }
+    return `${layout.columns} 列 × ${layout.rows} 行排列，共 ${layout.panelCount} 格`
   }
-  return `${layout.columns} columns × ${layout.rows} rows`
+  if (empty > 0) {
+    return `arranged as ${layout.columns} columns × ${layout.rows} rows, ${layout.panelCount} cells used (last ${empty} empty)`
+  }
+  return `${layout.columns} columns × ${layout.rows} rows, ${layout.panelCount} cells`
 }
 
 /**

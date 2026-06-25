@@ -110,7 +110,7 @@ describe('rewriteGridVideoPrompt', () => {
       variables: expect.objectContaining({
         storyboard_context_json: expect.any(String),
         base_prompt: '男人开门',
-        grid_layout: '3 列 × 2 行',
+        grid_layout: '3 列 × 2 行排列，实际 4 格（末 2 格为空）',
         panel_grid_size: '4',
         shot_type: '中景',
         camera_move: '跟拍',
