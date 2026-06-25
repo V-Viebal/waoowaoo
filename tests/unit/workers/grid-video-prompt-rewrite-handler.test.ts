@@ -36,6 +36,8 @@ describe('handleGridVideoPromptRewriteTask', () => {
     prismaMock.findFirst.mockResolvedValue({
       id: 'panel-1', description: '男人下班回家', shotType: '中景', cameraMove: '跟拍',
       location: '走廊', characters: '[]', srtSegment: '', videoPrompt: '旧提示词', imageLayout: 'grid',
+      imageUrl: 'https://cdn/grid.png', gridGenerationContext: '{"a":1}',
+      storyboard: { episode: { novelPromotionProject: { gridVideoPromptVisionModel: 'ark:vision' } } },
     })
   })
 
@@ -47,9 +49,15 @@ describe('handleGridVideoPromptRewriteTask', () => {
         id: 'panel-1',
         storyboard: { episode: { novelPromotionProject: { projectId: 'p1' } } },
       },
+      include: { storyboard: { include: { episode: { include: { novelPromotionProject: true } } } } },
     })
     expect(modelMock.resolveAnalysisModel).toHaveBeenCalledWith({ userId: 'u1', inputModel: 'ark:doubao' })
-    expect(rewriteMock.rewriteGridVideoPrompt).toHaveBeenCalledWith(expect.objectContaining({ model: 'ark:doubao' }))
+    expect(rewriteMock.rewriteGridVideoPrompt).toHaveBeenCalledWith(expect.objectContaining({
+      model: 'ark:doubao',
+      visionModel: 'ark:vision',
+      imageUrl: 'https://cdn/grid.png',
+      gridGenerationContextJson: '{"a":1}',
+    }))
     expect(prismaMock.update).toHaveBeenCalledWith(expect.objectContaining({
       where: { id: 'panel-1' },
       data: expect.objectContaining({ videoPrompt: '0-3秒：推门', gridVideoPromptAt: expect.any(Date) }),

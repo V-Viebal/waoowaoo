@@ -21,13 +21,17 @@ export async function handleGridVideoPromptRewriteTask(
     : (typeof payload.panelId === 'string' ? payload.panelId : '')
   if (!panelId) throw new Error('AI_GRID_VIDEO_PROMPT: panelId missing')
 
-  const panel = await prisma.novelPromotionPanel.findFirst({
+  const panelWithProject = await prisma.novelPromotionPanel.findFirst({
     where: {
       id: panelId,
       storyboard: { episode: { novelPromotionProject: { projectId: job.data.projectId } } },
     },
+    include: { storyboard: { include: { episode: { include: { novelPromotionProject: true } } } } },
   })
-  if (!panel) throw new Error('AI_GRID_VIDEO_PROMPT: panel not found or not in project')
+  if (!panelWithProject) throw new Error('AI_GRID_VIDEO_PROMPT: panel not found or not in project')
+  const panel = panelWithProject
+  const visionModel =
+    panelWithProject.storyboard?.episode?.novelPromotionProject?.gridVideoPromptVisionModel || undefined
   if (panel.imageLayout !== 'grid') {
     throw new Error('AI_GRID_VIDEO_PROMPT: panel is not a grid layout')
   }
@@ -45,15 +49,17 @@ export async function handleGridVideoPromptRewriteTask(
   const locale = job.data.locale === 'en' ? 'en' : 'zh'
   const basePrompt = panel.videoPrompt || panel.description || ''
 
+  const legacyPanelContext = {
+    shot_type: panel.shotType || '',
+    camera_move: panel.cameraMove || '',
+    description: panel.description || '',
+    location: panel.location || '',
+    characters: panel.characters || '',
+    text_segment: panel.srtSegment || '',
+  }
+
   const result = await rewriteGridVideoPrompt({
-    panelContext: {
-      shot_type: panel.shotType || '',
-      camera_move: panel.cameraMove || '',
-      description: panel.description || '',
-      location: panel.location || '',
-      characters: panel.characters || '',
-      text_segment: panel.srtSegment || '',
-    },
+    panelContext: legacyPanelContext,
     basePrompt,
     gridSize,
     shotType: panel.shotType || '',
@@ -62,6 +68,9 @@ export async function handleGridVideoPromptRewriteTask(
     projectId: job.data.projectId,
     userId: job.data.userId,
     model: analysisModel,
+    visionModel,
+    imageUrl: panel.imageUrl || undefined,
+    gridGenerationContextJson: panel.gridGenerationContext || undefined,
   })
 
   if (!result) throw new Error('AI_GRID_VIDEO_PROMPT: rewrite returned empty')
