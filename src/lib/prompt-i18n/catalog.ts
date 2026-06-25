@@ -169,7 +169,7 @@ export const PROMPT_CATALOG: Record<PromptId, PromptCatalogEntry> = {
     pathStem: 'novel-promotion/panel_grid_video',
     variableKeys: [
       'base_prompt',
-      'panel_description',
+      'storyboard_context_json',
       'grid_layout',
       'panel_grid_size',
       'camera_move',
