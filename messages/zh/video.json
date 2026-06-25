@@ -40,6 +40,7 @@
     "correspondingText": "对应原文",
     "generateVideo": "生成视频",
     "regenerateGridVideoPrompt": "重新生成宫格视频提示词",
+    "regeneratingGridVideoPrompt": "生成中...",
     "selectModel": "选择视频模型",
     "selectVoice": "选择要使用的配音：",
     "willAutoPad": "(将自动填充)",

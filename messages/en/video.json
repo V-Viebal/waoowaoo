@@ -40,6 +40,7 @@
     "correspondingText": "Corresponding Text",
     "generateVideo": "Generate Video",
     "regenerateGridVideoPrompt": "Regenerate grid video prompt",
+    "regeneratingGridVideoPrompt": "Rewriting...",
     "selectModel": "Select Video Model",
     "selectVoice": "Select voice to use:",
     "willAutoPad": "(will auto-pad)",
