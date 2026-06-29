@@ -177,7 +177,10 @@ export function useVideoPanelActions({
       showLipSyncSection,
       canLipSync,
       hasVisibleBaseVideo,
-      isRegeneratingGridVideoPrompt: regenerateGridVideoPromptMutation.isPending,
+      isRegeneratingGridVideoPrompt:
+        regenerateGridVideoPromptMutation.isPending ||
+        panel.gridVideoPromptTaskRunning ||
+        false,
     },
   }
 }

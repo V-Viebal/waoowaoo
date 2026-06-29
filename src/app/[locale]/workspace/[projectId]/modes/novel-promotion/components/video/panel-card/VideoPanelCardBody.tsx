@@ -145,7 +145,10 @@ export default function VideoPanelCardBody({ runtime }: VideoPanelCardBodyProps)
                       linkedNextPanel.storyboardId,
                       linkedNextPanel.panelIndex,
                       panelKey,
-                      layout.flGenerationOptions,
+                      {
+                        ...layout.flGenerationOptions,
+                        ...(typeof panel.textPanel?.duration === 'number' ? { duration: panel.textPanel.duration } : {}),
+                      },
                       panel.panelId,
                     )}
                     disabled={
@@ -188,7 +191,10 @@ export default function VideoPanelCardBody({ runtime }: VideoPanelCardBodyProps)
                         panel.panelIndex,
                         videoModel.selectedModel,
                         undefined,
-                        videoModel.generationOptions,
+                        {
+                          ...videoModel.generationOptions,
+                          ...(typeof panel.textPanel?.duration === 'number' ? { duration: panel.textPanel.duration } : {}),
+                        },
                         panel.panelId,
                         panel.imageLayout,
                       )}

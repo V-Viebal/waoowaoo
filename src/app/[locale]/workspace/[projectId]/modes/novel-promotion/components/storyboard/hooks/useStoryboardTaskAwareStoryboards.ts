@@ -46,7 +46,7 @@ function buildStoryboardTextTargets(storyboards: NovelPromotionStoryboard[]): Ta
   return targets
 }
 
-function buildPanelTargets(storyboards: NovelPromotionStoryboard[], type: 'image' | 'video' | 'lip-sync'): TaskTarget[] {
+function buildPanelTargets(storyboards: NovelPromotionStoryboard[], type: 'image' | 'video' | 'lip-sync' | 'grid-video-prompt'): TaskTarget[] {
   const targets: TaskTarget[] = []
 
   for (const storyboard of storyboards) {
@@ -68,6 +68,15 @@ function buildPanelTargets(storyboards: NovelPromotionStoryboard[], type: 'image
           types: ['video_panel'],
           resource: 'video',
           hasOutput: !!panel.videoUrl,
+        })
+      } else if (type === 'grid-video-prompt') {
+        targets.push({
+          key: `grid-video-prompt:${panel.id}`,
+          targetType: 'NovelPromotionPanel',
+          targetId: panel.id,
+          types: ['ai_grid_video_prompt'],
+          resource: 'video',
+          hasOutput: !!panel.gridVideoPromptAt,
         })
       } else {
         targets.push({
@@ -106,6 +115,10 @@ export function useStoryboardTaskAwareStoryboards({
     () => buildPanelTargets(initialStoryboards, 'lip-sync'),
     [initialStoryboards],
   )
+  const panelGridVideoPromptTargets = useMemo(
+    () => buildPanelTargets(initialStoryboards, 'grid-video-prompt'),
+    [initialStoryboards],
+  )
 
   const storyboardTextStates = useStoryboardTaskPresentation(
     projectId,
@@ -127,6 +140,11 @@ export function useStoryboardTaskAwareStoryboards({
     panelLipSyncTargets,
     !!projectId && panelLipSyncTargets.length > 0,
   )
+  const panelGridVideoPromptStates = useStoryboardTaskPresentation(
+    projectId,
+    panelGridVideoPromptTargets,
+    !!projectId && panelGridVideoPromptTargets.length > 0,
+  )
 
   const taskAwareStoryboards = useMemo(() => {
     return initialStoryboards.map((storyboard) => ({
@@ -143,12 +161,16 @@ export function useStoryboardTaskAwareStoryboards({
           imageTaskIntent: panelImageTaskState?.intent,
           videoTaskRunning: isRunningPhase(panelVideoStates.getTaskState(`panel-video:${panel.id}`)?.phase),
           lipSyncTaskRunning: isRunningPhase(panelLipSyncStates.getTaskState(`panel-lip:${panel.id}`)?.phase),
+          gridVideoPromptTaskRunning: isRunningPhase(
+            panelGridVideoPromptStates.getTaskState(`grid-video-prompt:${panel.id}`)?.phase,
+          ),
         }
       }),
     }))
   }, [
     initialStoryboards,
     isRunningPhase,
+    panelGridVideoPromptStates,
     panelImageStates,
     panelLipSyncStates,
     panelVideoStates,

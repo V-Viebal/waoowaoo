@@ -104,7 +104,7 @@ export function useVideoStageRuntime({
   const downloadRemoteBlobMutation = useDownloadRemoteBlob()
   const matchedVoiceLinesQuery = useMatchedVoiceLines(projectId, episodeId)
 
-  const { panelVideoStates, panelLipStates } = useVideoTaskStates({
+  const { panelVideoStates, panelLipStates, gridVideoPromptStates } = useVideoTaskStates({
     projectId,
     storyboards,
   })
@@ -113,6 +113,7 @@ export function useVideoStageRuntime({
     clips,
     panelVideoStates,
     panelLipStates,
+    gridVideoPromptStates,
   })
 
   const {

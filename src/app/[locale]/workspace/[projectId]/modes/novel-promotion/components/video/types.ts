@@ -54,6 +54,8 @@ export interface Panel {
   videoErrorMessage?: string | null  // 视频生成错误消息
   videoErrorCode?: string | null
   imageTaskRunning?: boolean | null
+  gridVideoPromptAt?: string | null  // 宫格视频提示词重写时间戳
+  gridGenerationContext?: string | null  // 宫格图生成时的上下文JSON
   // 口型同步相关
   lipSyncVideoUrl?: string | null
   lipSyncTaskRunning?: boolean | null
@@ -100,6 +102,8 @@ export interface VideoPanel {
   lipSyncTaskId?: string
   lipSyncErrorMessage?: string  // 口型同步错误消息
   lipSyncErrorCode?: string
+  // 宫格视频提示词重写任务状态
+  gridVideoPromptTaskRunning?: boolean
 }
 
 // 匹配的配音信息

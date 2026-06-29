@@ -21,6 +21,7 @@ interface UseVideoPanelsProjectionParams {
   clips: Clip[]
   panelVideoStates: TaskPresentationLike
   panelLipStates: TaskPresentationLike
+  gridVideoPromptStates?: TaskPresentationLike
 }
 
 export function useVideoPanelsProjection({
@@ -28,6 +29,7 @@ export function useVideoPanelsProjection({
   clips,
   panelVideoStates,
   panelLipStates,
+  gridVideoPromptStates,
 }: UseVideoPanelsProjectionParams) {
   const sortedStoryboards = useMemo(() => {
     return [...storyboards].sort((left, right) => {
@@ -56,6 +58,9 @@ export function useVideoPanelsProjection({
         const panelId = panel.id
         const panelVideoState = panelId ? panelVideoStates.getTaskState(`panel-video:${panelId}`) : null
         const panelLipState = panelId ? panelLipStates.getTaskState(`panel-lip:${panelId}`) : null
+        const gridVideoPromptState = panelId && gridVideoPromptStates
+          ? gridVideoPromptStates.getTaskState(`grid-video-prompt:${panelId}`)
+          : null
 
         panels.push({
           panelId,
@@ -100,11 +105,13 @@ export function useVideoPanelsProjection({
             panelLipState?.phase === 'failed'
               ? panelLipState.lastError?.message || panel.lipSyncErrorMessage || undefined
               : panel.lipSyncErrorMessage || undefined,
+          gridVideoPromptTaskRunning:
+            gridVideoPromptState?.phase === 'queued' || gridVideoPromptState?.phase === 'processing',
         })
       })
     })
     return panels
-  }, [panelLipStates, panelVideoStates, sortedStoryboards])
+  }, [panelLipStates, panelVideoStates, gridVideoPromptStates, sortedStoryboards])
 
   return {
     sortedStoryboards,

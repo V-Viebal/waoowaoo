@@ -57,6 +57,24 @@ export function buildPanelLipTargets(storyboards: Storyboard[]): VideoTaskTarget
   return targets
 }
 
+export function buildGridVideoPromptTargets(storyboards: Storyboard[]): VideoTaskTarget[] {
+  const targets: VideoTaskTarget[] = []
+  for (const storyboard of storyboards) {
+    for (const panel of storyboard.panels || []) {
+      if (!panel.id) continue
+      targets.push({
+        key: `grid-video-prompt:${panel.id}`,
+        targetType: 'NovelPromotionPanel',
+        targetId: panel.id,
+        types: ['ai_grid_video_prompt'],
+        resource: 'video',
+        hasOutput: !!panel.gridVideoPromptAt,
+      })
+    }
+  }
+  return targets
+}
+
 export function buildVoiceLineTargets(voiceLines: VoiceLine[]): VoiceTaskTarget[] {
   return voiceLines
     .filter((line) => line.matchedStoryboardId && line.matchedPanelIndex !== null)

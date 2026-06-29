@@ -183,6 +183,8 @@ export interface NovelPromotionPanel {
   videoPrompt: string | null
   firstLastFramePrompt?: string | null
   videoUrl: string | null
+  gridVideoPromptAt?: string | null  // 宫格视频提示词重写时间戳
+  gridGenerationContext?: string | null  // 宫格图生成时的上下文JSON
   videoGenerationMode?: 'normal' | 'firstlastframe' | null
   videoMedia?: MediaRef | null
   lipSyncVideoUrl?: string | null
@@ -196,6 +198,7 @@ export interface NovelPromotionPanel {
   // 任务态字段（由 tasks + hook 派生，不再依赖数据库持久化）
   imageTaskRunning?: boolean
   videoTaskRunning?: boolean
+  gridVideoPromptTaskRunning?: boolean
   imageErrorMessage?: string | null  // 图片生成错误消息
 }
 
