@@ -887,7 +887,7 @@ async function pollStarstoneTask(requestId: string, userId: string): Promise<Pol
     try {
         const { apiKey } = await getProviderConfig(userId, 'starrouter')
         const response = await fetch(
-            `https://starrouter.io/v1/video/generations/${encodeURIComponent(requestId)}`,
+            `https://starrouter.io/volcengine/doubao/contents/generations/tasks/${encodeURIComponent(requestId)}`,
             {
                 headers: {
                     Authorization: `Bearer ${apiKey}`,

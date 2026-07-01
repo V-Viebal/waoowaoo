@@ -23,7 +23,7 @@ function assertRegistered(modelId: string): void {
   })
 }
 
-const STARSTONE_VIDEO_SUBMIT_ENDPOINT = 'https://starrouter.io/v1/video/generations'
+const STARSTONE_VIDEO_SUBMIT_ENDPOINT = 'https://starrouter.io/volcengine/doubao/contents/generations/tasks'
 
 // 视频是异步任务，submit 只是创建任务拿 task_id；上游卡住的话也得有兜底，
 // 否则会一直占住 BullMQ 的 job 槽位，影响后续锁续期。
@@ -53,27 +53,22 @@ function readTaskIdFromResponse(data: StarRouterVideoSubmitResponse): string {
 
 interface StarRouterVideoSubmitBody {
   model: string
-  prompt?: string
-  image?: string
+  content: Array<{ type: string; text?: string; image_url?: { url: string } }>
+  resolution?: string
+  ratio?: string
   duration?: number
-  width?: number
-  height?: number
-  fps?: number
   seed?: number
+  watermark?: boolean
+  fps?: number
   n?: number
   response_format?: string
   user?: string
   metadata?: Record<string, unknown>
 }
 
-// 常见 aspect ratio 对应分辨率（720p 级别）
-const ASPECT_RATIO_TO_DIMENSIONS: Record<string, { width: number; height: number }> = {
-  '16:9': { width: 1280, height: 720 },
-  '9:16': { width: 720, height: 1280 },
-  '1:1': { width: 720, height: 720 },
-  '3:2': { width: 1080, height: 720 },
-  '2:3': { width: 720, height: 1080 },
-}
+// Volcengine Doubao 接口直接使用 resolution 和 ratio 字符串，无需映射尺寸
+// 支持的 resolution: '720p', '1080p'
+// 支持的 ratio: '16:9', '9:16', '1:1', '3:2', '2:3'
 
 function readTrimmedString(value: unknown): string {
   return typeof value === 'string' ? value.trim() : ''
@@ -108,8 +103,6 @@ function assertNoUnsupportedOptions(options: StarRouterGenerateRequestOptions): 
     'duration',
     'aspectRatio',
     'aspect_ratio',
-    'width',
-    'height',
     'fps',
     'seed',
     'n',
@@ -118,6 +111,7 @@ function assertNoUnsupportedOptions(options: StarRouterGenerateRequestOptions): 
     'resolution',
     'generateAudio',
     'generate_audio',
+    'watermark',
     'user',
     'metadata',
   ])
@@ -129,31 +123,13 @@ function assertNoUnsupportedOptions(options: StarRouterGenerateRequestOptions): 
   }
 }
 
-function resolveVideoDimensions(options: StarRouterGenerateRequestOptions): { width?: number; height?: number } {
-  const width = readOptionalPositiveInteger(options.width, 'width')
-  const height = readOptionalPositiveInteger(options.height, 'height')
-  if (width && height) return { width, height }
-
-  // 从 aspectRatio 推断尺寸
-  const aspectRatio = readTrimmedString(options.aspectRatio) || readTrimmedString(options.aspect_ratio)
-  if (aspectRatio && ASPECT_RATIO_TO_DIMENSIONS[aspectRatio]) {
-    return ASPECT_RATIO_TO_DIMENSIONS[aspectRatio]
-  }
-
-  // 从 resolution 推断（如 "720p"、"1080p"）
-  const resolution = readTrimmedString(options.resolution)?.toLowerCase()
-  if (resolution) {
-    const baseHeight = resolution === '1080p' ? 1080 : 720
-    const ratio = aspectRatio || '16:9'
-    const dims = ASPECT_RATIO_TO_DIMENSIONS[ratio] || ASPECT_RATIO_TO_DIMENSIONS['16:9']
-    const scale = baseHeight / dims.height
-    return {
-      width: Math.round(dims.width * scale),
-      height: baseHeight,
-    }
-  }
-
-  return {}
+// 常见 aspect ratio 映射（保留供将来参考，新接口直接传 resolution 和 ratio 字符串）
+const _ASPECT_RATIO_TO_DIMENSIONS: Record<string, { width: number; height: number }> = {
+  '16:9': { width: 1280, height: 720 },
+  '9:16': { width: 720, height: 1280 },
+  '1:1': { width: 720, height: 720 },
+  '3:2': { width: 1080, height: 720 },
+  '2:3': { width: 720, height: 1080 },
 }
 
 function buildSubmitRequest(params: StarRouterVideoGenerateParams): {
@@ -176,7 +152,8 @@ function buildSubmitRequest(params: StarRouterVideoGenerateParams): {
   const n = readOptionalPositiveInteger(params.options.n, 'n')
   const responseFormat = readTrimmedString(params.options.outputFormat) || readTrimmedString(params.options.response_format)
   const user = readTrimmedString(params.options.user)
-  const { width, height } = resolveVideoDimensions(params.options)
+  const resolution = readTrimmedString(params.options.resolution)
+  const ratio = readTrimmedString(params.options.aspectRatio) || readTrimmedString(params.options.aspect_ratio)
 
   // metadata 是 StarRouter 的模型扩展参数入口，必须保留调用方传入的负向词、风格、质量等字段。
   const metadata = readOptionalRecord(params.options.metadata, 'metadata') ?? {}
@@ -188,14 +165,21 @@ function buildSubmitRequest(params: StarRouterVideoGenerateParams): {
     metadata.generate_audio = generateAudio
   }
 
+  // 构建 content 数组：text + image_url
+  const content: StarRouterVideoSubmitBody['content'] = []
+  if (prompt) {
+    content.push({ type: 'text', text: prompt })
+  }
+  content.push({ type: 'image_url', image_url: { url: imageUrl } })
+
   const submitBody: StarRouterVideoSubmitBody = {
     model: modelId,
-    image: imageUrl,
+    content,
+    watermark: false,
   }
-  if (prompt) submitBody.prompt = prompt
   if (typeof duration === 'number') submitBody.duration = duration
-  if (typeof width === 'number') submitBody.width = width
-  if (typeof height === 'number') submitBody.height = height
+  if (resolution) submitBody.resolution = resolution
+  if (ratio) submitBody.ratio = ratio
   if (typeof fps === 'number') submitBody.fps = fps
   if (typeof seed === 'number') submitBody.seed = seed
   if (typeof n === 'number') submitBody.n = n

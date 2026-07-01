@@ -15,6 +15,14 @@ const prismaMock = vi.hoisted(() => ({
       artStyle: 'realistic',
     })),
   },
+  artStyle: {
+    findFirst: vi.fn(async (args: any) => {
+      if (args.where.id === 'realistic') {
+        return { id: 'realistic', name: 'Realistic', description: '', prompt: '', scope: 'builtin', sortOrder: 1 }
+      }
+      return null
+    }),
+  },
 }))
 
 vi.mock('@/lib/api-auth', () => authMock)

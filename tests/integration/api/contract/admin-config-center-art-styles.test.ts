@@ -41,6 +41,23 @@ vi.mock('@/lib/media/attach', async () => {
   }
 })
 
+// 屏蔽图片生成 API 调用
+vi.mock('@/lib/generator-api', () => ({
+  generateImage: vi.fn().mockResolvedValue({
+    success: true,
+    imageUrl: 'https://picsum.photos/seed/style-1-123456/400/400',
+  }),
+}))
+
+// 屏蔽存储调用
+vi.mock('@/lib/storage', () => ({
+  generateUniqueKey: vi.fn().mockReturnValue('art-style-preview-test-key'),
+  uploadObject: vi.fn().mockResolvedValue('stored-key'),
+  getSignedUrl: vi.fn().mockReturnValue('https://picsum.photos/seed/style-1-123456/400/400'),
+  downloadAndUploadImage: vi.fn().mockResolvedValue('stored-key'),
+  toFetchableUrl: vi.fn().mockReturnValue('https://picsum.photos/seed/style-1-123456/400/400'),
+}))
+
 const adminAuth = {
   session: { user: { id: 'admin-user-1', email: 'admin@example.com', name: 'Admin' } },
   user: { id: 'admin-user-1', email: 'admin@example.com', name: 'Admin', role: 'admin' },

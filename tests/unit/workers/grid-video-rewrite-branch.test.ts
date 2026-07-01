@@ -25,19 +25,19 @@ describe('resolveGridVideoPrompt', () => {
 
   it('reuses existing prompt when alreadyRewritten=true (cache hit)', async () => {
     const res = await resolveGridVideoPrompt({ ...baseArgs, alreadyRewritten: true })
-    expect(res).toEqual({ prompt: '男人开门', rewritten: false, usage: null })
+    expect(res).toEqual({ prompt: '男人开门', rewritten: false, usage: null, duration: null })
     expect(rewriteMock.rewriteGridVideoPrompt).not.toHaveBeenCalled()
   })
 
   it('rewrites when not yet rewritten and returns new prompt + usage', async () => {
-    rewriteMock.rewriteGridVideoPrompt.mockResolvedValue({ prompt: '0-3秒：推门', promptTokens: 10, completionTokens: 5 })
+    rewriteMock.rewriteGridVideoPrompt.mockResolvedValue({ prompt: '0-3秒：推门', promptTokens: 10, completionTokens: 5, duration: 8 })
     const res = await resolveGridVideoPrompt({ ...baseArgs, alreadyRewritten: false })
-    expect(res).toEqual({ prompt: '0-3秒：推门', rewritten: true, usage: { promptTokens: 10, completionTokens: 5 } })
+    expect(res).toEqual({ prompt: '0-3秒：推门', rewritten: true, usage: { promptTokens: 10, completionTokens: 5 }, duration: 8 })
   })
 
   it('falls back to basePrompt when rewrite returns null', async () => {
     rewriteMock.rewriteGridVideoPrompt.mockResolvedValue(null)
     const res = await resolveGridVideoPrompt({ ...baseArgs, alreadyRewritten: false })
-    expect(res).toEqual({ prompt: '男人开门', rewritten: false, usage: null })
+    expect(res).toEqual({ prompt: '男人开门', rewritten: false, usage: null, duration: null })
   })
 })

@@ -561,7 +561,7 @@ describe('api contract - direct submit routes (behavior)', () => {
   })
 
   it('keeps expected coverage size', () => {
-    expect(DIRECT_CASES.length).toBe(21)
+    expect(DIRECT_CASES.length).toBe(20)
   })
 
   for (const routeCase of DIRECT_CASES) {

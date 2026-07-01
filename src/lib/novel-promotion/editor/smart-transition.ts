@@ -11,11 +11,20 @@ export type SmartTransitionClip = {
   end?: number | null
 }
 
+export type SmartTransitionReasonKey =
+  | 'sameScene.dissolve'
+  | 'sameScene.fade'
+  | 'sceneChange.fade'
+  | 'sceneChange.dissolve'
+  | 'panelChange.slide'
+  | 'dynamic.zoom'
+  | 'fallback.general'
+
 export type SmartTransitionRecommendation = {
   kind: TwickTransitionKind
   duration: number
   confidence: number
-  reason: string
+  reasonKey: SmartTransitionReasonKey
 }
 
 export type SmartTransitionInput = {
@@ -60,7 +69,9 @@ function pushUniqueRecommendation(
 
 export function recommendSmartTransitions(input: SmartTransitionInput): SmartTransitionRecommendation[] {
   const sameStoryboard = !!input.from.storyboardId && input.from.storyboardId === input.to.storyboardId
-  const continuousPanels = !!input.from.panelId && !!input.to.panelId && input.from.panelId !== input.to.panelId
+  // ponytail: true when the two clips render different generated panels (adjacent shots
+  // often move between panels). Old name `continuousPanels` was semantically inverted.
+  const differentPanels = !!input.from.panelId && !!input.to.panelId && input.from.panelId !== input.to.panelId
 
   const recommendations: SmartTransitionRecommendation[] = []
 
@@ -69,35 +80,35 @@ export function recommendSmartTransitions(input: SmartTransitionInput): SmartTra
       kind: 'dissolve',
       duration: 0.55,
       confidence: 0.88,
-      reason: 'Same storyboard/scene: a dissolve keeps continuity while softening the cut.',
+      reasonKey: 'sameScene.dissolve',
     })
     pushUniqueRecommendation(recommendations, {
       kind: 'fade',
       duration: 0.45,
       confidence: 0.72,
-      reason: 'Subtle fade works as a safe continuity transition for adjacent shots.',
+      reasonKey: 'sameScene.fade',
     })
   } else {
     pushUniqueRecommendation(recommendations, {
       kind: 'fade',
       duration: 0.7,
       confidence: 0.86,
-      reason: 'Different storyboard/scene: fade signals a clean scene change.',
+      reasonKey: 'sceneChange.fade',
     })
     pushUniqueRecommendation(recommendations, {
       kind: 'dissolve',
       duration: 0.6,
       confidence: 0.74,
-      reason: 'Dissolve provides a softer alternative when the scene change should feel smooth.',
+      reasonKey: 'sceneChange.dissolve',
     })
   }
 
-  if (continuousPanels) {
+  if (differentPanels) {
     pushUniqueRecommendation(recommendations, {
       kind: 'slide',
       duration: 0.5,
       confidence: sameStoryboard ? 0.68 : 0.6,
-      reason: 'Slide can emphasize progression between adjacent generated panels.',
+      reasonKey: 'panelChange.slide',
     })
   }
 
@@ -105,7 +116,7 @@ export function recommendSmartTransitions(input: SmartTransitionInput): SmartTra
     kind: 'zoom',
     duration: 0.45,
     confidence: sameStoryboard ? 0.58 : 0.52,
-    reason: 'Zoom adds momentum for a more dynamic short-video edit.',
+    reasonKey: 'dynamic.zoom',
   })
 
   for (const kind of TWICK_TRANSITION_KINDS) {
@@ -114,7 +125,7 @@ export function recommendSmartTransitions(input: SmartTransitionInput): SmartTra
       kind,
       duration: 0.5,
       confidence: 0.5,
-      reason: 'General-purpose Twick transition fallback.',
+      reasonKey: 'fallback.general',
     })
   }
 

@@ -28,6 +28,14 @@ const prismaMock = vi.hoisted(() => ({
   userPreference: {
     upsert: vi.fn(async () => ({ userId: 'user-1', artStyle: 'realistic' })),
   },
+  artStyle: {
+    findFirst: vi.fn(async (args: any) => {
+      if (args.where.id === 'realistic' || args.where.OR?.[0]?.id === 'realistic') {
+        return { id: 'realistic', name: 'Realistic', scope: 'builtin' }
+      }
+      return null
+    }),
+  },
 }))
 
 const mediaAttachMock = vi.hoisted(() => ({

@@ -30,7 +30,7 @@ interface EditorStageRuntimeContextValue {
   saveProject: () => void
   flushProjectSave: () => Promise<void>
   forceSave: () => void
-  reloadProject: () => Promise<void>
+  reloadProject: (options?: { discardLocal?: boolean }) => Promise<void>
   reloadAssets: () => Promise<void>
 }
 

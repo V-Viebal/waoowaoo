@@ -1,13 +1,18 @@
 import { createHash } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
-import { getAuthSession, isErrorResponse, notFound, unauthorized } from '@/lib/api-auth'
+import { isErrorResponse } from '@/lib/api-auth'
 import { apiHandler, ApiError, getIdempotencyKey, getRequestId } from '@/lib/api-errors'
 import { submitTask } from '@/lib/task/submitter'
 import { resolveRequiredTaskLocale } from '@/lib/task/resolve-locale'
-import { TASK_TYPE, type TaskBillingInfo, type TaskType } from '@/lib/task/types'
-import { BILLING_ITEM, calculateBillingItemCost, getBillingItemDefinition, type BillingItemKey } from '@/lib/billing/items'
-import { BUILTIN_PRICING_VERSION } from '@/lib/model-pricing/version'
+import type { TaskType } from '@/lib/task/types'
+import { requireOwnedEditorProject, requireOwnedProject } from '../_auth'
+
+export { requireOwnedEditorProject, requireOwnedProject }
+
+// ponytail: this file used to build a per-route TaskBillingInfo, but submitter.ts always
+// prefers the policy-computed one (buildDefaultTaskBillingInfo). Single source of truth is
+// src/lib/billing/task-policy.ts — routes only shape the payload (e.g. durationMinutes) so
+// the policy can read it.
 
 export type EditorAiRouteContext = { params: Promise<{ projectId: string }> }
 
@@ -21,8 +26,6 @@ type SubmitEditorAiRouteParams = {
   context: EditorAiRouteContext
   taskType: TaskType
   action: string
-  billingItem?: BillingItemKey
-  billingQuantity?: (body: EditorAiBody) => number
   beforeSubmit?: (input: {
     projectId: string
     episodeId: string
@@ -32,12 +35,6 @@ type SubmitEditorAiRouteParams = {
   }) => Promise<void | { body?: Partial<EditorAiBody> }>
   payload?: (body: EditorAiBody) => Record<string, unknown>
   dedupeKey?: (input: { action: string; editorProjectId: string; clientRequestId: string | null; requestId: string | null; body: EditorAiBody }) => string | null
-}
-
-function readPositiveNumber(value: unknown, fallback = 1): number {
-  const numeric = Number(value)
-  if (!Number.isFinite(numeric) || numeric <= 0) return fallback
-  return numeric
 }
 
 function stableStringify(value: unknown): string {
@@ -78,107 +75,7 @@ function buildDefaultEditorAiDedupeKey(input: {
   return `editor-ai:${input.action}:${input.editorProjectId}:${fingerprint}`
 }
 
-export function readCaptionBillingMinutes(body: EditorAiBody): number {
-  return readPositiveNumber(body.durationMinutes ?? body.quantity, 1)
-}
-
-export function readEnhanceBillingSeconds(body: EditorAiBody): number {
-  return readPositiveNumber(body.durationSeconds ?? body.quantity, 1)
-}
-
-export function readVoiceOptimizeBillingSeconds(body: EditorAiBody): number {
-  return readPositiveNumber(body.durationSeconds ?? body.maxSeconds, 5)
-}
-
-export function resolveEnhanceBillingItem(body: EditorAiBody): BillingItemKey {
-  return body.enhanceType === 'restore'
-    ? BILLING_ITEM.EDITOR_AI_ENHANCE_RESTORE
-    : BILLING_ITEM.EDITOR_AI_ENHANCE_SMART_CROP
-}
-
-function buildEditorBillingInfo(params: {
-  taskType: TaskType
-  billingItem: BillingItemKey
-  quantity: number
-  requestId: string | null
-  editorProjectId: string
-}): TaskBillingInfo {
-  const quantity = readPositiveNumber(params.quantity, 1)
-  const definition = getBillingItemDefinition(params.billingItem)
-  return {
-    billable: true,
-    source: 'task',
-    taskType: params.taskType,
-    apiType: 'editor',
-    model: params.billingItem,
-    quantity,
-    unit: definition.unit,
-    maxFrozenCost: calculateBillingItemCost(params.billingItem, quantity),
-    pricingVersion: BUILTIN_PRICING_VERSION,
-    action: params.billingItem,
-    billingKey: `${params.billingItem}:${params.editorProjectId}:${params.requestId || 'no-request-id'}`,
-    metadata: {
-      billingItem: params.billingItem,
-      editorProjectId: params.editorProjectId,
-      quantity,
-    },
-    status: 'quoted',
-  }
-}
-
-async function requireOwnedProject(projectId: string) {
-  const session = await getAuthSession()
-  if (!session?.user?.id) {
-    return unauthorized()
-  }
-
-  const project = await prisma.project.findFirst({
-    where: {
-      id: projectId,
-      userId: session.user.id,
-    },
-    select: {
-      id: true,
-      userId: true,
-      name: true,
-    },
-  })
-
-  if (!project) {
-    return notFound('Project')
-  }
-
-  return { session, project }
-}
-
-async function requireOwnedEditorProject(params: {
-  projectId: string
-  episodeId: string
-  editorProjectId: string
-}) {
-  const editorProject = await prisma.novelPromotionEditorProject.findFirst({
-    where: {
-      id: params.editorProjectId,
-      episodeId: params.episodeId,
-      episode: {
-        novelPromotionProject: {
-          projectId: params.projectId,
-        },
-      },
-    },
-    select: {
-      id: true,
-      episodeId: true,
-      projectData: true,
-    },
-  })
-
-  if (!editorProject) {
-    throw new ApiError('NOT_FOUND')
-  }
-
-  return editorProject
-}
+const MAX_AI_BODY_CHARS = 512 * 1024
 
 export function createEditorAiRoute(params: Omit<SubmitEditorAiRouteParams, 'request' | 'context'>) {
   return apiHandler(async (request: NextRequest, context: EditorAiRouteContext) => {
@@ -186,7 +83,12 @@ export function createEditorAiRoute(params: Omit<SubmitEditorAiRouteParams, 'req
     const authResult = await requireOwnedProject(projectId)
     if (isErrorResponse(authResult)) return authResult
 
-    const body = await request.json() as EditorAiBody
+    // ponytail: hard cap AI POST bodies before JSON.parse — prevents unbounded memory / prompt cost.
+    const rawText = await request.text()
+    if (rawText.length > MAX_AI_BODY_CHARS) {
+      throw new ApiError('INVALID_PARAMS', { message: 'EDITOR_AI_BODY_TOO_LARGE' })
+    }
+    const body = (rawText ? JSON.parse(rawText) : {}) as EditorAiBody
     const episodeId = typeof body.episodeId === 'string' && body.episodeId.trim()
       ? body.episodeId.trim()
       : ''
@@ -218,18 +120,6 @@ export function createEditorAiRoute(params: Omit<SubmitEditorAiRouteParams, 'req
     const locale = resolveRequiredTaskLocale(request, effectiveBody)
     const requestId = getRequestId(request) || null
     const clientRequestId = readBodyRequestId(body) || readHeaderRequestId(request)
-    const billingItem = params.taskType === TASK_TYPE.EDITOR_AI_ENHANCE
-      ? resolveEnhanceBillingItem(body)
-      : params.billingItem
-    const billingInfo = billingItem
-      ? buildEditorBillingInfo({
-        taskType: params.taskType,
-        billingItem,
-        quantity: params.billingQuantity?.(effectiveBody) ?? 1,
-        requestId,
-        editorProjectId,
-      })
-      : null
 
     const dedupeKey = params.dedupeKey?.({
       action: params.action,
@@ -261,9 +151,10 @@ export function createEditorAiRoute(params: Omit<SubmitEditorAiRouteParams, 'req
         ...(params.payload?.(effectiveBody) || {}),
       },
       dedupeKey,
-      billingInfo,
     })
 
     return NextResponse.json({ data: { taskId: result.taskId } })
   })
 }
+
+// Re-export helpers still used by other places — none needed now.

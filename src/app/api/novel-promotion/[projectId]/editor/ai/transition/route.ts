@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import type { ProjectJSON } from '@twick/timeline'
 import { prisma } from '@/lib/prisma'
-import { getAuthSession, isErrorResponse, notFound, unauthorized } from '@/lib/api-auth'
+import { isErrorResponse } from '@/lib/api-auth'
 import { apiHandler, ApiError } from '@/lib/api-errors'
 import {
   buildSmartTransitionInputFromProject,
   recommendSmartTransitions,
 } from '@/lib/novel-promotion/editor/smart-transition'
+import { requireOwnedProject } from '../../_auth'
 
 type RouteContext = { params: Promise<{ projectId: string }> }
 
@@ -15,31 +16,6 @@ type TransitionRequestBody = Record<string, unknown> & {
   editorProjectId?: unknown
   fromElementId?: unknown
   toElementId?: unknown
-}
-
-async function requireOwnedProject(projectId: string) {
-  const session = await getAuthSession()
-  if (!session?.user?.id) {
-    return unauthorized()
-  }
-
-  const project = await prisma.project.findFirst({
-    where: {
-      id: projectId,
-      userId: session.user.id,
-    },
-    select: {
-      id: true,
-      userId: true,
-      name: true,
-    },
-  })
-
-  if (!project) {
-    return notFound('Project')
-  }
-
-  return { session, project }
 }
 
 function readRequiredString(value: unknown): string {

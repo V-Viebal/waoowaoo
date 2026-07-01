@@ -84,7 +84,6 @@ export const TASK_TYPE = {
   EDITOR_AI_CAPTION: 'editor_ai_caption',
   EDITOR_AI_ENHANCE: 'editor_ai_enhance',
   EDITOR_AI_VOICE_OPTIMIZE: 'editor_ai_voice_optimize',
-  EDITOR_AI_TRANSITION: 'editor_ai_transition',
   EDITOR_RENDER: 'editor_render',
 } as const
 

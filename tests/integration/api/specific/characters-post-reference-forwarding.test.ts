@@ -25,6 +25,9 @@ const prismaMock = vi.hoisted(() => ({
   globalCharacterAppearance: {
     create: vi.fn(async () => ({ id: 'appearance-1' })),
   },
+  artStyle: {
+    findFirst: vi.fn(async () => null),
+  },
 }))
 
 const mediaAttachMock = vi.hoisted(() => ({

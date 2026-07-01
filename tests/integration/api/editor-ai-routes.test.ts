@@ -301,16 +301,7 @@ describe('editor AI route skeletons', () => {
       dedupeKey: routeCase.name.startsWith('voice-optimize')
         ? expect.stringMatching(new RegExp(`^editor-ai:voice-optimize:editor-project-1:voice-1:[a-f0-9]{16}:[a-f0-9]{12}:${routeCase.body && 'speed' in routeCase.body ? routeCase.body.speed : 1}$`))
         : `editor-ai:${routeCase.action}:editor-project-1:req-${routeCase.name}`,
-      billingInfo: routeCase.expectedBilling?.item
-        ? expect.objectContaining({
-          billable: true,
-          action: routeCase.expectedBilling.item,
-          model: routeCase.expectedBilling.item,
-          quantity: routeCase.expectedBilling.quantity,
-          unit: routeCase.expectedBilling.unit,
-          maxFrozenCost: routeCase.expectedBilling.maxFrozenCost,
-        })
-        : null,
+      // ponytail: routes no longer build billingInfo — submitTask policy computes it from payload.
       payload: expect.objectContaining({
         ...expectedPayload,
         episodeId: 'episode-1',
@@ -429,7 +420,8 @@ describe('editor AI route skeletons', () => {
     expect(res.status).toBe(400)
     const json = await res.json() as Record<string, unknown>
     expect(json.code).toBe('INVALID_PARAMS')
-    expect(json.message).toBe('ENHANCE_RESTORE_UNAVAILABLE')
+    // ponytail: restore mode is removed at the route entry — treated as an unsupported type.
+    expect(json.message).toBe('ENHANCE_UNSUPPORTED_TYPE')
     expect(submitTaskMock).not.toHaveBeenCalled()
   })
 
@@ -529,7 +521,7 @@ describe('editor AI route skeletons', () => {
     expect(res.status).toBe(200)
     const submit = submitTaskMock.mock.calls[0]?.[0]
     const expectedMaxSeconds = Math.ceil(Math.max(2.6, 2, 2.6, Math.max(5, Math.ceil(longContent.length / 2))))
-    expect(submit.billingInfo).toBeNull()
+    expect(submit.billingInfo).toBeUndefined()
     expectDefaultBillingForPayload(routeCase.taskType, submit.payload, {
       apiType: 'voice',
       quantity: expectedMaxSeconds,
@@ -610,11 +602,12 @@ describe('editor AI route skeletons', () => {
 
     expect(res.status).toBe(200)
     const submit = submitTaskMock.mock.calls[0]?.[0]
-    expect(submit.billingInfo).toEqual(expect.objectContaining({
+    expect(submit.billingInfo).toBeUndefined()
+    expectDefaultBillingForPayload(routeCase.taskType, submit.payload, {
+      apiType: 'editor',
       quantity: 182 / 60,
       unit: 'minute',
-    }))
-    expect(submit.billingInfo.quantity).toBeGreaterThan(0.01)
+    })
     expect(submit.payload).toEqual(expect.objectContaining({
       durationMinutes: 182 / 60,
     }))
@@ -651,10 +644,12 @@ describe('editor AI route skeletons', () => {
 
     expect(res.status).toBe(200)
     const submit = submitTaskMock.mock.calls[0]?.[0]
-    expect(submit.billingInfo).toEqual(expect.objectContaining({
+    expect(submit.billingInfo).toBeUndefined()
+    expectDefaultBillingForPayload(routeCase.taskType, submit.payload, {
+      apiType: 'editor',
       quantity: 15 / 60,
       unit: 'minute',
-    }))
+    })
     expect(submit.payload).toEqual(expect.objectContaining({
       durationMinutes: 15 / 60,
     }))

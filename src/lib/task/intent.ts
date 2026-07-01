@@ -68,7 +68,6 @@ const TASK_INTENT_BY_TYPE: Record<TaskType, TaskIntent> = {
   [TASK_TYPE.EDITOR_AI_CAPTION]: 'generate',
   [TASK_TYPE.EDITOR_AI_ENHANCE]: 'modify',
   [TASK_TYPE.EDITOR_AI_VOICE_OPTIMIZE]: 'modify',
-  [TASK_TYPE.EDITOR_AI_TRANSITION]: 'process',
   [TASK_TYPE.EDITOR_RENDER]: 'process',
 }
 

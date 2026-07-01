@@ -8,7 +8,7 @@ import {
 import { getInternalLLMStreamCallbacks } from '../llm-observe/internal-stream-context'
 import type { ChatCompletionOptions, ChatCompletionStreamCallbacks } from './types'
 import { arkResponsesCompletion } from './providers/ark'
-import { extractGoogleText, extractGoogleUsage } from './providers/google'
+import { extractGoogleParts, extractGoogleUsage } from './providers/google'
 import { buildOpenAIChatCompletion } from './providers/openai-compat'
 import { emitChunkedText } from './stream-helpers'
 import { getCompletionParts } from './completion-parts'
@@ -84,7 +84,10 @@ export async function chatCompletionWithVision(
     try {
       const providerConfig = await getProviderConfig(userId, provider)
       if (providerKey === 'google' || providerKey === 'gemini-compatible') {
-        const ai = new GoogleGenAI({ apiKey: providerConfig.apiKey })
+        const googleAiOptions = providerConfig.baseUrl
+          ? { apiKey: providerConfig.apiKey, httpOptions: { baseUrl: providerConfig.baseUrl } }
+          : { apiKey: providerConfig.apiKey }
+        const ai = new GoogleGenAI(googleAiOptions)
         const { normalizeToBase64ForGeneration } = await import('@/lib/media/outbound-image')
 
         const parts: GoogleVisionPart[] = []
@@ -103,13 +106,24 @@ export async function chatCompletionWithVision(
         }
         if (textPrompt) parts.push({ text: textPrompt })
 
-        const response = await ai.models.generateContent({
+        const supportsThinkingLevel = resolvedModelId.startsWith('gemini-3')
+        const thinkingConfig = reasoning && supportsThinkingLevel
+          ? { thinkingLevel: 'high' as const, includeThoughts: true }
+          : undefined
+
+        const googleRequest = {
           model: resolvedModelId,
           contents: [{ role: 'user', parts }],
-          config: { temperature },
-        })
+          config: {
+            temperature,
+            ...(thinkingConfig ? { thinkingConfig } : {}),
+          },
+        }
+        const response = await ai.models.generateContent(
+          googleRequest as unknown as Parameters<typeof ai.models.generateContent>[0],
+        )
 
-        const text = extractGoogleText(response)
+        const { text, reasoning: extractedReasoning } = extractGoogleParts(response)
         const usage = extractGoogleUsage(response)
         llmLogger.info({
           action: 'llm.vision.success',
@@ -123,7 +137,7 @@ export async function chatCompletionWithVision(
             imageCount: imageUrls.length,
           },
         })
-        const completion = buildOpenAIChatCompletion(resolvedModelId, text, usage)
+        const completion = buildOpenAIChatCompletion(resolvedModelId, text, usage, extractedReasoning)
         recordCompletionUsage(resolvedModelId, completion)
         return completion
       }
@@ -151,7 +165,7 @@ export async function chatCompletionWithVision(
         }
 
         const thinkingType = reasoning ? 'enabled' : 'disabled'
-        const { text, usage } = await arkResponsesCompletion({
+        const { text, reasoning: arkReasoning, usage } = await arkResponsesCompletion({
           apiKey,
           model: resolvedModelId,
           input: [{ role: 'user', content }],
@@ -170,7 +184,7 @@ export async function chatCompletionWithVision(
             imageCount: imageUrls.length,
           },
         })
-        const completion = buildOpenAIChatCompletion(resolvedModelId, text, usage)
+        const completion = buildOpenAIChatCompletion(resolvedModelId, text, usage, arkReasoning)
         recordCompletionUsage(resolvedModelId, completion)
         return completion
       }

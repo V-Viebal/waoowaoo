@@ -9,6 +9,7 @@ import { useTaskStatus } from '@/lib/query/hooks/useTaskStatus'
 import { useEditorStageRuntime } from '@/lib/novel-promotion/stages/editor-stage-runtime-core'
 import { TASK_EVENT_TYPE, TASK_TYPE, type SSEEvent } from '@/lib/task/types'
 import { useWorkspaceProvider } from '../../../../WorkspaceProvider'
+import { AiCard } from './AiCard'
 
 type SmartCutResponse = {
   data?: {
@@ -147,22 +148,17 @@ export function SmartCutPanel() {
         : disabledReason
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-      <div className="font-medium text-slate-950">{t('roughCut.title')}</div>
-      <div className="mt-1 leading-5 text-slate-500">{t('roughCut.description')}</div>
-      {statusText ? (
-        <div className={`mt-2 text-[11px] leading-4 ${localError ? 'text-red-600' : 'text-slate-500'}`}>
-          {statusText}
-        </div>
-      ) : null}
-      <button
-        type="button"
-        disabled={!canRun}
-        onClick={() => { void mutation.mutateAsync() }}
-        className="mt-3 w-full rounded-xl bg-slate-900 px-3 py-2 text-xs font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        {isRunning ? t('smartCut.runningButton') : t('smartCut.button')}
-      </button>
-    </div>
+    <AiCard
+      tone="blue"
+      icon="scissors"
+      title={t('roughCut.title')}
+      description={t('roughCut.description')}
+      status={statusText || null}
+      isError={!!localError}
+      actionLabel={isRunning ? t('smartCut.runningButton') : t('smartCut.button')}
+      onAction={() => { void mutation.mutateAsync() }}
+      disabled={!canRun}
+      running={isRunning}
+    />
   )
 }

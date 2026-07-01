@@ -1,8 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { ApiError } from '@/lib/api-errors'
 import { TASK_TYPE } from '@/lib/task/types'
-import { BILLING_ITEM } from '@/lib/billing/items'
-import { createEditorAiRoute, readCaptionBillingMinutes } from '../_shared'
+import { createEditorAiRoute } from '../_shared'
 import {
   calculateCaptionBillingDurationSeconds,
   toCaptionVoiceLineSources,
@@ -15,8 +14,6 @@ const MIN_BILLING_MINUTES = 0.01
 export const POST = createEditorAiRoute({
   taskType: TASK_TYPE.EDITOR_AI_CAPTION,
   action: 'caption',
-  billingItem: BILLING_ITEM.EDITOR_CAPTION_GENERATE,
-  billingQuantity: readCaptionBillingMinutes,
   beforeSubmit: async ({ episodeId, editorProject }) => {
     const voiceLines = await prisma.novelPromotionVoiceLine.findMany({
       where: { episodeId },

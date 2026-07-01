@@ -34,6 +34,8 @@ export interface PanelVideoSource {
   videoMediaObjectId: string
   duration: number
   description?: string
+  posterMediaObjectId?: string  // 分镜图作为视频封面
+  panelIndex?: number
 }
 
 export interface CaptionVoiceLineSource {

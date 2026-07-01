@@ -192,13 +192,14 @@ export function ExportPanel({ exportRuntime, disabledReason, onClose }: ExportPa
             </button>
           ) : null}
           {showDownload ? (
-            <a
-              href={status.downloadUrl || '#'}
-              download={`editor-export.${status.settings?.format || settings.format}`}
-              className="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-medium text-white transition hover:bg-emerald-500"
+            <button
+              type="button"
+              disabled={!status.downloadUrl}
+              onClick={() => { exportRuntime.download() }}
+              className="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-medium text-white transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {t('download')}
-            </a>
+            </button>
           ) : null}
           <button
             type="button"

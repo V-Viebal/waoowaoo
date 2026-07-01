@@ -11,6 +11,7 @@ import { useEditorStageRuntime } from '@/lib/novel-promotion/stages/editor-stage
 import { TASK_EVENT_TYPE, TASK_TYPE, type SSEEvent } from '@/lib/task/types'
 import type { TwickTimelineElement } from '@/lib/twick/types'
 import { useWorkspaceProvider } from '../../../../WorkspaceProvider'
+import { AiCard } from './AiCard'
 
 type VoiceOptimizeResponse = {
   data?: {
@@ -246,11 +247,20 @@ export function VoiceOptimizePanel() {
         : disabledReason
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-      <div className="font-medium text-slate-950">{t('voiceOptimize.title')}</div>
-      <div className="mt-1 leading-5 text-slate-500">{t('voiceOptimize.description')}</div>
+    <AiCard
+      tone="pink"
+      icon="mic"
+      title={t('voiceOptimize.title')}
+      description={t('voiceOptimize.description')}
+      status={statusText || null}
+      isError={!!localError}
+      actionLabel={isRunning ? t('voiceOptimize.runningButton') : t('voiceOptimize.button')}
+      onAction={() => { void mutation.mutateAsync() }}
+      disabled={!canRun}
+      running={isRunning}
+    >
       {selectedVoiceClip ? (
-        <div className="mt-2 rounded-xl border border-slate-200 bg-white p-2">
+        <div className="rounded-xl bg-white/70 p-2 ring-1 ring-inset ring-slate-100">
           <label className="block text-[11px] font-medium text-slate-600">
             {t('voiceOptimize.textLabel')}
             <textarea
@@ -258,7 +268,7 @@ export function VoiceOptimizePanel() {
               onChange={(event) => setContent(event.target.value)}
               disabled={isRunning}
               rows={3}
-              className="mt-1 w-full resize-none rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-900 outline-none focus:border-slate-500 disabled:bg-slate-100"
+              className="mt-1 w-full resize-none rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-900 outline-none focus:border-pink-400 focus:ring-2 focus:ring-pink-200/50 disabled:bg-slate-100"
             />
           </label>
           <label className="mt-2 block text-[11px] font-medium text-slate-600">
@@ -267,7 +277,7 @@ export function VoiceOptimizePanel() {
               value={speaker}
               onChange={(event) => setSpeaker(event.target.value)}
               disabled={isRunning}
-              className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-900 outline-none focus:border-slate-500 disabled:bg-slate-100"
+              className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-900 outline-none focus:border-pink-400 focus:ring-2 focus:ring-pink-200/50 disabled:bg-slate-100"
             />
           </label>
           <label className="mt-2 block text-[11px] font-medium text-slate-600">
@@ -280,7 +290,7 @@ export function VoiceOptimizePanel() {
               value={speed}
               onChange={(event) => setSpeed(Number(event.target.value))}
               disabled={isRunning}
-              className="mt-1 w-full"
+              className="mt-1 w-full accent-pink-500"
             />
           </label>
           <div className="mt-1 text-[10px] text-slate-400">
@@ -288,19 +298,6 @@ export function VoiceOptimizePanel() {
           </div>
         </div>
       ) : null}
-      {statusText ? (
-        <div className={`mt-2 text-[11px] leading-4 ${localError ? 'text-red-600' : 'text-slate-500'}`}>
-          {statusText}
-        </div>
-      ) : null}
-      <button
-        type="button"
-        disabled={!canRun}
-        onClick={() => { void mutation.mutateAsync() }}
-        className="mt-3 w-full rounded-xl bg-slate-900 px-3 py-2 text-xs font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        {isRunning ? t('voiceOptimize.runningButton') : t('voiceOptimize.button')}
-      </button>
-    </div>
+    </AiCard>
   )
 }

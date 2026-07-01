@@ -32,7 +32,24 @@ export async function resolveMediaUrl(ref: string): Promise<string> {
   return mediaObject.url
 }
 
-async function canAccessMediaObjectForServerRender(mediaObjectId: string, context: ServerRenderMediaContext): Promise<boolean> {
+async function canAccessMediaObjectForServerRender(
+  mediaObjectId: string,
+  storageKey: string | null,
+  context: ServerRenderMediaContext,
+): Promise<boolean> {
+  // ponytail: base-panel videos live only in legacy *Url fields (MediaId FK never
+  // backfilled after ensureMediaObjectFromStorageKey), so also match by storageKey.
+  const legacyOr = storageKey
+    ? [
+        { voiceLines: { some: { audioUrl: storageKey } } },
+        { shots: { some: { imageUrl: storageKey } } },
+        { storyboards: { some: { panels: { some: { imageUrl: storageKey } } } } },
+        { storyboards: { some: { panels: { some: { videoUrl: storageKey } } } } },
+        { storyboards: { some: { panels: { some: { lipSyncVideoUrl: storageKey } } } } },
+        { storyboards: { some: { panels: { some: { sketchImageUrl: storageKey } } } } },
+        { storyboards: { some: { panels: { some: { previousImageUrl: storageKey } } } } },
+      ]
+    : []
   const [projectMedia, editorAsset, globalMedia] = await Promise.all([
     prisma.project.findFirst({
       where: {
@@ -53,6 +70,7 @@ async function canAccessMediaObjectForServerRender(mediaObjectId: string, contex
                 { storyboards: { some: { panels: { some: { previousImageMediaId: mediaObjectId } } } } },
                 { storyboards: { some: { supplementaryPanels: { some: { imageMediaId: mediaObjectId } } } } },
                 { storyboards: { some: { imageVersions: { some: { imageMediaId: mediaObjectId } } } } },
+                ...legacyOr,
               ],
             },
           },
@@ -117,7 +135,7 @@ export async function resolveMediaUrlForServerRender(
     throw new Error(`Media object render context is required: ${mediaObjectId}`)
   }
 
-  const canAccess = await canAccessMediaObjectForServerRender(mediaObjectId, context)
+  const canAccess = await canAccessMediaObjectForServerRender(mediaObjectId, mediaObject.storageKey ?? null, context)
   if (!canAccess) {
     throw new Error(`Media object is not accessible for editor render: ${mediaObjectId}`)
   }

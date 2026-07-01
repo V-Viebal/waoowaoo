@@ -78,6 +78,10 @@ vi.mock('@/lib/api-auth', () => {
         project: { id: projectId, userId: 'user-1' },
       }
     },
+    getAuthSession: async () => {
+      if (!authState.authenticated) return null
+      return { user: { id: 'user-1' } }
+    },
   }
 })
 

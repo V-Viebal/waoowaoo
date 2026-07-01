@@ -22,9 +22,13 @@ function isSupportedKind(kind: string): kind is TwickTransitionKind {
   return (TWICK_TRANSITION_KINDS as readonly string[]).includes(kind)
 }
 
-function normalizeDuration(duration: number): number {
+export function normalizeTwickTransitionDuration(duration: number): number {
   if (!Number.isFinite(duration) || duration <= 0) return 0.5
   return Math.min(2, Math.max(0.2, Number(duration.toFixed(2))))
+}
+
+function normalizeDuration(duration: number): number {
+  return normalizeTwickTransitionDuration(duration)
 }
 
 export function createTwickTransition(input: TimelineTransitionInput): ElementTransitionJSON {

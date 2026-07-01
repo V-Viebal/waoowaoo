@@ -1,11 +1,12 @@
 'use client'
 
 import { useMemo } from 'react'
-import { useTranslations } from 'next-intl'
+import { useLocale, useTranslations } from 'next-intl'
 import { useEditorStageRuntime } from '@/lib/novel-promotion/stages/editor-stage-runtime-core'
 
 export function SaveStatusIndicator() {
   const t = useTranslations('novelPromotion.editor.saveStatus')
+  const locale = useLocale()
   const {
     projectStatus,
     isSaving,
@@ -22,10 +23,10 @@ export function SaveStatusIndicator() {
     if (projectStatus === 'loading') return t('loading')
     if (projectStatus === 'error') return t('error')
     if (projectStatus === 'saved') {
-      return lastSavedAt ? t('savedAt', { time: formatTime(lastSavedAt) }) : t('saved')
+      return lastSavedAt ? t('savedAt', { time: formatTime(lastSavedAt, locale) }) : t('saved')
     }
     return t('idle')
-  }, [hasConflict, isSaving, lastSavedAt, projectStatus, t])
+  }, [hasConflict, isSaving, lastSavedAt, locale, projectStatus, t])
 
   if (hasConflict || projectStatus === 'conflict') {
     return (
@@ -33,7 +34,7 @@ export function SaveStatusIndicator() {
         <span>{t('conflictDescription')}</span>
         <button
           type="button"
-          onClick={() => { void reloadProject() }}
+          onClick={() => { void reloadProject({ discardLocal: true }) }}
           className="rounded-lg border border-amber-300/70 px-2 py-1 font-medium hover:bg-amber-50"
         >
           {t('reload')}
@@ -53,6 +54,11 @@ export function SaveStatusIndicator() {
     <div className="flex items-center gap-2 text-xs text-[var(--glass-text-tertiary)]" title={saveError || statusText}>
       <span className={statusDotClass(projectStatus, isSaving)} />
       <span>{statusText}</span>
+      {saveError && !isSaving ? (
+        <span role="status" className="text-red-600" aria-live="polite">
+          {saveError}
+        </span>
+      ) : null}
     </div>
   )
 }
@@ -65,8 +71,8 @@ function statusDotClass(status: string, isSaving: boolean): string {
   return `${base} bg-slate-300`
 }
 
-function formatTime(date: Date): string {
-  return date.toLocaleTimeString(undefined, {
+function formatTime(date: Date, locale: string): string {
+  return date.toLocaleTimeString(locale, {
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',

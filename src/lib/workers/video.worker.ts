@@ -125,10 +125,22 @@ async function generateVideoForPanel(
   let prompt = basePrompt
   let usedGridPrompt = false
   if (isGridImage && !firstLastFramePayload) {
+    // 优先从 gridGenerationContext 中读取保存的实际宫格尺寸，兜底使用 payload 或项目默认值
+    let contextGridSize = 4
+    if (panel.gridGenerationContext) {
+      try {
+        const savedContext = JSON.parse(panel.gridGenerationContext)
+        if (savedContext.gridMetadata?.panelGridSize) {
+          contextGridSize = savedContext.gridMetadata.panelGridSize
+        }
+      } catch {
+        // 解析失败继续使用默认值
+      }
+    }
     const payloadGridSize = typeof payload.gridSize === 'number' ? payload.gridSize : null
     const gridSize = payloadGridSize && payloadGridSize > 1
       ? payloadGridSize
-      : (defaultGridSize > 1 ? defaultGridSize : 4)
+      : contextGridSize
     const alreadyRewritten = panel.gridVideoPromptAt != null
 
     if (alreadyRewritten) {
@@ -172,6 +184,7 @@ async function generateVideoForPanel(
         visionModel,
         imageUrl: panel.imageUrl || undefined,
         gridGenerationContextJson: panel.gridGenerationContext || undefined,
+        srtSegment: panel.srtSegment || '',
       })
       const resolved = analysisModel
         ? await withTextBilling(
@@ -188,7 +201,11 @@ async function generateVideoForPanel(
       if (resolved.rewritten) {
         await prisma.novelPromotionPanel.update({
           where: { id: panel.id },
-          data: { videoPrompt: resolved.prompt, gridVideoPromptAt: new Date() },
+          data: {
+            videoPrompt: resolved.prompt,
+            gridVideoPromptAt: new Date(),
+            ...(resolved.duration ? { duration: resolved.duration } : {}),
+          },
         })
       }
     }

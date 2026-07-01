@@ -251,7 +251,7 @@ export async function handleEditorVoiceOptimizeTask(job: Job<TaskJobData>) {
     throw new Error('VOICE_OPTIMIZE_BILLING_FREEZE_UNDERESTIMATED')
   }
 
-  await prisma.novelPromotionEditorAsset.create({
+  const editorAsset = await prisma.novelPromotionEditorAsset.create({
     data: {
       editorProjectId: payload.editorProjectId,
       mediaObjectId: audioMedia.id,
@@ -273,20 +273,30 @@ export async function handleEditorVoiceOptimizeTask(job: Job<TaskJobData>) {
     mediaObjectId: audioMedia.id,
   })
 
-  const replacement = await persistVoiceOptimizedProjectWithVersionRetry({
-    job,
-    episodeId: payload.episodeId,
-    editorProjectId: payload.editorProjectId,
-    initialVersion: editorProject.version,
-    initialProjectData: editorProject.projectData,
-    voiceLineId: voiceLine.id,
-    selectedElementId: payload.selectedElementId,
-    audioMediaObjectId: audioMedia.id,
-    durationSeconds,
-    speed: payload.speed,
-    content: optimizedLine.content,
-    speaker: optimizedLine.speaker,
-  })
+  let replacement
+  try {
+    replacement = await persistVoiceOptimizedProjectWithVersionRetry({
+      job,
+      episodeId: payload.episodeId,
+      editorProjectId: payload.editorProjectId,
+      initialVersion: editorProject.version,
+      initialProjectData: editorProject.projectData,
+      voiceLineId: voiceLine.id,
+      selectedElementId: payload.selectedElementId,
+      audioMediaObjectId: audioMedia.id,
+      durationSeconds,
+      speed: payload.speed,
+      content: optimizedLine.content,
+      speaker: optimizedLine.speaker,
+    })
+  } catch (persistError) {
+    // ponytail: persist failed after we already created the asset + uploaded audio.
+    // Delete both so we don't leak MinIO objects or dangling EditorAsset rows. We keep
+    // the MediaObject row because ensureMediaObjectFromStorageKey may have deduped it
+    // onto an existing entry; deletion is handled by GC of orphaned MediaObjects.
+    await prisma.novelPromotionEditorAsset.delete({ where: { id: editorAsset.id } }).catch(() => undefined)
+    throw persistError
+  }
 
   await reportTaskProgress(job, 95, {
     stage: 'voice_optimize_completed',

@@ -44,8 +44,20 @@ export async function handleGridVideoPromptRewriteTask(
     inputModel: payload.analysisModel,
   })
 
+  // 优先从 gridGenerationContext 中读取保存的实际宫格尺寸，兜底使用 payload 或默认值
+  let contextGridSize = 4
+  if (panel.gridGenerationContext) {
+    try {
+      const savedContext = JSON.parse(panel.gridGenerationContext)
+      if (savedContext.gridMetadata?.panelGridSize) {
+        contextGridSize = savedContext.gridMetadata.panelGridSize
+      }
+    } catch {
+      // 解析失败继续使用默认值
+    }
+  }
   const payloadGridSize = typeof payload.gridSize === 'number' ? payload.gridSize : null
-  const gridSize = payloadGridSize && payloadGridSize > 1 ? payloadGridSize : 4
+  const gridSize = payloadGridSize && payloadGridSize > 1 ? payloadGridSize : contextGridSize
   const locale = job.data.locale === 'en' ? 'en' : 'zh'
   const basePrompt = panel.videoPrompt || panel.description || ''
 
@@ -71,6 +83,7 @@ export async function handleGridVideoPromptRewriteTask(
     visionModel,
     imageUrl: panel.imageUrl || undefined,
     gridGenerationContextJson: panel.gridGenerationContext || undefined,
+    srtSegment: panel.srtSegment || '',
   })
 
   if (!result) throw new Error('AI_GRID_VIDEO_PROMPT: rewrite returned empty')
@@ -78,7 +91,11 @@ export async function handleGridVideoPromptRewriteTask(
   await assertTaskActive(job, 'grid_video_prompt_rewrite_persist')
   await prisma.novelPromotionPanel.update({
     where: { id: panelId },
-    data: { videoPrompt: result.prompt, gridVideoPromptAt: new Date() },
+    data: {
+      videoPrompt: result.prompt,
+      gridVideoPromptAt: new Date(),
+      ...(result.duration ? { duration: result.duration } : {}),
+    },
   })
 
   await reportTaskProgress(job, 96, { stage: 'grid_video_prompt_rewrite_done' })

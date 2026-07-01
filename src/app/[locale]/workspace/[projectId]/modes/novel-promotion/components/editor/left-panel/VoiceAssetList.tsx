@@ -15,17 +15,23 @@ export function VoiceAssetList() {
     if (!voiceLine) return
 
     const audioTrack = editor.getTracksByType('audio')[0] ?? editor.addTrack(t('tracks.audio'), 'audio')
-    const currentEnd = Math.max(
-      0,
-      ...(present?.tracks
-        ?.flatMap((track) => track.elements ?? [])
-        .filter((element) => element.type === 'audio')
-        .map((element) => element.e) ?? []),
-    )
+    // ponytail: guard against missing/NaN `e` — Math.max(..., NaN) is NaN and would
+    // produce an audio element with s/e of NaN.
+    const audioEnds = present?.tracks
+      ?.flatMap((track) => track.elements ?? [])
+      .filter((element) => element.type === 'audio')
+      .map((element) => (typeof element.e === 'number' && Number.isFinite(element.e) ? element.e : 0)) ?? []
+    const currentEnd = audioEnds.length > 0 ? Math.max(0, ...audioEnds) : 0
     const element = ElementDeserializer.fromJSON(voiceLineToAudioElement(voiceLine, currentEnd))
     if (!element) return
 
-    await editor.addElementToTrack(audioTrack, element)
+    try {
+      await editor.addElementToTrack(audioTrack, element)
+    } catch (error) {
+      // ponytail: Twick throws ELEMENT_NOT_ADDED for element-mount/geometry races.
+      // Log & drop — matches VideoAssetList's error handling.
+      console.warn('[VoiceAssetList] addElementToTrack failed', error)
+    }
   }
 
   if (voiceLineSources.length === 0) {

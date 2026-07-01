@@ -183,8 +183,6 @@ function buildPanelPromptContext(params: {
       shot_type: params.panel.shotType || '',
       camera_move: params.panel.cameraMove || '',
       description: params.panel.description || '',
-      image_prompt: params.panel.imagePrompt || '',
-      video_prompt: params.panel.videoPrompt || '',
       location: params.panel.location || '',
       characters: panelCharacters,
       source_text: params.panel.srtSegment || '',
@@ -300,7 +298,15 @@ export async function handlePanelImageTask(job: Job<TaskJobData>) {
     projectData,
     neighborPanels,
   })
-  const contextJson = JSON.stringify(promptContext, null, 2)
+  // 保存宫格生成元数据供后续视频重写使用
+  const contextWithGridMetadata = {
+    ...promptContext,
+    gridMetadata: {
+      panelGridSize,
+      generatedAt: new Date().toISOString(),
+    },
+  }
+  const contextJson = JSON.stringify(contextWithGridMetadata, null, 2)
   const prompt = await (async () => {
     if (panelGridSize > 1) {
       const layout = buildStoryboardGridLayout('grid_auto', panelGridSize)
@@ -374,7 +380,7 @@ export async function handlePanelImageTask(job: Job<TaskJobData>) {
         imageLayout,
         ...buildGridInvalidationPatch(imageLayout),
         ...(panelGridSize > 1
-          ? { gridGenerationContext: JSON.stringify(promptContext, null, 2) }
+          ? { gridGenerationContext: JSON.stringify(contextWithGridMetadata, null, 2) }
           : {}),
       },
     })
@@ -387,7 +393,7 @@ export async function handlePanelImageTask(job: Job<TaskJobData>) {
         imageLayout,
         ...buildGridInvalidationPatch(imageLayout),
         ...(panelGridSize > 1
-          ? { gridGenerationContext: JSON.stringify(promptContext, null, 2) }
+          ? { gridGenerationContext: JSON.stringify(contextWithGridMetadata, null, 2) }
           : {}),
       },
     })

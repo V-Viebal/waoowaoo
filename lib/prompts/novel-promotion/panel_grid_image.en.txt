@@ -18,6 +18,11 @@ Requirements:
 7. Clear borders between sub-cells but the border should not overpower the subjects.
 8. Character appearance, costume, location, and props must remain consistent across sub-cells, and must follow the reference images.
 9. `context.neighbor_panels` contains adjacent shots' info; use it only to keep cinematographic continuity — never paint neighbor panels' content into this grid image.
+10. If the "Source text" contains dialogue content, render character lip movements and expression changes in corresponding cells based on the grid's temporal order:
+    - Start of speech: mouth slightly open, initial expression state
+    - Mid-speech: mouth opening/closing variations, expression progressing with emotion
+    - End of speech: mouth closed or holding final expression
+    Ensure lip movements match the emotion and rhythm of the dialogue content.
 
 Panel JSON:
 {storyboard_text_json_input}

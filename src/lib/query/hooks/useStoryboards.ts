@@ -62,17 +62,18 @@ interface BatchVideoGenerationParams {
 /**
  * 获取分镜数据
  */
-export function useStoryboards(episodeId: string | null) {
+export function useStoryboards(projectId: string | null, episodeId: string | null) {
     return useQuery({
         queryKey: queryKeys.storyboards.all(episodeId || ''),
         queryFn: async () => {
-            if (!episodeId) throw new Error('Episode ID is required')
-            const res = await apiFetch(`/api/novel-promotion/episodes/${episodeId}/storyboards`)
+            if (!projectId || !episodeId) throw new Error('Project ID and Episode ID are required')
+            const res = await apiFetch(`/api/novel-promotion/${projectId}/storyboards?episodeId=${episodeId}`)
             if (!res.ok) throw new Error('Failed to fetch storyboards')
             const data = await res.json()
-            return data as StoryboardData
+            // API returns { storyboards: [...] }, but our types expect { groups: [...] }
+            return { groups: data.storyboards || [] } as StoryboardData
         },
-        enabled: !!episodeId,
+        enabled: !!projectId && !!episodeId,
     })
 }
 

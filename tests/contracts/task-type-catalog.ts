@@ -55,7 +55,6 @@ const TASK_TYPE_OWNER_MAP = {
   [TASK_TYPE.EDITOR_AI_CAPTION]: 'tests/integration/api/editor-ai-routes.test.ts',
   [TASK_TYPE.EDITOR_AI_ENHANCE]: 'tests/integration/api/editor-ai-routes.test.ts',
   [TASK_TYPE.EDITOR_AI_VOICE_OPTIMIZE]: 'tests/integration/api/editor-ai-routes.test.ts',
-  [TASK_TYPE.EDITOR_AI_TRANSITION]: 'tests/integration/api/editor-ai-routes.test.ts',
   [TASK_TYPE.EDITOR_RENDER]: 'tests/unit/billing/service.test.ts',
 } as const satisfies Record<TaskType, string>
 

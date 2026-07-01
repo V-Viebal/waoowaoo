@@ -3,7 +3,9 @@ import { prisma } from '@/lib/prisma'
 import { ApiError } from '@/lib/api-errors'
 import { TASK_TYPE } from '@/lib/task/types'
 import { estimateVoiceLineMaxSeconds } from '@/lib/voice/generate-voice-line'
-import { createEditorAiRoute, readVoiceOptimizeBillingSeconds } from '../_shared'
+import { createEditorAiRoute } from '../_shared'
+
+const MAX_VOICE_OPTIMIZE_CONTENT_CHARS = 4000
 
 function readString(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value.trim() : null
@@ -50,7 +52,6 @@ function buildStableVoiceOptimizeDedupeKey(input: {
 export const POST = createEditorAiRoute({
   taskType: TASK_TYPE.EDITOR_AI_VOICE_OPTIMIZE,
   action: 'voice-optimize',
-  billingQuantity: readVoiceOptimizeBillingSeconds,
   dedupeKey: ({ editorProjectId, body }) => buildStableVoiceOptimizeDedupeKey({ editorProjectId, body }),
   beforeSubmit: async ({ episodeId, body }) => {
     const voiceLineId = readString(body.voiceLineId)
@@ -87,6 +88,10 @@ export const POST = createEditorAiRoute({
     const content = explicitContent ?? explicitText ?? voiceLine.content ?? ''
     if (!content.trim()) {
       throw new ApiError('INVALID_PARAMS', { message: 'VOICE_OPTIMIZE_EMPTY_TEXT' })
+    }
+    // ponytail: hard cap content length before it becomes prompt payload.
+    if (content.length > MAX_VOICE_OPTIMIZE_CONTENT_CHARS) {
+      throw new ApiError('INVALID_PARAMS', { message: 'VOICE_OPTIMIZE_CONTENT_TOO_LONG' })
     }
 
     const clientDurationSeconds = readPositiveNumber(body.durationSeconds)

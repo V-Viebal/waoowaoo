@@ -15,12 +15,15 @@ export interface ResolveGridVideoPromptParams {
   visionModel?: string
   imageUrl?: string
   gridGenerationContextJson?: string
+  // 台词/字幕内容，重写后会追加到提示词末尾确保不丢失
+  srtSegment?: string
 }
 
 export interface ResolveGridVideoPromptResult {
   prompt: string
   rewritten: boolean
   usage: { promptTokens: number; completionTokens: number } | null
+  duration: number | null
 }
 
 /**
@@ -30,7 +33,7 @@ export async function resolveGridVideoPrompt(
   params: ResolveGridVideoPromptParams,
 ): Promise<ResolveGridVideoPromptResult> {
   if (params.alreadyRewritten) {
-    return { prompt: params.basePrompt, rewritten: false, usage: null }
+    return { prompt: params.basePrompt, rewritten: false, usage: null, duration: null }
   }
   const result = await rewriteGridVideoPrompt({
     panelContext: params.panelContext,
@@ -45,13 +48,15 @@ export async function resolveGridVideoPrompt(
     visionModel: params.visionModel,
     imageUrl: params.imageUrl,
     gridGenerationContextJson: params.gridGenerationContextJson,
+    srtSegment: params.srtSegment,
   })
   if (!result) {
-    return { prompt: params.basePrompt, rewritten: false, usage: null }
+    return { prompt: params.basePrompt, rewritten: false, usage: null, duration: null }
   }
   return {
     prompt: result.prompt,
     rewritten: true,
     usage: { promptTokens: result.promptTokens, completionTokens: result.completionTokens },
+    duration: result.duration,
   }
 }

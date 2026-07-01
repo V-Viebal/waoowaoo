@@ -2,8 +2,9 @@ import { Prisma } from '@prisma/client'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import type { TwickTimelineProject } from '@/lib/twick/types'
-import { getAuthSession, isErrorResponse, notFound, unauthorized } from '@/lib/api-auth'
+import { isErrorResponse } from '@/lib/api-auth'
 import { apiHandler, ApiError } from '@/lib/api-errors'
+import { requireOwnedProject } from './_auth'
 
 const MAX_PROJECT_DATA_JSON_CHARS = 5 * 1024 * 1024
 const MEDIA_OBJ_PREFIX = 'mediaobj://'
@@ -31,31 +32,6 @@ const editorProjectSelect = {
   createdAt: true,
   updatedAt: true,
 } as const
-
-async function requireOwnedProject(projectId: string) {
-  const session = await getAuthSession()
-  if (!session?.user?.id) {
-    return unauthorized()
-  }
-
-  const project = await prisma.project.findFirst({
-    where: {
-      id: projectId,
-      userId: session.user.id,
-    },
-    select: {
-      id: true,
-      userId: true,
-      name: true,
-    },
-  })
-
-  if (!project) {
-    return notFound('Project')
-  }
-
-  return { session, project }
-}
 
 async function requireEpisode(projectId: string, episodeId: string) {
   const episode = await prisma.novelPromotionEpisode.findFirst({

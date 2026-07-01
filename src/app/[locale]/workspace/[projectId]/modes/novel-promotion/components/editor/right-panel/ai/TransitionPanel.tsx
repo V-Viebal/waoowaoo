@@ -7,9 +7,10 @@ import { useTimelineContext } from '@twick/timeline'
 import { apiFetch } from '@/lib/api-fetch'
 import { useEditorStageRuntime } from '@/lib/novel-promotion/stages/editor-stage-runtime-core'
 import type { SmartTransitionRecommendation } from '@/lib/novel-promotion/editor/smart-transition'
-import { setTimelineElementTransition } from '@/lib/twick/transition'
+import { normalizeTwickTransitionDuration, setTimelineElementTransition } from '@/lib/twick/transition'
 import type { TwickTimelineElement } from '@/lib/twick/types'
 import { useWorkspaceProvider } from '../../../../WorkspaceProvider'
+import { AiCard } from './AiCard'
 
 type TransitionPair = {
   fromElementId: string
@@ -199,50 +200,51 @@ export function TransitionPanel() {
         : disabledReason
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-      <div className="font-medium text-slate-950">{t('transition.title')}</div>
-      <div className="mt-1 leading-5 text-slate-500">{t('transition.description')}</div>
+    <AiCard
+      tone="amber"
+      icon="shuffle"
+      title={t('transition.title')}
+      description={t('transition.description')}
+      status={statusText || null}
+      isError={!!localError}
+      actionLabel={recommendationMutation.isPending ? t('transition.runningButton') : t('transition.button')}
+      onAction={() => { void recommendationMutation.mutateAsync() }}
+      disabled={!canRecommend}
+      running={recommendationMutation.isPending}
+    >
       {pair ? (
-        <div className="mt-2 rounded-xl border border-slate-200 bg-white p-2 text-[11px] text-slate-600">
+        <div className="rounded-lg bg-white/70 px-2 py-1.5 text-[11px] leading-4 text-slate-600 ring-1 ring-inset ring-slate-100">
           {t('transition.selectedPair', { from: pair.fromLabel, to: pair.toLabel })}
         </div>
       ) : null}
-      {statusText ? (
-        <div className={`mt-2 text-[11px] leading-4 ${localError ? 'text-red-600' : 'text-slate-500'}`}>
-          {statusText}
-        </div>
-      ) : null}
-      <button
-        type="button"
-        disabled={!canRecommend}
-        onClick={() => { void recommendationMutation.mutateAsync() }}
-        className="mt-3 w-full rounded-xl bg-slate-900 px-3 py-2 text-xs font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        {recommendationMutation.isPending ? t('transition.runningButton') : t('transition.button')}
-      </button>
       {recommendations.length ? (
-        <div className="mt-3 space-y-2">
-          {recommendations.map((recommendation) => (
-            <button
-              key={recommendation.kind}
-              type="button"
-              onClick={() => { void applyRecommendation(recommendation) }}
-              className="w-full rounded-xl border border-slate-200 bg-white p-2 text-left transition hover:border-slate-400 hover:bg-slate-100"
-            >
-              <div className="flex items-center justify-between gap-2">
-                <span className="font-medium text-slate-900">{t(`transition.kinds.${recommendation.kind}`)}</span>
-                <span className="text-[10px] text-slate-400">{Math.round(recommendation.confidence * 100)}%</span>
-              </div>
-              <div className="mt-1 text-[10px] leading-4 text-slate-500">
-                {t('transition.duration', { seconds: recommendation.duration.toFixed(2) })}
-              </div>
-              <div className="mt-1 text-[10px] leading-4 text-slate-400">{recommendation.reason}</div>
-            </button>
-          ))}
+        <div className="mt-2 space-y-2">
+          {recommendations.map((recommendation) => {
+            const isApplied = appliedKind === recommendation.kind
+            return (
+              <button
+                key={recommendation.kind}
+                type="button"
+                onClick={() => { void applyRecommendation(recommendation) }}
+                className={`w-full rounded-xl border p-2 text-left transition ${isApplied ? 'border-amber-400 bg-amber-50 shadow-sm' : 'border-slate-200 bg-white hover:border-amber-300 hover:bg-amber-50/50'}`}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-medium text-slate-900">{t(`transition.kinds.${recommendation.kind}`)}</span>
+                  <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">
+                    {Math.round(recommendation.confidence * 100)}%
+                  </span>
+                </div>
+                <div className="mt-1 text-[10px] leading-4 text-slate-500">
+                  {t('transition.duration', { seconds: normalizeTwickTransitionDuration(recommendation.duration).toFixed(2) })}
+                </div>
+                <div className="mt-1 text-[10px] leading-4 text-slate-400">{t(`transition.reasons.${recommendation.reasonKey}`)}</div>
+              </button>
+            )
+          })}
         </div>
       ) : null}
-      <div className="mt-2 text-[10px] leading-4 text-slate-400">{t('transition.freeNote')}</div>
+      <div className="mt-1 text-[10px] leading-4 text-slate-400">{t('transition.freeNote')}</div>
       <div className="mt-1 text-[10px] leading-4 text-amber-600">{t('transition.renderSupportNote')}</div>
-    </div>
+    </AiCard>
   )
 }

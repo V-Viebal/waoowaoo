@@ -59,6 +59,15 @@ export async function generateImage(
         outputFormat?: string
         keepOriginalAspectRatio?: boolean  // 🔥 编辑时保持原图比例
         size?: string  // 🔥 直接指定像素尺寸如 "5016x3344"（优先于 aspectRatio）
+        // starrouter 支持的额外参数
+        quality?: string
+        style?: string
+        background?: string
+        moderation?: string
+        output_format?: string
+        output_compression?: number
+        partial_images?: number
+        user?: string
     }
 ): Promise<GenerateResult> {
     const selection = await resolveModelSelection(userId, modelKey, 'image')

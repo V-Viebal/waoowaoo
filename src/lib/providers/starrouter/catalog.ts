@@ -9,8 +9,15 @@ const STARSTONE_CATALOG: Readonly<Record<OfficialModelModality, readonly string[
     'gpt-image-2',
   ],
   video: [
+    // Dreamina 系列（火山方舟模型名）
     'dreamina-seedance-2-0-fast-260128',
     'dreamina-seedance-2-0-260128',
+    // Doubao 系列（火山方舟模型名，与上述等价）
+    'doubao-seedance-2-0-260128',
+    'doubao-seedance-2-0-fast-260128',
+    'doubao-seedance-1-5-pro-251215',
+    'doubao-seedance-1-0-pro-250528',
+    'doubao-seedance-1-0-pro-fast-251015',
   ],
   audio: [],
 }

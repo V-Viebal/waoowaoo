@@ -181,8 +181,11 @@
     "title": "AI剪辑器",
     "subtitle": "画布 {width}×{height} · 自动保存已启用",
     "loading": "正在加载编辑器...",
-    "emptyTitle": "暂无可剪辑素材",
-    "emptyDescription": "请先在视频生成阶段生成至少一个分镜视频，然后回到 AI剪辑。",
+    "emptyTitle": "欢迎使用 AI 剪辑器",
+    "emptyDescription": "支持手动剪辑：可以从左侧素材库拖拽素材到时间轴，或使用 AI 工具自动生成内容。",
+    "errorBoundaryTitle": "编辑器加载异常",
+    "errorBoundaryDescription": "请刷新页面重试。如问题持续存在，请联系技术支持。",
+    "errorBoundaryReload": "刷新页面",
     "saveStatus": {
       "idle": "等待编辑",
       "loading": "加载中...",
@@ -225,6 +228,13 @@
         "properties": "属性"
       },
       "ai": {
+        "subTabs": {
+          "smartCut": "粗剪",
+          "caption": "字幕",
+          "enhance": "增强",
+          "voiceOptimize": "语音",
+          "transition": "转场"
+        },
         "roughCut": {
           "title": "智能粗剪",
           "description": "按分镜顺序拼接已生成的视频和配音，重建初剪时间轴。"
@@ -343,6 +353,15 @@
             "dissolve": "叠化",
             "slide": "滑动",
             "zoom": "缩放"
+          },
+          "reasons": {
+            "sameScene.dissolve": "同一分镜/场景：叠化保持连贯又能柔化剪切点。",
+            "sameScene.fade": "轻柔淡入淡出适合相邻镜头的安全过渡。",
+            "sceneChange.fade": "不同分镜/场景:淡入淡出可以清晰示意场景切换。",
+            "sceneChange.dissolve": "叠化提供更柔和的场景切换效果。",
+            "panelChange.slide": "在相邻生成分镜之间使用滑动可强调推进感。",
+            "dynamic.zoom": "缩放为短视频剪辑增添动感。",
+            "fallback.general": "通用 Twick 转场备选。"
           }
         }
       },
@@ -355,6 +374,19 @@
           "title": "字幕样式",
           "noneSelected": "未选中字幕片段",
           "mvpHint": "MVP 使用默认字幕样式（白字、黑描边、居中）。样式编辑后续接入。"
+        },
+        "clip": {
+          "time": "时间",
+          "startSeconds": "起始 (s)",
+          "durationSeconds": "时长 (s)",
+          "volume": "音量",
+          "captionText": "字幕文本",
+          "captionPlaceholder": "输入字幕内容",
+          "captionStyle": "字幕样式",
+          "fontSize": "字号",
+          "fillColor": "填充色",
+          "strokeColor": "描边色",
+          "deleteClip": "删除片段"
         },
         "phase2Hint": "片段属性编辑将在 Phase 2 完善。"
       }

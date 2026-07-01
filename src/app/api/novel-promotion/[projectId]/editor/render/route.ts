@@ -1,15 +1,16 @@
 import { createHash } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getAuthSession, isErrorResponse, notFound, unauthorized } from '@/lib/api-auth'
+import { isErrorResponse } from '@/lib/api-auth'
 import { apiHandler, ApiError, getIdempotencyKey, getRequestId } from '@/lib/api-errors'
 import { removeTaskJob } from '@/lib/task/queues'
 import { resolveRequiredTaskLocale } from '@/lib/task/resolve-locale'
 import { cancelTask, getTaskById } from '@/lib/task/service'
 import { submitTask } from '@/lib/task/submitter'
-import { TASK_STATUS, TASK_TYPE } from '@/lib/task/types'
+import { TASK_STATUS, TASK_TYPE, type TaskStatus, type TaskType } from '@/lib/task/types'
 import { normalizeTaskError } from '@/lib/errors/normalize'
 import { calculateEditorRenderBillingMinutes, calculateTwickTimelineDurationSeconds } from '@/lib/twick/caption-duration'
+import { requireOwnedProject } from '../_auth'
 
 type RouteContext = { params: Promise<{ projectId: string }> }
 type JsonRecord = Record<string, unknown>
@@ -61,31 +62,6 @@ function fingerprint(value: unknown): string {
     .slice(0, 16)
 }
 
-async function requireOwnedProject(projectId: string) {
-  const session = await getAuthSession()
-  if (!session?.user?.id) {
-    return unauthorized()
-  }
-
-  const project = await prisma.project.findFirst({
-    where: {
-      id: projectId,
-      userId: session.user.id,
-    },
-    select: {
-      id: true,
-      userId: true,
-      name: true,
-    },
-  })
-
-  if (!project) {
-    return notFound('Project')
-  }
-
-  return { session, project }
-}
-
 async function requireOwnedEditorProject(params: {
   projectId: string
   episodeId: string
@@ -131,6 +107,34 @@ async function requireOwnedTask(params: { taskId: string; projectId: string; use
     throw new ApiError('NOT_FOUND')
   }
   return task
+}
+
+// ponytail: pick only fields safe for the client; never `...task` — it carries payload/dedupeKey/billingInfo.
+function serializeTaskForClient(task: {
+  id: string
+  type: string
+  status: string
+  progress: number | null
+  targetId: string | null
+  targetType: string | null
+  errorCode: string | null
+  errorMessage: string | null
+  result: unknown
+  createdAt: Date
+  updatedAt: Date
+}) {
+  return {
+    id: task.id,
+    type: task.type as TaskType,
+    status: task.status as TaskStatus,
+    progress: task.progress,
+    targetId: task.targetId,
+    targetType: task.targetType,
+    result: task.result,
+    createdAt: task.createdAt,
+    updatedAt: task.updatedAt,
+    error: normalizeTaskError(task.errorCode, task.errorMessage),
+  }
 }
 
 export const POST = apiHandler(async (request: NextRequest, context: RouteContext) => {
@@ -272,10 +276,7 @@ export const GET = apiHandler(async (request: NextRequest, context: RouteContext
 
   return NextResponse.json({
     data: {
-      task: {
-        ...task,
-        error: normalizeTaskError(task.errorCode, task.errorMessage),
-      },
+      task: serializeTaskForClient(task),
       editorProject,
     },
   })
@@ -317,10 +318,7 @@ export const DELETE = apiHandler(async (request: NextRequest, context: RouteCont
     data: {
       success: true,
       cancelled,
-      task: {
-        ...updatedTask,
-        error: normalizeTaskError(updatedTask.errorCode, updatedTask.errorMessage),
-      },
+      task: serializeTaskForClient(updatedTask),
     },
   })
 })

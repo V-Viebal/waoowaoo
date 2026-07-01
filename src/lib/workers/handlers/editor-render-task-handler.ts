@@ -6,7 +6,7 @@ import { prisma } from '@/lib/prisma'
 import { ensureMediaObjectFromStorageKey } from '@/lib/media/service'
 import { generateUniqueKey, uploadObject } from '@/lib/storage'
 import type { TaskJobData } from '@/lib/task/types'
-import { isMediaObjRef, resolveMediaUrlForServerRender } from '@/lib/twick/media-url-resolver'
+import { isMediaObjRef, resolveMediaUrlsForServerRender } from '@/lib/twick/media-url-resolver'
 import { calculateTwickTimelineDurationSeconds } from '@/lib/twick/caption-duration'
 import type { TwickTimelineProject } from '@/lib/twick/types'
 import { reportTaskProgress } from '@/lib/workers/shared'
@@ -85,9 +85,9 @@ function readProjectMetadata(projectData: unknown) {
 function normalizeRenderSettings(projectData: unknown, rawSettings: JsonRecord): RenderSettings {
   const projectMeta = readProjectMetadata(projectData)
   return {
-    width: Math.floor(readPositiveNumber(rawSettings.width, projectMeta.width)),
-    height: Math.floor(readPositiveNumber(rawSettings.height, projectMeta.height)),
-    fps: Math.floor(readPositiveNumber(rawSettings.fps, projectMeta.fps)),
+    width: Math.max(1, Math.floor(readPositiveNumber(rawSettings.width, projectMeta.width))),
+    height: Math.max(1, Math.floor(readPositiveNumber(rawSettings.height, projectMeta.height))),
+    fps: Math.max(1, Math.floor(readPositiveNumber(rawSettings.fps, projectMeta.fps))),
     bitrate: readString(rawSettings.bitrate) || undefined,
     format: readFormat(rawSettings.format),
     quality: readString(rawSettings.quality) || 'high',
@@ -95,13 +95,27 @@ function normalizeRenderSettings(projectData: unknown, rawSettings: JsonRecord):
 }
 
 function cloneWithProperties(projectData: TwickTimelineProject, settings: RenderSettings): JsonRecord {
+  const record = projectData as unknown as JsonRecord
+  const metadata = asRecord(record.metadata) || {}
+  const custom = asRecord(metadata.custom) || {}
+  // ponytail: also mirror width/height/fps into metadata.custom so the render server sees
+  // consistent dimensions no matter which layer it reads from (custom > properties > root).
   return {
-    ...(projectData as unknown as JsonRecord),
+    ...record,
     properties: {
-      ...asRecord((projectData as unknown as JsonRecord).properties),
+      ...asRecord(record.properties),
       width: settings.width,
       height: settings.height,
       fps: settings.fps,
+    },
+    metadata: {
+      ...metadata,
+      custom: {
+        ...custom,
+        width: settings.width,
+        height: settings.height,
+        fps: settings.fps,
+      },
     },
   }
 }
@@ -136,15 +150,42 @@ function isPropsPath(pathParts: string[]) {
   return pathParts[pathParts.length - 1] === 'props'
 }
 
-async function resolveMediaRefsDeep(
+// ponytail: pre-walk the tree to collect unique mediaobj:// refs, resolve them in one
+// batch, then reuse the map. Prior code called resolveMediaUrlForServerRender per string
+// occurrence, which meant getMediaObjectById + 3 nested-Prisma auth queries per element.
+function collectMediaRefsDeep(
   value: unknown,
-  context?: ServerRenderContext,
+  refs: Set<string>,
   mediaContext = false,
   pathParts: string[] = [],
-): Promise<unknown> {
+): void {
+  if (typeof value === 'string') {
+    if (isMediaObjRef(value)) refs.add(value)
+    return
+  }
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => collectMediaRefsDeep(item, refs, mediaContext, [...pathParts, String(index)]))
+    return
+  }
+  const record = asRecord(value)
+  if (!record) return
+  const isMediaElement = isMediaElementRecord(record)
+  const insideProps = isPropsPath(pathParts)
+  for (const [key, entryValue] of Object.entries(record)) {
+    const nextMediaContext = mediaContext || (isMediaFieldKey(key) && (insideProps || isMediaElement))
+    collectMediaRefsDeep(entryValue, refs, nextMediaContext, [...pathParts, key])
+  }
+}
+
+function rewriteMediaRefsDeep(
+  value: unknown,
+  resolved: Map<string, string>,
+  mediaContext = false,
+  pathParts: string[] = [],
+): unknown {
   if (typeof value === 'string') {
     if (isMediaObjRef(value)) {
-      return await resolveMediaUrlForServerRender(value, context)
+      return resolved.get(value) ?? value
     }
     if (mediaContext && value.trim()) {
       throw new Error(`EDITOR_RENDER_INVALID_MEDIA_SOURCE: ${pathParts.join('.') || 'media'} must use mediaobj://`)
@@ -152,21 +193,30 @@ async function resolveMediaRefsDeep(
     return value
   }
   if (Array.isArray(value)) {
-    return await Promise.all(value.map((item, index) => resolveMediaRefsDeep(item, context, mediaContext, [...pathParts, String(index)])))
+    return value.map((item, index) => rewriteMediaRefsDeep(item, resolved, mediaContext, [...pathParts, String(index)]))
   }
   const record = asRecord(value)
   if (!record) return value
-
   const isMediaElement = isMediaElementRecord(record)
   const insideProps = isPropsPath(pathParts)
-  const entries = await Promise.all(Object.entries(record).map(async ([key, entryValue]) => {
+  const output: JsonRecord = {}
+  for (const [key, entryValue] of Object.entries(record)) {
     const nextMediaContext = mediaContext || (isMediaFieldKey(key) && (insideProps || isMediaElement))
-    return [
-      key,
-      await resolveMediaRefsDeep(entryValue, context, nextMediaContext, [...pathParts, key]),
-    ] as const
-  }))
-  return Object.fromEntries(entries)
+    output[key] = rewriteMediaRefsDeep(entryValue, resolved, nextMediaContext, [...pathParts, key])
+  }
+  return output
+}
+
+async function resolveMediaRefsDeep(
+  value: unknown,
+  context?: ServerRenderContext,
+): Promise<unknown> {
+  const refs = new Set<string>()
+  collectMediaRefsDeep(value, refs)
+  const resolvedMap = refs.size > 0
+    ? await resolveMediaUrlsForServerRender(Array.from(refs), context)
+    : new Map<string, string>()
+  return rewriteMediaRefsDeep(value, resolvedMap)
 }
 
 export async function buildTwickRenderInput(projectData: unknown, settingsInput?: JsonRecord, context?: ServerRenderContext): Promise<{
@@ -209,6 +259,10 @@ async function renderTwickVideoToFile(variables: JsonRecord, settings: RenderSet
 }
 
 async function uploadRenderedVideo(filePath: string, editorProjectId: string, settings: RenderSettings, durationSeconds: number) {
+  // ponytail: uploadObject still needs Buffer today (see src/lib/storage/types.ts). Full
+  // streaming is a storage-provider refactor — deferred. We at least stat first to fail
+  // fast on absurdly large outputs before pulling the file into RAM.
+  const stat = await fs.stat(filePath)
   const buffer = await fs.readFile(filePath)
   const ext = settings.format === 'webm' ? 'webm' : 'mp4'
   const mimeType = settings.format === 'webm' ? 'video/webm' : 'video/mp4'
@@ -221,7 +275,7 @@ async function uploadRenderedVideo(filePath: string, editorProjectId: string, se
 
   return await ensureMediaObjectFromStorageKey(storageKey, {
     mimeType,
-    sizeBytes: buffer.length,
+    sizeBytes: stat.size,
     width: settings.width,
     height: settings.height,
     durationMs: Math.max(1, Math.round(durationSeconds * 1000)),
@@ -331,21 +385,19 @@ export async function handleEditorRenderTask(job: Job<TaskJobData>) {
       actualQuantity: durationMinutes,
     }
   } catch (error) {
-    const attemptsMade = typeof job.attemptsMade === 'number' ? job.attemptsMade : 0
-    const maxAttempts = typeof job.opts?.attempts === 'number' && job.opts.attempts > 0 ? job.opts.attempts : 1
-    if (attemptsMade + 1 >= maxAttempts) {
-      await prisma.novelPromotionEditorProject.updateMany({
-        where: {
-          id: editorProjectId,
-          renderTaskId: job.data.taskId,
-          renderStatus: 'PROCESSING',
-        },
-        data: {
-          renderStatus: 'FAILED',
-          renderTaskId: job.data.taskId,
-        },
-      }).catch(() => undefined)
-    }
+    // ponytail: always mark FAILED on error — shared.ts throws UnrecoverableError which
+    // suppresses BullMQ retry, so waiting for attemptsMade>=maxAttempts stranded the lock forever.
+    await prisma.novelPromotionEditorProject.updateMany({
+      where: {
+        id: editorProjectId,
+        renderTaskId: job.data.taskId,
+        renderStatus: 'PROCESSING',
+      },
+      data: {
+        renderStatus: 'FAILED',
+        renderTaskId: job.data.taskId,
+      },
+    }).catch(() => undefined)
     throw error
   } finally {
     const cleanupPaths = new Set<string>()

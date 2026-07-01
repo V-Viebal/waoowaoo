@@ -272,9 +272,22 @@ function mergeSmartCutTracksIntoProject(
     ? currentRecord.tracks.filter((track): track is TwickTimelineProject['tracks'][number] => !!asJsonRecord(track))
     : []
   const generatedTracks = Array.isArray(generatedProject.tracks) ? generatedProject.tracks : []
+  // ponytail: dedupe by track id AND by type — smart-cut always rebuilds the primary
+  // video + audio tracks, so any previous video/audio track (with a different id from
+  // manual add / migration) would otherwise be duplicated alongside the new ones.
   const generatedTrackIds = new Set(generatedTracks.map((track) => track.id).filter(Boolean))
+  const generatedTrackTypes = new Set(
+    generatedTracks
+      .map((track) => (track as unknown as { type?: unknown }).type)
+      .filter((value): value is string => typeof value === 'string' && (value === 'video' || value === 'audio')),
+  )
   const preservedTracks = currentTracks
-    .filter((track) => !generatedTrackIds.has(track.id))
+    .filter((track) => {
+      if (generatedTrackIds.has(track.id)) return false
+      const type = (track as unknown as { type?: unknown }).type
+      if (typeof type === 'string' && generatedTrackTypes.has(type)) return false
+      return true
+    })
     .map(cloneTimelineTrack)
 
   const currentMetadata = asJsonRecord(currentRecord.metadata) || {}

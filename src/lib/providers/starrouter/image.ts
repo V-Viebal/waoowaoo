@@ -40,6 +40,7 @@ interface StarRouterImageSubmitResponse {
   data?: Array<{
     b64_json?: string
     url?: string
+    revised_prompt?: string
   }>
   error?: {
     message?: string
@@ -53,6 +54,14 @@ interface StarRouterImageSubmitBody {
   size?: string
   n?: number
   response_format?: 'url' | 'b64_json'
+  quality?: string
+  style?: string
+  background?: string
+  moderation?: string
+  output_format?: string
+  output_compression?: number
+  partial_images?: number
+  user?: string
 }
 
 function readTrimmedString(value: unknown): string {
@@ -67,6 +76,13 @@ function readOptionalPositiveInteger(value: unknown, fieldName: string): number 
   return value
 }
 
+function readOptionalString(value: unknown): string | undefined {
+  if (value === undefined) return undefined
+  if (typeof value !== 'string') return undefined
+  const trimmed = value.trim()
+  return trimmed || undefined
+}
+
 function assertNoUnsupportedOptions(options: StarRouterGenerateRequestOptions): void {
   const allowedOptionKeys = new Set([
     'provider',
@@ -76,6 +92,14 @@ function assertNoUnsupportedOptions(options: StarRouterGenerateRequestOptions): 
     'n',
     'outputFormat',
     'resolution',
+    'quality',
+    'style',
+    'background',
+    'moderation',
+    'output_format',
+    'output_compression',
+    'partial_images',
+    'user',
   ])
   for (const [key, value] of Object.entries(options)) {
     if (value === undefined) continue
@@ -100,6 +124,14 @@ function buildGenerationsRequest(params: StarRouterImageGenerateParams): {
 
   const size = readTrimmedString(params.options.size)
   const n = readOptionalPositiveInteger(params.options.n, 'n')
+  const quality = readOptionalString(params.options.quality)
+  const style = readOptionalString(params.options.style)
+  const background = readOptionalString(params.options.background)
+  const moderation = readOptionalString(params.options.moderation)
+  const output_format = readOptionalString(params.options.output_format)
+  const output_compression = readOptionalPositiveInteger(params.options.output_compression, 'output_compression')
+  const partial_images = readOptionalPositiveInteger(params.options.partial_images, 'partial_images')
+  const user = readOptionalString(params.options.user)
 
   const submitBody: StarRouterImageSubmitBody = {
     model: modelId,
@@ -112,6 +144,30 @@ function buildGenerationsRequest(params: StarRouterImageGenerateParams): {
   }
   if (typeof n === 'number') {
     submitBody.n = n
+  }
+  if (quality) {
+    submitBody.quality = quality
+  }
+  if (style) {
+    submitBody.style = style
+  }
+  if (background) {
+    submitBody.background = background
+  }
+  if (moderation) {
+    submitBody.moderation = moderation
+  }
+  if (output_format) {
+    submitBody.output_format = output_format
+  }
+  if (typeof output_compression === 'number') {
+    submitBody.output_compression = output_compression
+  }
+  if (typeof partial_images === 'number') {
+    submitBody.partial_images = partial_images
+  }
+  if (user) {
+    submitBody.user = user
   }
 
   return {
@@ -203,6 +259,39 @@ async function buildEditsFormData(
   if (typeof n === 'number') {
     // 文档定义 n 为 string 类型，统一字符串化
     formData.append('n', String(n))
+  }
+  // multipart 中非文件字段原样透传：文档约定除 model 外都直接写入上游
+  const quality = readOptionalString(params.options.quality)
+  if (quality) {
+    formData.append('quality', quality)
+  }
+  const style = readOptionalString(params.options.style)
+  if (style) {
+    formData.append('style', style)
+  }
+  const background = readOptionalString(params.options.background)
+  if (background) {
+    formData.append('background', background)
+  }
+  const moderation = readOptionalString(params.options.moderation)
+  if (moderation) {
+    formData.append('moderation', moderation)
+  }
+  const output_format = readOptionalString(params.options.output_format)
+  if (output_format) {
+    formData.append('output_format', output_format)
+  }
+  const output_compression = readOptionalPositiveInteger(params.options.output_compression, 'output_compression')
+  if (typeof output_compression === 'number') {
+    formData.append('output_compression', String(output_compression))
+  }
+  const partial_images = readOptionalPositiveInteger(params.options.partial_images, 'partial_images')
+  if (typeof partial_images === 'number') {
+    formData.append('partial_images', String(partial_images))
+  }
+  const user = readOptionalString(params.options.user)
+  if (user) {
+    formData.append('user', user)
   }
 
   // 全部参考图都 append 为 image 字段；starrouter edits 文档官方只画了一张图，

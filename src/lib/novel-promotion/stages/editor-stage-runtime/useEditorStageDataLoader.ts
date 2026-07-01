@@ -43,7 +43,8 @@ export function mapStoryboardsToPanelVideos(
 
   const panelVideos: PanelVideoSource[] = []
   for (const group of storyboards.groups) {
-    for (const panel of group.panels ?? []) {
+    const panels = group.panels ?? []
+    for (const panel of panels) {
       const videoMediaObjectId = panel.videoMedia?.id
       if (!videoMediaObjectId) continue
 
@@ -51,6 +52,8 @@ export function mapStoryboardsToPanelVideos(
         panelId: panel.id,
         storyboardId: group.id,
         videoMediaObjectId,
+        posterMediaObjectId: panel.media?.id,  // 分镜图媒体ID
+        panelIndex: panel.shotIndex,
         duration: durationMsToSeconds(panel.videoMedia?.durationMs, DEFAULT_PANEL_DURATION_SECONDS),
         description: panel.motionPrompt || panel.voiceText || undefined,
       })
@@ -90,7 +93,7 @@ export function mapVoiceLinesToSources(
  * flat source arrays consumed by the Twick project builder.
  */
 export function useEditorStageDataLoader(projectId: string | null, episodeId: string | null) {
-  const storyboardsQuery = useStoryboards(episodeId)
+  const storyboardsQuery = useStoryboards(projectId, episodeId)
   const matchedVoiceLinesQuery = useMatchedVoiceLines(projectId, episodeId)
 
   const panelVideos = useMemo(

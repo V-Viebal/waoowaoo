@@ -181,8 +181,11 @@
     "title": "AI Editor",
     "subtitle": "Canvas {width}×{height} · autosave enabled",
     "loading": "Loading editor...",
-    "emptyTitle": "No editable assets yet",
-    "emptyDescription": "Generate at least one storyboard video in the video stage, then return to AI Editor.",
+    "emptyTitle": "Welcome to AI Editor",
+    "emptyDescription": "Manual editing supported: drag assets from left panel to timeline, or use AI tools to auto-generate content.",
+    "errorBoundaryTitle": "Editor failed to load",
+    "errorBoundaryDescription": "Please refresh the page. If the issue persists, contact support.",
+    "errorBoundaryReload": "Refresh page",
     "saveStatus": {
       "idle": "Ready",
       "loading": "Loading...",
@@ -225,6 +228,13 @@
         "properties": "Properties"
       },
       "ai": {
+        "subTabs": {
+          "smartCut": "Smart Cut",
+          "caption": "Captions",
+          "enhance": "Enhance",
+          "voiceOptimize": "Voice",
+          "transition": "Transition"
+        },
         "roughCut": {
           "title": "Smart rough cut",
           "description": "Rebuild the rough-cut timeline by stitching generated panel videos and voice lines in storyboard order."
@@ -343,6 +353,15 @@
             "dissolve": "Dissolve",
             "slide": "Slide",
             "zoom": "Zoom"
+          },
+          "reasons": {
+            "sameScene.dissolve": "Same storyboard/scene: dissolve keeps continuity while softening the cut.",
+            "sameScene.fade": "Subtle fade works as a safe continuity transition for adjacent shots.",
+            "sceneChange.fade": "Different storyboard/scene: fade signals a clean scene change.",
+            "sceneChange.dissolve": "Dissolve provides a softer scene-change alternative.",
+            "panelChange.slide": "Slide emphasizes progression between adjacent generated panels.",
+            "dynamic.zoom": "Zoom adds momentum for a more dynamic short-video edit.",
+            "fallback.general": "General-purpose Twick transition fallback."
           }
         }
       },
@@ -355,6 +374,19 @@
           "title": "Caption style",
           "noneSelected": "No caption clip selected",
           "mvpHint": "MVP uses the default caption style (white text, black stroke, centered). Style editing will be connected later."
+        },
+        "clip": {
+          "time": "Time",
+          "startSeconds": "Start (s)",
+          "durationSeconds": "Duration (s)",
+          "volume": "Volume",
+          "captionText": "Caption text",
+          "captionPlaceholder": "Enter caption content",
+          "captionStyle": "Caption style",
+          "fontSize": "Font size",
+          "fillColor": "Fill color",
+          "strokeColor": "Stroke color",
+          "deleteClip": "Delete clip"
         },
         "phase2Hint": "Clip property editing will be completed in Phase 2."
       }

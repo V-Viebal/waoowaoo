@@ -11,6 +11,7 @@ import { useEditorStageRuntime } from '@/lib/novel-promotion/stages/editor-stage
 import { TASK_EVENT_TYPE, TASK_TYPE, type SSEEvent } from '@/lib/task/types'
 import type { TwickTimelineElement } from '@/lib/twick/types'
 import { useWorkspaceProvider } from '../../../../WorkspaceProvider'
+import { AiCard } from './AiCard'
 
 type EnhanceResponse = {
   data?: {
@@ -224,16 +225,25 @@ export function EnhancePanel() {
         : disabledReason
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-      <div className="font-medium text-slate-950">{t('enhance.title')}</div>
-      <div className="mt-1 leading-5 text-slate-500">{t('enhance.description')}</div>
-      <div className="mt-2 rounded-xl border border-slate-200 bg-white p-2">
+    <AiCard
+      tone="emerald"
+      icon="sparkles"
+      title={t('enhance.title')}
+      description={t('enhance.description')}
+      status={statusText || null}
+      isError={!!localError}
+      actionLabel={isRunning ? t('enhance.runningButton') : t('enhance.button')}
+      onAction={() => { void mutation.mutateAsync() }}
+      disabled={!canRun}
+      running={isRunning}
+    >
+      <div className="rounded-xl bg-white/70 p-2 ring-1 ring-inset ring-slate-100">
         <div className="grid grid-cols-2 gap-2">
           <button
             type="button"
             onClick={() => setMode('smart_crop')}
             disabled={isRunning}
-            className={`rounded-lg border px-2 py-1 text-[11px] font-medium ${mode === 'smart_crop' ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 text-slate-600'}`}
+            className={`rounded-lg border px-2 py-1 text-[11px] font-medium transition ${mode === 'smart_crop' ? 'border-emerald-500 bg-emerald-500 text-white shadow-sm' : 'border-slate-200 bg-white text-slate-600 hover:border-emerald-300'}`}
           >
             {t('enhance.smartCrop')}
           </button>
@@ -255,7 +265,7 @@ export function EnhancePanel() {
                 value={targetAspectRatio}
                 onChange={(event) => setTargetAspectRatio(event.target.value)}
                 disabled={isRunning}
-                className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-900 outline-none focus:border-slate-500 disabled:bg-slate-100"
+                className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-900 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-200/50 disabled:bg-slate-100"
               >
                 <option value="9:16">9:16</option>
                 <option value="16:9">16:9</option>
@@ -269,7 +279,7 @@ export function EnhancePanel() {
                 value={anchor}
                 onChange={(event) => setAnchor(event.target.value)}
                 disabled={isRunning}
-                className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-900 outline-none focus:border-slate-500 disabled:bg-slate-100"
+                className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-900 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-200/50 disabled:bg-slate-100"
               >
                 <option value="center">{t('enhance.anchorCenter')}</option>
                 <option value="top">{t('enhance.anchorTop')}</option>
@@ -291,19 +301,6 @@ export function EnhancePanel() {
         ) : null}
       </div>
       <div className="mt-2 text-[10px] leading-4 text-slate-400">{t('enhance.mvpNote')}</div>
-      {statusText ? (
-        <div className={`mt-2 text-[11px] leading-4 ${localError ? 'text-red-600' : 'text-slate-500'}`}>
-          {statusText}
-        </div>
-      ) : null}
-      <button
-        type="button"
-        disabled={!canRun}
-        onClick={() => { void mutation.mutateAsync() }}
-        className="mt-3 w-full rounded-xl bg-slate-900 px-3 py-2 text-xs font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        {isRunning ? t('enhance.runningButton') : t('enhance.button')}
-      </button>
-    </div>
+    </AiCard>
   )
 }

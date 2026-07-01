@@ -15,6 +15,14 @@ const prismaMock = vi.hoisted(() => ({
     update: vi.fn(async () => ({ id: 'appearance-1' })),
     deleteMany: vi.fn(async () => ({ count: 1 })),
   },
+  artStyle: {
+    findFirst: vi.fn(async (args: any) => {
+      if (args.where.id === 'realistic' || args.where.OR?.[0]?.id === 'realistic') {
+        return { id: 'realistic', name: 'Realistic', scope: 'builtin' }
+      }
+      return null
+    }),
+  },
 }))
 
 vi.mock('@/lib/api-auth', () => {

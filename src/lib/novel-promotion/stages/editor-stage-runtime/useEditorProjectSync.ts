@@ -108,12 +108,123 @@ function normalizeSaveResponse(payload: unknown): EditorProjectSaveResult {
   }
 }
 
+// Media URL resolution cache — keyed by projectId so signed URLs from one project can't
+// resolve back to a mediaobj:// ref that belongs to another. Bounded via simple LRU per project.
+type ProjectCache = { urlToRef: Map<string, string>; refToUrl: Map<string, string> }
+const MAX_URL_CACHE_ENTRIES_PER_PROJECT = 512
+const projectMediaCaches = new Map<string, ProjectCache>()
+
+function getProjectCache(projectId: string): ProjectCache {
+  let cache = projectMediaCaches.get(projectId)
+  if (!cache) {
+    cache = { urlToRef: new Map(), refToUrl: new Map() }
+    projectMediaCaches.set(projectId, cache)
+  }
+  return cache
+}
+
+function cacheMediaMapping(projectId: string, ref: string, url: string) {
+  const cache = getProjectCache(projectId)
+  // ponytail: cheap FIFO eviction — insertion order is preserved by Map iteration.
+  if (cache.refToUrl.size >= MAX_URL_CACHE_ENTRIES_PER_PROJECT) {
+    const firstRef = cache.refToUrl.keys().next().value
+    if (firstRef) {
+      const staleUrl = cache.refToUrl.get(firstRef)
+      cache.refToUrl.delete(firstRef)
+      if (staleUrl) cache.urlToRef.delete(staleUrl)
+    }
+  }
+  cache.refToUrl.set(ref, url)
+  cache.urlToRef.set(url, ref)
+}
+
+function isMediaObjRef(src: string): src is `mediaobj://${string}` {
+  return src.startsWith('mediaobj://')
+}
+
+/**
+ * Recursively resolve all mediaobj:// URLs to HTTP URLs
+ */
+async function resolveMediaUrls<T>(obj: T, projectId: string): Promise<T> {
+  const cache = getProjectCache(projectId)
+  if (typeof obj === 'string' && isMediaObjRef(obj)) {
+    // Check cache first
+    if (cache.refToUrl.has(obj)) {
+      return cache.refToUrl.get(obj) as T
+    }
+    // Call the resolve API
+    try {
+      const response = await fetch(`/api/novel-promotion/${projectId}/media-resolve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refs: [obj] })
+      })
+      if (response.ok) {
+        const { urls } = await response.json()
+        const resolved = urls[obj] || obj
+        cacheMediaMapping(projectId, obj, resolved)
+        return resolved as T
+      }
+    } catch {
+      // Fall back to original if API fails
+    }
+    return obj
+  }
+  if (typeof obj === 'string') {
+    return obj
+  }
+  if (Array.isArray(obj)) {
+    return Promise.all(obj.map(item => resolveMediaUrls(item, projectId))) as Promise<T>
+  }
+  if (!obj || typeof obj !== 'object') {
+    return Promise.resolve(obj)
+  }
+  const result: Record<string, unknown> = {}
+  const promises: Promise<void>[] = []
+  for (const [key, value] of Object.entries(obj)) {
+    promises.push(
+      resolveMediaUrls(value, projectId).then(resolved => {
+        result[key] = resolved
+      })
+    )
+  }
+  await Promise.all(promises)
+  return result as T
+}
+
+/**
+ * Restore HTTP URLs back to mediaobj:// references (best-effort).
+ * Scoped to the same project we resolved with — signed URLs collide across projects.
+ */
+function restoreMediaObjUrls<T>(obj: T, projectId: string): T {
+  const cache = getProjectCache(projectId)
+  if (typeof obj === 'string') {
+    return (cache.urlToRef.get(obj) ?? obj) as T
+  }
+  if (Array.isArray(obj)) {
+    return obj.map(item => restoreMediaObjUrls(item, projectId)) as T
+  }
+  if (!obj || typeof obj !== 'object') {
+    return obj
+  }
+  const result: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(obj)) {
+    result[key] = restoreMediaObjUrls(value, projectId)
+  }
+  return result as T
+}
+
 async function fetchEditorProject(projectId: string, episodeId: string): Promise<EditorProjectRecord> {
   const response = await apiFetch(`/api/novel-promotion/${projectId}/editor?episodeId=${episodeId}`)
   if (!response.ok) {
     throw new Error('Failed to fetch editor project')
   }
-  return normalizeEditorProjectResponse(await response.json())
+  const record = normalizeEditorProjectResponse(await response.json())
+  // Resolve mediaobj URLs before returning
+  if (record.projectData) {
+    record.projectData = await resolveMediaUrls(record.projectData, projectId)
+  }
+  return record
 }
 
 async function saveEditorProject(params: {
@@ -122,12 +233,14 @@ async function saveEditorProject(params: {
   projectData: TwickTimelineProject
   version: number
 }): Promise<EditorProjectSaveResult> {
+  // Restore mediaobj references before saving
+  const projectData = restoreMediaObjUrls(params.projectData, params.projectId)
   const response = await apiFetch(`/api/novel-promotion/${params.projectId}/editor`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       episodeId: params.episodeId,
-      projectData: params.projectData,
+      projectData,
       version: params.version,
     }),
   })
@@ -251,6 +364,10 @@ export function useEditorProjectSync({
         setHasConflict(true)
         setSaveError(message)
         if (typeof maybeConflict.currentVersion === 'number') {
+          // ponytail: sync versionRef immediately — the state effect that mirrors version
+          // → versionRef runs on the next tick, so a forceSave fired right away would use
+          // the stale version and re-conflict.
+          versionRef.current = maybeConflict.currentVersion
           setVersion(maybeConflict.currentVersion)
         }
         return
@@ -303,20 +420,28 @@ export function useEditorProjectSync({
     }
   }, [hasConflict, saveMutation.isPending, startSave])
 
-  const triggerSave = useCallback((data: TwickTimelineProject, saveVersion = versionRef.current) => {
-    return startSave(data, saveVersion)
+  const triggerSaveRef = useRef(startSave)
+  useEffect(() => {
+    triggerSaveRef.current = startSave
   }, [startSave])
 
-  useEffect(() => {
-    debounceRef.current?.flush()
-    debounceRef.current = createDebouncedAction((data: TwickTimelineProject) => {
-      triggerSave(data, versionRef.current)
-    }, EDITOR_PROJECT_SAVE_DEBOUNCE_MS)
+  const triggerSave = useCallback((data: TwickTimelineProject, saveVersion = versionRef.current) => {
+    return triggerSaveRef.current(data, saveVersion)
+  }, [])
 
+  useEffect(() => {
+    // ponytail: create once — using createDebouncedAction with a stable delegate through
+    // the ref avoids re-creating the debounce (which flushed pending saves) on every
+    // startSave identity change.
+    if (!debounceRef.current) {
+      debounceRef.current = createDebouncedAction((data: TwickTimelineProject) => {
+        triggerSaveRef.current(data, versionRef.current)
+      }, EDITOR_PROJECT_SAVE_DEBOUNCE_MS)
+    }
     return () => {
       debounceRef.current?.flush()
     }
-  }, [triggerSave])
+  }, [])
 
   const flushPendingSave = useCallback(() => {
     if (hasConflict) return null
@@ -345,14 +470,29 @@ export function useEditorProjectSync({
       }
     }
 
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      // ponytail: browsers stopped honoring custom messages years ago — the return-value
+      // just triggers the native "Leave site?" dialog when there is unsaved work.
+      const hasUnsaved = savePendingRef.current
+        || debounceRef.current?.hasPending() === true
+        || saveMutationPendingRef.current
+        || lastSavedProjectRevisionRef.current < localProjectRevisionRef.current
+      if (!hasUnsaved) return
+      flushPendingSave()
+      event.preventDefault()
+      event.returnValue = ''
+    }
+
     window.addEventListener('blur', handleBlur)
     window.addEventListener('pagehide', handleBlur)
+    window.addEventListener('beforeunload', handleBeforeUnload)
     document.addEventListener('visibilitychange', handleVisibilityChange)
 
     return () => {
       flushPendingSave()
       window.removeEventListener('blur', handleBlur)
       window.removeEventListener('pagehide', handleBlur)
+      window.removeEventListener('beforeunload', handleBeforeUnload)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
   }, [flushPendingSave])
@@ -419,18 +559,31 @@ export function useEditorProjectSync({
       return
     }
 
+    // Build initial project and resolve mediaobj URLs before setting state
     const initialProject = buildInitialProject(panelVideos, voiceLineSources, {
       width: videoWidth,
       height: videoHeight,
       includeAudio: true,
       includeCaptions: false,
     })
-    setProjectData(initialProject)
-    setRenderState(null)
-    setVersion(0)
-    setStatus('idle')
+
+    // Mark as initialized immediately to prevent re-runs
     initializedKeyRef.current = key
-    triggerSave(initialProject, 0)
+    setStatus('idle')
+
+    // Resolve mediaobj URLs asynchronously, then set data
+    resolveMediaUrls(initialProject, projectId).then((resolved) => {
+      setProjectData(resolved)
+      setRenderState(null)
+      setVersion(0)
+      triggerSave(initialProject, 0) // Save the unresolved version (with mediaobj://)
+    }).catch(() => {
+      // Fall back to unresolved data
+      setProjectData(initialProject)
+      setRenderState(null)
+      setVersion(0)
+      triggerSave(initialProject, 0)
+    })
   }, [
     editorProjectQuery.data,
     editorProjectQuery.error,
@@ -514,7 +667,23 @@ export function useEditorProjectSync({
     triggerSave(currentProjectData, versionRef.current)
   }, [saveMutation.isPending, triggerSave])
 
-  const reloadFromServer = useCallback(async () => {
+  const reloadFromServer = useCallback(async (options?: { discardLocal?: boolean }) => {
+    // ponytail: default is to flush any pending edits before reloading to avoid silently
+    // clobbering user work. AI panels finish tasks that mutate server state, so callers
+    // that know they want the server copy pass discardLocal: true.
+    if (!options?.discardLocal) {
+      const hasUnsaved = savePendingRef.current
+        || debounceRef.current?.hasPending() === true
+        || saveMutationPendingRef.current
+        || lastSavedProjectRevisionRef.current < localProjectRevisionRef.current
+      if (hasUnsaved) {
+        try {
+          await flushPendingSave()
+        } catch {
+          // If the flush errors (conflict / net), still reload to pick up server state.
+        }
+      }
+    }
     debounceRef.current?.cancel()
     savePendingRef.current = false
     setHasConflict(false)
@@ -564,7 +733,7 @@ export function useEditorProjectSync({
       setStatus('error')
       setSaveError(message)
     }
-  }, [editorProjectQuery, episodeId, projectId, queryClient, queryKey])
+  }, [editorProjectQuery, episodeId, flushPendingSave, projectId, queryClient, queryKey])
 
   return {
     id: projectIdState,
