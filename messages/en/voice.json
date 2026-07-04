@@ -234,7 +234,8 @@
         "existingVoicesBtn": "My Voices",
         "loadingVoices": "Loading voices",
         "noExistingVoices": "No custom voices found on this Bailian account yet. Try AI Design or Clone first.",
-        "binding": "Binding"
+        "binding": "Binding",
+        "prefixInvalid": "Voice prefix must be 1-10 letters or digits"
     },
     "voicePicker": {
         "badge": {

@@ -27,6 +27,7 @@ export interface ProviderCardProps {
   onDeleteProvider?: (providerId: string) => void
   onToggleProviderHidden?: (providerId: string, hidden: boolean) => void
   onAddModel: (model: Omit<CustomModel, 'enabled'>) => void
+  onSyncModels?: () => Promise<void> | void
   onFlushConfig?: () => Promise<void>
   hideProviderLabel?: string
   showProviderLabel?: string

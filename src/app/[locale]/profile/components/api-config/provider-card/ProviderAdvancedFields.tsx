@@ -16,6 +16,7 @@ interface ProviderAdvancedFieldsProps {
   onToggleModel: ProviderCardProps['onToggleModel']
   onDeleteModel: ProviderCardProps['onDeleteModel']
   onUpdateModel: ProviderCardProps['onUpdateModel']
+  onSyncModels?: ProviderCardProps['onSyncModels']
   t: ProviderCardTranslator
   state: UseProviderCardStateResult
 }
@@ -130,6 +131,7 @@ export function ProviderAdvancedFields({
   onToggleModel,
   onDeleteModel,
   onUpdateModel,
+  onSyncModels,
   t,
   state,
 }: ProviderAdvancedFieldsProps) {
@@ -142,6 +144,8 @@ export function ProviderAdvancedFields({
   const [activeType, setActiveType] = useState<ProviderCardModelType | null>(
     visibleTypes[0] ?? null,
   )
+  const [modelSearch, setModelSearch] = useState('')
+  const [isSyncing, setIsSyncing] = useState(false)
   const activeTypeSignature = visibleTypes.join('|')
 
   useEffect(() => {
@@ -155,14 +159,33 @@ export function ProviderAdvancedFields({
   }, [activeType, activeTypeSignature, visibleTypes])
 
   const currentType = activeType ?? visibleTypes[0] ?? null
-  const currentModels = currentType ? (state.groupedModels[currentType] ?? []) : []
+  const rawCurrentModels = currentType ? (state.groupedModels[currentType] ?? []) : []
+  const searchTerm = modelSearch.trim().toLowerCase()
+  const currentModels = useMemo(() => {
+    if (!searchTerm) return rawCurrentModels
+    return rawCurrentModels.filter((m) =>
+      m.name.toLowerCase().includes(searchTerm)
+      || m.modelId.toLowerCase().includes(searchTerm),
+    )
+  }, [rawCurrentModels, searchTerm])
   const shouldShowAddButton =
     !!currentType
     && addableModelTypes.has(currentType)
     && state.showAddForm !== currentType
+  const shouldShowSyncButton = !!onSyncModels
   const defaultAddType: ProviderCardModelType = providerKey === 'openrouter' ? 'llm' : 'image'
   const useTabbedLayout = state.hasModels || shouldShowDefaultTabs(provider.id)
   const shouldShowVideoHint = shouldShowOpenAICompatVideoHint(provider.id, currentType)
+
+  const handleSync = async () => {
+    if (!onSyncModels || isSyncing) return
+    setIsSyncing(true)
+    try {
+      await onSyncModels()
+    } finally {
+      setIsSyncing(false)
+    }
+  }
 
   return useTabbedLayout ? (
     <div className="space-y-2.5 p-3">
@@ -176,7 +199,7 @@ export function ProviderAdvancedFields({
       />
 
       {currentType && (
-        <div className="flex items-center justify-between px-1">
+        <div className="flex items-center justify-between gap-2 px-1">
           <div className="flex items-center gap-2 text-[12px] font-semibold text-[var(--glass-text-primary)]">
             <TypeIcon type={currentType} className="h-3 w-3" />
             <span>{typeLabel(currentType, t)}</span>
@@ -184,15 +207,50 @@ export function ProviderAdvancedFields({
               {currentModels.length}
             </span>
           </div>
-          {shouldShowAddButton && (
-            <button
-              onClick={() => state.setShowAddForm(currentType)}
-              className="glass-btn-base glass-btn-soft px-2 py-1 text-[12px] font-medium"
-            >
-              <AppIcon name="plus" className="h-3.5 w-3.5" />
-              {t('add')}
-            </button>
-          )}
+          <div className="flex items-center gap-1">
+            {shouldShowSyncButton && (
+              <button
+                onClick={handleSync}
+                disabled={isSyncing}
+                title={t('syncModels')}
+                className="glass-btn-base glass-btn-soft p-1.5 text-[12px] font-medium disabled:opacity-50"
+              >
+                <AppIcon name="refresh" className={`h-3.5 w-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+              </button>
+            )}
+            {shouldShowAddButton && (
+              <button
+                onClick={() => state.setShowAddForm(currentType)}
+                className="glass-btn-base glass-btn-soft px-2 py-1 text-[12px] font-medium"
+              >
+                <AppIcon name="plus" className="h-3.5 w-3.5" />
+                {t('add')}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {currentType && (
+        <div className="px-1">
+          <div className="relative">
+            <AppIcon name="search" className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3 w-3 text-[var(--glass-text-tertiary)]" />
+            <input
+              type="text"
+              value={modelSearch}
+              onChange={(e) => setModelSearch(e.target.value)}
+              placeholder={t('searchModels')}
+              className="glass-input-base w-full py-1.5 pl-7 pr-7 text-[12px]"
+            />
+            {modelSearch && (
+              <button
+                onClick={() => setModelSearch('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--glass-text-tertiary)] hover:text-[var(--glass-text-secondary)]"
+              >
+                <AppIcon name="close" className="h-3 w-3" />
+              </button>
+            )}
+          </div>
         </div>
       )}
 

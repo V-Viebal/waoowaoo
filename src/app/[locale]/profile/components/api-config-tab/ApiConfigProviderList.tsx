@@ -47,6 +47,7 @@ interface ApiConfigProviderListProps {
   onUpdateModel: (modelKey: string, updates: Partial<CustomModel>, providerId: string) => void
   onDeleteProvider: (providerId: string) => void
   onAddModel: (model: Omit<CustomModel, 'enabled'>) => void
+  onSyncModels: (providerId: string) => void
   onFlushConfig: () => Promise<void>
   onToggleProviderHidden: (providerId: string, hidden: boolean) => void
   labels: {
@@ -77,6 +78,7 @@ export function ApiConfigProviderList({
   onUpdateModel,
   onDeleteProvider,
   onAddModel,
+  onSyncModels,
   onFlushConfig,
   onToggleProviderHidden,
   labels,
@@ -161,6 +163,7 @@ export function ApiConfigProviderList({
                       onUpdateModel={(modelKey, updates) => onUpdateModel(modelKey, updates, provider.id)}
                       onDeleteProvider={onDeleteProvider}
                       onAddModel={onAddModel}
+                      onSyncModels={() => onSyncModels(provider.id)}
                       onFlushConfig={onFlushConfig}
                       onToggleProviderHidden={onToggleProviderHidden}
                       hideProviderLabel={labels.hideProvider}
@@ -210,6 +213,7 @@ export function ApiConfigProviderList({
                     onUpdateModel={(modelKey, updates) => onUpdateModel(modelKey, updates, provider.id)}
                     onDeleteProvider={onDeleteProvider}
                     onAddModel={onAddModel}
+                    onSyncModels={() => onSyncModels(provider.id)}
                     onFlushConfig={onFlushConfig}
                     onToggleProviderHidden={onToggleProviderHidden}
                     hideProviderLabel={labels.hideProvider}

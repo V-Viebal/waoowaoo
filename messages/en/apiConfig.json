@@ -18,6 +18,8 @@
   "cancel": "Cancel",
   "close": "Close",
   "save": "Save",
+  "syncModels": "Sync official models",
+  "searchModels": "Search by name or model ID…",
   "comingSoon": "Coming soon",
   "priceInput": "Input {amount}",
   "priceOutput": "Output {amount}",

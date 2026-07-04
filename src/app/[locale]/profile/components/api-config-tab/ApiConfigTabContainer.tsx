@@ -12,6 +12,7 @@ import {
   parseModelKey,
   useProviders,
 } from '../api-config'
+import { PRESET_MODELS } from '../api-config/types'
 import { ApiConfigToolbar } from './ApiConfigToolbar'
 import { ApiConfigProviderList } from './ApiConfigProviderList'
 import { DefaultModelCards } from './DefaultModelCards'
@@ -290,6 +291,32 @@ export function ApiConfigTabContainer() {
             onUpdateModel={updateModel}
             onDeleteProvider={deleteProvider}
             onAddModel={addModel}
+            onSyncModels={(providerId) => {
+              // ponytail: 将 PRESET_MODELS (目录内置的官方模型) 中属于该 provider 但用户列表里还没有的,逐个 addModel。
+              // addModel 本地 setState 后 performSave 持久化,无需新建 API。
+              const existing = new Set(models.map((m) => m.modelKey))
+              const toAdd = PRESET_MODELS.filter((m) => {
+                if (m.provider !== providerId) return false
+                const key = encodeModelKey(m.provider, m.modelId)
+                return !existing.has(key)
+              })
+              let added = 0
+              for (const m of toAdd) {
+                // ponytail: PRESET_MODELS 是 Omit<CustomModel,'enabled'|'modelKey'|'price'> 形状;
+                // addModel 接受 Omit<CustomModel,'enabled'>,其内部会补 modelKey/price/enabled,这里显式构造缺省字段。
+                addModel({
+                  ...m,
+                  modelKey: encodeModelKey(m.provider, m.modelId),
+                  price: 0,
+                  priceLabel: '--',
+                })
+                added += 1
+              }
+              if (added > 0) {
+                // best-effort notification, no i18n key yet
+                console.info(`[api-config] synced ${added} preset models for ${providerId}`)
+              }
+            }}
             onFlushConfig={flushConfig}
             onToggleProviderHidden={updateProviderHidden}
             labels={{

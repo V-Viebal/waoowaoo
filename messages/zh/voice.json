@@ -234,7 +234,8 @@
         "existingVoicesBtn": "已有音色",
         "loadingVoices": "加载音色列表",
         "noExistingVoices": "百炼账号下暂无已创建音色,先去 AI 设计或声音克隆一个吧",
-        "binding": "绑定中"
+        "binding": "绑定中",
+        "prefixInvalid": "音色前缀为 1-10 位字母或数字"
     },
     "voicePicker": {
         "badge": {

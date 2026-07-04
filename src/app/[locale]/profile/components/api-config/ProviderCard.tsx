@@ -21,6 +21,7 @@ export function ProviderCard({
   onDeleteProvider,
   onToggleProviderHidden,
   onAddModel,
+  onSyncModels,
   onFlushConfig,
   hideProviderLabel,
   showProviderLabel,
@@ -57,6 +58,7 @@ export function ProviderCard({
         onToggleModel={onToggleModel}
         onDeleteModel={onDeleteModel}
         onUpdateModel={onUpdateModel}
+        onSyncModels={onSyncModels}
         t={t}
         state={state}
       />

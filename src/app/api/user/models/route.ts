@@ -188,11 +188,22 @@ function getCatalogProviderDisplayName(provider: string): string {
   }
 }
 
+const COSYVOICE_LABELS: Readonly<Record<string, string>> = {
+  'cosyvoice-v3.5-plus': 'CosyVoice v3.5 Plus',
+  'cosyvoice-v3.5-flash': 'CosyVoice v3.5 Flash',
+  'cosyvoice-v3-plus': 'CosyVoice v3 Plus',
+  'cosyvoice-v3-flash': 'CosyVoice v3 Flash',
+  'cosyvoice-v2': 'CosyVoice v2',
+}
+
 function buildCatalogModelLabel(model: OfficialCatalogModel): string {
   const providerName = getCatalogProviderDisplayName(model.provider)
   // Use a shorter, user-friendly label for catalog models
   if (model.provider === 'bailian' && model.modelId.includes('tts')) {
     return `${providerName} · Qwen TTS`
+  }
+  if (model.provider === 'bailian' && model.modelId.startsWith('cosyvoice-')) {
+    return `${providerName} · ${COSYVOICE_LABELS[model.modelId] || model.modelId}`
   }
   if (model.provider === 'omnivoice') {
     return `${providerName} · OmniVoice TTS`

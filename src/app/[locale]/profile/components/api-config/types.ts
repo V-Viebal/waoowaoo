@@ -164,6 +164,12 @@ export const PRESET_MODELS: PresetModel[] = [
     { modelId: 'fal-ai/index-tts-2/text-to-speech', name: 'IndexTTS 2', type: 'audio', provider: 'fal' },
     { modelId: 'qwen3-tts-vd-2026-01-26', name: 'Qwen3 TTS', type: 'audio', provider: 'bailian' },
     { modelId: 'qwen-voice-design', name: 'Qwen Voice Design', type: 'audio', provider: 'bailian' },
+    // CosyVoice TTS 系列
+    { modelId: 'cosyvoice-v3.5-plus', name: 'CosyVoice v3.5 Plus', type: 'audio', provider: 'bailian' },
+    { modelId: 'cosyvoice-v3.5-flash', name: 'CosyVoice v3.5 Flash', type: 'audio', provider: 'bailian' },
+    { modelId: 'cosyvoice-v3-plus', name: 'CosyVoice v3 Plus', type: 'audio', provider: 'bailian' },
+    { modelId: 'cosyvoice-v3-flash', name: 'CosyVoice v3 Flash', type: 'audio', provider: 'bailian' },
+    { modelId: 'cosyvoice-v2', name: 'CosyVoice v2', type: 'audio', provider: 'bailian' },
     // 口型同步模型
     { modelId: 'fal-ai/kling-video/lipsync/audio-to-video', name: 'Kling Lip Sync', type: 'lipsync', provider: 'fal' },
     { modelId: 'vidu-lipsync', name: 'Vidu Lip Sync', type: 'lipsync', provider: 'vidu' },

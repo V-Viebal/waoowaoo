@@ -18,6 +18,8 @@
   "cancel": "取消",
   "close": "关闭",
   "save": "保存",
+  "syncModels": "同步官方模型列表",
+  "searchModels": "搜索模型名称或 ID…",
   "comingSoon": "待上线",
   "priceInput": "输入 {amount}",
   "priceOutput": "输出 {amount}",
