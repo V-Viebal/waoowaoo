@@ -38,5 +38,22 @@
     "before": "No models configured yet. Please go to",
     "link": "Settings Center",
     "after": "to configure models, or customize them in project settings after creation."
+  },
+  "cover": {
+    "title": "Project Cover",
+    "aiGenerate": "AI Generate",
+    "upload": "Upload Image",
+    "remove": "Remove",
+    "generating": "Generating cover…",
+    "generateFailed": "Failed to generate cover",
+    "retry": "Retry",
+    "descriptionEmpty": "Add a project description before generating a cover",
+    "ratio": "Cover ratio",
+    "ratio1to1": "1:1 Square",
+    "ratio16to9": "16:9 Landscape",
+    "ratio9to16": "9:16 Portrait",
+    "addCover": "Add cover",
+    "uploading": "Uploading…",
+    "generatingHint": "AI will design a cover from the description, art style, characters, and plot"
   }
 }
