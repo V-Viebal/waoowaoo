@@ -28,6 +28,16 @@ const AUTH_CALL_PATTERNS = [
   /\brequireAdminAuth\s*\(/,
   /\brequireProjectAuth\s*\(/,
   /\brequireProjectAuthLight\s*\(/,
+  // 共享的鉴权 helper (editor 路由走 requireOwnedProject/Editor,内部已调 projectAuth)
+  /\brequireOwnedProject\s*\(/,
+  /\brequireOwnedEditorProject\s*\(/,
+  // 用 create*Route 工厂封装的路由(内部包了 apiHandler + auth),guard 不需要再正则命中
+  /\bcreateEditorAiRoute\s*\(/,
+]
+
+// 共享路由工厂 —— 工厂函数内部已经包了 apiHandler,调用侧不需要再直接出现 apiHandler(
+const ROUTE_FACTORY_PATTERNS = [
+  /\bcreateEditorAiRoute\s*\(/,
 ]
 
 function fail(title, details = []) {
@@ -58,7 +68,9 @@ function toRel(fullPath) {
 }
 
 function hasApiHandlerWrapper(content) {
-  return /\bapiHandler\s*\(/.test(content)
+  if (/\bapiHandler\s*\(/.test(content)) return true
+  // 路由通过共享工厂创建,工厂内部包了 apiHandler + auth,不再需要每个路由直接出现 apiHandler(
+  return ROUTE_FACTORY_PATTERNS.some((pattern) => pattern.test(content))
 }
 
 function hasRequiredAuth(content) {

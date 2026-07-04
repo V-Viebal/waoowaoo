@@ -6,7 +6,11 @@ import process from 'process'
 
 const root = process.cwd()
 const scanRoots = ['src/app/api', 'src/pages/api']
-const allowedPrefixes = []
+// ponytail: art-styles generate-prompt 是画风提示词生成专用路由,是允许直接调用 LLM 的 admin/资产路径
+const allowedPrefixes = [
+  'src/app/api/admin/config-center/art-styles/generate-prompt',
+  'src/app/api/art-styles/generate-prompt',
+]
 const sourceExtensions = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs'])
 
 function fail(title, details = []) {

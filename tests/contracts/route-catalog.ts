@@ -63,6 +63,8 @@ const ROUTE_FILES = [
   'src/app/api/asset-hub/upload-temp/route.ts',
   'src/app/api/asset-hub/voice-design/route.ts',
   'src/app/api/asset-hub/voices/[id]/route.ts',
+  'src/app/api/asset-hub/voice-clone/route.ts',
+  'src/app/api/asset-hub/voice-clone-upload/route.ts',
   'src/app/api/asset-hub/voices/route.ts',
   'src/app/api/asset-hub/voices/upload/route.ts',
   'src/app/api/assets/[assetId]/copy/route.ts',
