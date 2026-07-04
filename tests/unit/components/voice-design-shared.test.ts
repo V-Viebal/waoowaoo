@@ -39,10 +39,10 @@ describe('voice-design-shared', () => {
     })
 
     expect(result).toEqual([
-      { voiceId: 'voice-1', audioBase64: 'audio-1', audioUrl: 'data:audio/wav;base64,audio-1' },
-      { voiceId: 'voice-2', audioBase64: 'audio-2', audioUrl: 'data:audio/wav;base64,audio-2' },
-      { voiceId: 'voice-3', audioBase64: 'audio-3', audioUrl: 'data:audio/wav;base64,audio-3' },
-      { voiceId: 'voice-4', audioBase64: 'audio-4', audioUrl: 'data:audio/wav;base64,audio-4' },
+      { voiceId: 'voice-1', audioBase64: 'audio-1', audioUrl: 'data:audio/wav;base64,audio-1', hasPreview: true },
+      { voiceId: 'voice-2', audioBase64: 'audio-2', audioUrl: 'data:audio/wav;base64,audio-2', hasPreview: true },
+      { voiceId: 'voice-3', audioBase64: 'audio-3', audioUrl: 'data:audio/wav;base64,audio-3', hasPreview: true },
+      { voiceId: 'voice-4', audioBase64: 'audio-4', audioUrl: 'data:audio/wav;base64,audio-4', hasPreview: true },
     ])
     expect(onDesignVoice.mock.calls).toEqual([
       [{ voicePrompt: '温柔女声', previewText: '默认试听文案', preferredName: 'preferred-1', language: 'zh' }],
