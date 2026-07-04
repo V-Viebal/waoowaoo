@@ -86,8 +86,10 @@ const ROUTE_FILES = [
   'src/app/api/cos/image/route.ts',
   'src/app/api/files/[...path]/route.ts',
   'src/app/api/storage/sign/route.ts',
+  'src/app/api/providers/omnivoice/health/route.ts',
   'src/app/api/novel-promotion/[projectId]/ai-create-character/route.ts',
   'src/app/api/novel-promotion/[projectId]/ai-create-location/route.ts',
+  'src/app/api/novel-promotion/[projectId]/ai-grid-video-prompt/route.ts',
   'src/app/api/novel-promotion/[projectId]/ai-modify-appearance/route.ts',
   'src/app/api/novel-promotion/[projectId]/ai-modify-location/route.ts',
   'src/app/api/novel-promotion/[projectId]/ai-modify-prop/route.ts',
@@ -116,6 +118,7 @@ const ROUTE_FILES = [
   'src/app/api/novel-promotion/[projectId]/editor/ai/smart-cut/route.ts',
   'src/app/api/novel-promotion/[projectId]/editor/ai/transition/route.ts',
   'src/app/api/novel-promotion/[projectId]/editor/ai/voice-optimize/route.ts',
+  'src/app/api/novel-promotion/[projectId]/editor/render/route.ts',
   'src/app/api/novel-promotion/[projectId]/editor/route.ts',
   'src/app/api/novel-promotion/[projectId]/episodes/[episodeId]/route.ts',
   'src/app/api/novel-promotion/[projectId]/episodes/batch/route.ts',
@@ -129,6 +132,7 @@ const ROUTE_FILES = [
   'src/app/api/novel-promotion/[projectId]/lip-sync/route.ts',
   'src/app/api/novel-promotion/[projectId]/location/confirm-selection/route.ts',
   'src/app/api/novel-promotion/[projectId]/location/route.ts',
+  'src/app/api/novel-promotion/[projectId]/media-resolve/route.ts',
   'src/app/api/novel-promotion/[projectId]/modify-asset-image/route.ts',
   'src/app/api/novel-promotion/[projectId]/modify-storyboard-image/route.ts',
   'src/app/api/novel-promotion/[projectId]/panel-link/route.ts',
@@ -162,6 +166,9 @@ const ROUTE_FILES = [
   'src/app/api/novel-promotion/[projectId]/voice-design/route.ts',
   'src/app/api/novel-promotion/[projectId]/voice-generate/route.ts',
   'src/app/api/novel-promotion/[projectId]/voice-lines/route.ts',
+  'src/app/api/projects/[projectId]/cover/generate/route.ts',
+  'src/app/api/projects/[projectId]/cover/route.ts',
+  'src/app/api/projects/[projectId]/cover/upload/route.ts',
   'src/app/api/projects/[projectId]/assets/route.ts',
   'src/app/api/projects/[projectId]/costs/route.ts',
   'src/app/api/projects/[projectId]/data/route.ts',
@@ -256,6 +263,7 @@ function resolveContractGroup(routeFile: string): RouteContractGroup {
     || routeFile.endsWith('/regenerate-single-image/route.ts')
     || routeFile.endsWith('/regenerate-storyboard-text/route.ts')
     || routeFile.endsWith('/voice-generate/route.ts')
+    || routeFile.endsWith('/editor/render/route.ts')
   ) {
     return 'direct-submit-routes'
   }
