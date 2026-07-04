@@ -209,4 +209,8 @@ export const PROMPT_CATALOG: Record<PromptId, PromptCatalogEntry> = {
       'vocabulary',
     ],
   },
+  [PROMPT_IDS.NP_PROJECT_COVER_GENERATION]: {
+    pathStem: 'novel-promotion/project_cover_generation',
+    variableKeys: ['ratio', 'project_name', 'description', 'art_style_prompt', 'characters_summary', 'locations_summary', 'story_summary'],
+  },
 }
