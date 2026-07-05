@@ -4,7 +4,7 @@ import VoiceDesignDialogBase, {
   type VoiceDesignMutationPayload,
   type VoiceDesignMutationResult,
 } from '@/components/voice/VoiceDesignDialogBase'
-import type { VoiceDesignProvider } from '@/components/voice/voice-design-shared'
+import type { VoiceDesignEngine, VoiceDesignProvider } from '@/components/voice/voice-design-shared'
 import type { CosyVoiceLanguageHint, CosyVoiceTargetModel } from '@/components/voice/voice-design-shared'
 import { useDesignProjectVoice, useRefreshProjectAssets } from '@/lib/query/hooks'
 import { useRecommendVoiceInstruct } from '@/lib/query/mutations/useVoiceMutations'
@@ -62,8 +62,8 @@ export default function VoiceDesignDialog({
   }
 
   const handleRecommendInstruct = characterId
-    ? async () => {
-        const result = await recommendMutation.mutateAsync()
+    ? async (engine: VoiceDesignEngine) => {
+        const result = await recommendMutation.mutateAsync({ engine })
         return { instruct: result.instruct }
       }
     : undefined

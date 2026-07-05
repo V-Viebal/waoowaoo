@@ -209,6 +209,19 @@ export const PROMPT_CATALOG: Record<PromptId, PromptCatalogEntry> = {
       'vocabulary',
     ],
   },
+  [PROMPT_IDS.NP_CHARACTER_VOICE_RECOMMEND_COSY]: {
+    pathStem: 'novel-promotion/character_voice_recommend_cosy',
+    variableKeys: [
+      'name',
+      'gender',
+      'age_range',
+      'archetype',
+      'personality_tags',
+      'occupation',
+      'social_class',
+      'era_period',
+    ],
+  },
   [PROMPT_IDS.NP_PROJECT_COVER_GENERATION]: {
     pathStem: 'novel-promotion/project_cover_generation',
     variableKeys: ['ratio', 'project_name', 'description', 'art_style_prompt', 'characters_summary', 'locations_summary', 'story_summary'],

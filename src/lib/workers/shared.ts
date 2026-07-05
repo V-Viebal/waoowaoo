@@ -481,18 +481,97 @@ export async function withTaskLifecycle(job: Job<TaskJobData>, handler: (job: Jo
       },
     })
   } catch (error: unknown) {
-    if (error instanceof TaskTerminatedError) {
-      if (billingInfo?.billable) {
-        billingInfo = (await rollbackTaskBilling({
-          id: taskId,
-          billingInfo,
-        })) as TaskBillingInfo
+    // ponytail: every DB write in this catch block is best-effort. If the DB is
+    // unavailable (Server has closed the connection, etc.), we must NOT let that
+    // secondary failure mask the original error or prevent the job from being
+    // retried / marked failed — otherwise tasks become zombies in PROCESSING state.
+    const safeBillingRollback = async () => {
+      if (!billingInfo?.billable) return
+      try {
+        billingInfo = (await rollbackTaskBilling({ id: taskId, billingInfo })) as TaskBillingInfo
         await updateTaskBillingInfo(taskId, billingInfo)
+      } catch (rollbackErr) {
+        logger.warn({
+          action: 'worker.billing_rollback_failed',
+          message: 'billing rollback failed during error handling',
+          details: { error: rollbackErr instanceof Error ? rollbackErr.message : String(rollbackErr) },
+        })
+      }
+    }
+
+    if (error instanceof TaskTerminatedError) {
+      await safeBillingRollback()
+      // TaskTerminatedError is raised in two distinct situations:
+      //   1. The task was already moved to a terminal state externally (user cancel,
+      //      concurrent reconciliation, etc.). In that case activeTaskWhere matches
+      //      nothing and tryMarkTaskFailed is a no-op — we must NOT overwrite the
+      //      existing terminal state or publish a spurious FAILED event.
+      //   2. The worker self-aborted mid-flight (e.g. workflow run lease lost,
+      //      active-probe fired during an LLM stream). In that case the DB task is
+      //      still PROCESSING and we MUST transition it to FAILED here, otherwise
+      //      the job becomes a zombie that the watchdog has to clean up 90s later
+      //      with a confusing "Queue job already terminated but DB was not updated"
+      //      message surfaced to the user.
+      // tryMarkTaskFailed is guarded by activeTaskWhere, so it safely distinguishes
+      // the two cases in one UPDATE: count===0 means case 1, count===1 means case 2.
+      const terminatedCode = 'TASK_TERMINATED'
+      const terminatedMessage = error.message || 'Task terminated'
+      const markedTerminatedFailed = await (async () => {
+        try {
+          return await tryMarkTaskFailed(taskId, terminatedCode, terminatedMessage)
+        } catch (markErr) {
+          logger.warn({
+            action: 'worker.terminated.mark_failed',
+            message: 'failed to mark terminated task as failed',
+            details: { error: markErr instanceof Error ? markErr.message : String(markErr) },
+          })
+          return false
+        }
+      })()
+      if (markedTerminatedFailed) {
+        if (data.type === TASK_TYPE.EDITOR_RENDER) {
+          try {
+            await prisma.novelPromotionEditorProject.updateMany({
+              where: { renderTaskId: taskId, renderStatus: 'DONE' },
+              data: { renderStatus: 'FAILED', renderOutputMediaObjectId: null },
+            })
+          } catch {
+            // ignore — best-effort lock release
+          }
+        }
+        const terminatedPayload = withFlowFields(data, {
+          error: { code: terminatedCode, message: terminatedMessage },
+          displayMode: 'loading',
+          trace: { requestId: data.trace?.requestId || null },
+        })
+        try {
+          await publishLifecycleEvent({
+            taskId,
+            projectId: data.projectId,
+            userId: data.userId,
+            type: TASK_EVENT_TYPE.FAILED,
+            taskType: data.type,
+            targetType: data.targetType,
+            targetId: data.targetId,
+            episodeId: data.episodeId || null,
+            payload: {
+              ...terminatedPayload,
+              message: terminatedMessage,
+            },
+          })
+        } catch (publishErr) {
+          logger.warn({
+            action: 'worker.terminated.publish_failed',
+            message: 'failed to publish terminated FAILED event',
+            details: { error: publishErr instanceof Error ? publishErr.message : String(publishErr) },
+          })
+        }
       }
       logger.info({
         action: 'worker.terminated',
         message: error.message,
         durationMs: Date.now() - startedAt,
+        details: { markedFailedInDb: markedTerminatedFailed },
       })
       throw new UnrecoverableError(`Task terminated: ${error.message}`)
     }
@@ -607,13 +686,7 @@ export async function withTaskLifecycle(job: Job<TaskJobData>, handler: (job: Jo
       throw (error instanceof Error ? error : new Error(normalizedError.message || 'Task failed'))
     }
 
-    if (billingInfo?.billable) {
-      billingInfo = (await rollbackTaskBilling({
-        id: taskId,
-        billingInfo,
-      })) as TaskBillingInfo
-      await updateTaskBillingInfo(taskId, billingInfo)
-    }
+    await safeBillingRollback()
     if (data.type === TASK_TYPE.EDITOR_RENDER) {
       await prisma.novelPromotionEditorProject.updateMany({
         where: {
@@ -626,7 +699,16 @@ export async function withTaskLifecycle(job: Job<TaskJobData>, handler: (job: Jo
         },
       }).catch(() => undefined)
     }
-    const markedFailed = await tryMarkTaskFailed(taskId, normalizedError.code, normalizedError.message)
+    let markedFailed = false
+    try {
+      markedFailed = await tryMarkTaskFailed(taskId, normalizedError.code, normalizedError.message)
+    } catch (markErr) {
+      logger.warn({
+        action: 'worker.mark_failed_failed',
+        message: 'tryMarkTaskFailed threw during error handling',
+        details: { error: markErr instanceof Error ? markErr.message : String(markErr) },
+      })
+    }
     if (!markedFailed) {
       logger.info({
         action: 'worker.skip.failed',

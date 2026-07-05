@@ -8,7 +8,9 @@ import { buildDefaultTaskBillingInfo } from '@/lib/billing'
 import { getProjectModelConfig } from '@/lib/config-service'
 
 /**
- * AI 推荐角色语音特征(OmniVoice instruct 词表标签)
+ * AI 推荐角色语音特征
+ * - engine=omnivoice (默认): OmniVoice 受控词表标签(男、中年、低音调 ...)
+ * - engine=cosyvoice:  CosyVoice 自然语言声音描述(中年男性,声音低沉浑厚...)
  * POST /api/novel-promotion/[projectId]/character/[characterId]/recommend-voice-instruct
  */
 export const POST = apiHandler(async (
@@ -26,10 +28,12 @@ export const POST = apiHandler(async (
 
   const body = (await request.json().catch(() => ({}))) as Record<string, unknown>
   const locale = resolveRequiredTaskLocale(request, body)
+  const engine = body.engine === 'omnivoice' ? 'omnivoice' : 'cosyvoice'
 
   const projectModelConfig = await getProjectModelConfig(projectId, session.user.id)
   const payload = {
     characterId,
+    engine,
     displayMode: 'detail' as const,
     ...(projectModelConfig.analysisModel ? { analysisModel: projectModelConfig.analysisModel } : {}),
   }
@@ -43,7 +47,7 @@ export const POST = apiHandler(async (
     targetType: 'NovelPromotionCharacter',
     targetId: characterId,
     payload,
-    dedupeKey: `${TASK_TYPE.CHARACTER_VOICE_RECOMMEND}:${characterId}`,
+    dedupeKey: `${TASK_TYPE.CHARACTER_VOICE_RECOMMEND}:${characterId}:${engine}`,
     billingInfo: buildDefaultTaskBillingInfo(TASK_TYPE.CHARACTER_VOICE_RECOMMEND, payload),
   })
 

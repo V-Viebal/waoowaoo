@@ -1,9 +1,4 @@
 import OpenAI from 'openai'
-import {
-  assertOfficialModelRegistered,
-  type OfficialModelModality,
-} from '@/lib/providers/official/model-registry'
-import { ensureBailianCatalogRegistered } from './catalog'
 import type { BailianLlmMessage } from './types'
 
 export interface BailianLlmCompletionParams {
@@ -14,19 +9,12 @@ export interface BailianLlmCompletionParams {
   temperature?: number
 }
 
-function assertRegistered(modelId: string): void {
-  ensureBailianCatalogRegistered()
-  assertOfficialModelRegistered({
-    provider: 'bailian',
-    modality: 'llm' satisfies OfficialModelModality,
-    modelId,
-  })
-}
-
+// ponytail: LLM calls forward modelId verbatim to the OpenAI-compatible endpoint.
+// User-configured custom models are validated at selection time (resolveModelSelection),
+// so we don't enforce a hardcoded model catalog here — doing so blocks custom additions.
 export async function completeBailianLlm(
   _params: BailianLlmCompletionParams,
 ): Promise<OpenAI.Chat.Completions.ChatCompletion> {
-  assertRegistered(_params.modelId)
   const baseURL = typeof _params.baseUrl === 'string' && _params.baseUrl.trim()
     ? _params.baseUrl.trim()
     : 'https://dashscope.aliyuncs.com/compatible-mode/v1'

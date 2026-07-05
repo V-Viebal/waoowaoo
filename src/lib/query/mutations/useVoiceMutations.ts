@@ -72,14 +72,15 @@ export function useDesignProjectVoice(projectId: string) {
 }
 
 /**
- * AI 推荐角色语音特征(OmniVoice instruct 词表标签)
+ * AI 推荐角色语音特征。
+ * @param engine 'omnivoice' → 受控词表标签;'cosyvoice' → 自然语言声音描述(默认)
  */
 export function useRecommendVoiceInstruct(projectId: string, characterId: string) {
     return useMutation({
-        mutationFn: async (): Promise<{ instruct: string; source: string }> => {
+        mutationFn: async ({ engine }: { engine: 'omnivoice' | 'cosyvoice' } = { engine: 'cosyvoice' }): Promise<{ instruct: string; source: string }> => {
             const response = await requestTaskResponseWithError(
                 `/api/novel-promotion/${projectId}/character/${characterId}/recommend-voice-instruct`,
-                { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) },
+                { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ engine }) },
                 'Failed to recommend voice',
             )
             return await resolveTaskResponse<{ instruct: string; source: string }>(response)

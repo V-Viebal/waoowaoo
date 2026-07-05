@@ -15,6 +15,7 @@ import {
 } from '@/lib/model-capabilities/lookup'
 import { resolveBuiltinPricing } from '@/lib/model-pricing/lookup'
 import { resolveProjectModelCapabilityGenerationOptions } from '@/lib/config-service'
+import { resolveEffectiveVideoDurationSeconds } from '@/lib/model-capabilities/video-duration'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value)
@@ -153,6 +154,30 @@ async function validateVideoCapabilityCombination(input: {
   }
 }
 
+/**
+ * Build a per-panel request body that honors the panel's persisted duration
+ * (set by LLM analysis or user edit on the panel). The panel's duration is
+ * snapped to the nearest value supported by the selected video model and
+ * injected into `generationOptions.duration`; UI-provided values (global
+ * default) serve as fallback when the panel has no analyzed duration.
+ */
+function buildPerPanelBody(body: Record<string, unknown>, panelDuration: number | null): Record<string, unknown> {
+  const modelKey = resolveVideoModelKeyFromPayload(body)
+  const effectiveDuration = modelKey
+    ? resolveEffectiveVideoDurationSeconds(panelDuration, modelKey)
+    : undefined
+  if (typeof effectiveDuration !== 'number') return body
+
+  const existingOptions = isRecord(body.generationOptions) ? body.generationOptions : {}
+  return {
+    ...body,
+    generationOptions: {
+      ...existingOptions,
+      duration: effectiveDuration,
+    },
+  }
+}
+
 function buildVideoPanelBillingInfoOrThrow(payload: unknown) {
   try {
     return buildDefaultTaskBillingInfo(TASK_TYPE.VIDEO_PANEL, isRecord(payload) ? payload : null)
@@ -218,7 +243,7 @@ export const POST = apiHandler(async (
           { videoUrl: '' },
         ],
       },
-      select: { id: true },
+      select: { id: true, duration: true },
     })
 
     if (panels.length === 0) {
@@ -226,8 +251,14 @@ export const POST = apiHandler(async (
     }
 
     const results = await Promise.all(
-      panels.map(async (panel) =>
-        submitTask({
+      panels.map(async (panel) => {
+        const panelBody = buildPerPanelBody(body as Record<string, unknown>, panel.duration)
+        await validateVideoCapabilityCombination({
+          payload: panelBody,
+          projectId,
+          userId: session.user.id,
+        })
+        return submitTask({
           userId: session.user.id,
           locale,
           requestId: getRequestId(request),
@@ -236,13 +267,13 @@ export const POST = apiHandler(async (
           type: TASK_TYPE.VIDEO_PANEL,
           targetType: 'NovelPromotionPanel',
           targetId: panel.id,
-          payload: withTaskUiPayload(body, {
+          payload: withTaskUiPayload(panelBody, {
             hasOutputAtStart: await hasPanelVideoOutput(panel.id),
           }),
           dedupeKey: `video_panel:${panel.id}`,
-          billingInfo: buildVideoPanelBillingInfoOrThrow(body),
-        }),
-      ),
+          billingInfo: buildVideoPanelBillingInfoOrThrow(panelBody),
+        })
+      }),
     )
 
     return NextResponse.json({ tasks: results, total: panels.length })
@@ -256,12 +287,19 @@ export const POST = apiHandler(async (
 
   const panel = await prisma.novelPromotionPanel.findFirst({
     where: { storyboardId, panelIndex: Number(panelIndex) },
-    select: { id: true },
+    select: { id: true, duration: true },
   })
 
   if (!panel) {
     throw new ApiError('NOT_FOUND')
   }
+
+  const panelBody = buildPerPanelBody(body as Record<string, unknown>, panel.duration)
+  await validateVideoCapabilityCombination({
+    payload: panelBody,
+    projectId,
+    userId: session.user.id,
+  })
 
   const result = await submitTask({
     userId: session.user.id,
@@ -271,11 +309,11 @@ export const POST = apiHandler(async (
     type: TASK_TYPE.VIDEO_PANEL,
     targetType: 'NovelPromotionPanel',
     targetId: panel.id,
-    payload: withTaskUiPayload(body, {
+    payload: withTaskUiPayload(panelBody, {
       hasOutputAtStart: await hasPanelVideoOutput(panel.id),
     }),
     dedupeKey: `video_panel:${panel.id}`,
-    billingInfo: buildVideoPanelBillingInfoOrThrow(body),
+    billingInfo: buildVideoPanelBillingInfoOrThrow(panelBody),
   })
 
   return NextResponse.json(result)

@@ -1,9 +1,4 @@
 import OpenAI from 'openai'
-import {
-  assertOfficialModelRegistered,
-  type OfficialModelModality,
-} from '@/lib/providers/official/model-registry'
-import { ensureStarRouterCatalogRegistered } from './catalog'
 import type { StarRouterLlmMessage } from './types'
 
 export interface StarRouterLlmCompletionParams {
@@ -15,19 +10,12 @@ export interface StarRouterLlmCompletionParams {
   stream?: boolean
 }
 
-function assertRegistered(modelId: string): void {
-  ensureStarRouterCatalogRegistered()
-  assertOfficialModelRegistered({
-    provider: 'starrouter',
-    modality: 'llm' satisfies OfficialModelModality,
-    modelId,
-  })
-}
-
+// ponytail: LLM calls forward modelId verbatim to the OpenAI-compatible endpoint.
+// User-configured custom models are validated at selection time (resolveModelSelection),
+// so we don't enforce a hardcoded model catalog here — doing so blocks custom additions.
 export async function completeStarRouterLlm(
   _params: StarRouterLlmCompletionParams,
 ): Promise<OpenAI.Chat.Completions.ChatCompletion> {
-  assertRegistered(_params.modelId)
   const baseURL = typeof _params.baseUrl === 'string' && _params.baseUrl.trim()
     ? _params.baseUrl.trim()
     : 'https://starrouter.io/v1'
@@ -48,7 +36,6 @@ export async function completeStarRouterLlm(
 export async function streamStarRouterLlm(
   _params: StarRouterLlmCompletionParams,
 ): Promise<AsyncIterable<unknown>> {
-  assertRegistered(_params.modelId)
   const baseURL = typeof _params.baseUrl === 'string' && _params.baseUrl.trim()
     ? _params.baseUrl.trim()
     : 'https://starrouter.io/v1'

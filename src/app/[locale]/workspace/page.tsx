@@ -690,8 +690,9 @@ export default function WorkspacePage() {
 
       {/* Create Project Modal - 简化版，只有名称和描述 */}
       {showCreateModal && (
-        <div className="fixed inset-0 glass-overlay flex items-center justify-center z-50 backdrop-blur-sm">
-          <div className="glass-surface-modal p-6 w-full max-w-md mx-4">
+        <div className="fixed inset-0 glass-overlay z-50 backdrop-blur-sm overflow-y-auto">
+          <div className="min-h-full flex items-start justify-center p-4 sm:p-6">
+          <div className="glass-surface-modal p-6 w-full max-w-md my-auto">
             <h2 className="text-xl font-bold text-[var(--glass-text-primary)] mb-4">{t('createProject')}</h2>
             {modelNotConfigured && (
               <div className="flex items-start gap-2 mb-4 px-3 py-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400">
@@ -827,13 +828,15 @@ export default function WorkspacePage() {
               </div>
             </form>
           </div>
+          </div>
         </div>
       )}
 
       {/* Edit Project Modal */}
       {showEditModal && editingProject && (
-        <div className="fixed inset-0 glass-overlay flex items-center justify-center z-50 backdrop-blur-sm">
-          <div className="glass-surface-modal p-6 w-full max-w-md mx-4">
+        <div className="fixed inset-0 glass-overlay z-50 backdrop-blur-sm overflow-y-auto">
+          <div className="min-h-full flex items-start justify-center p-4 sm:p-6">
+          <div className="glass-surface-modal p-6 w-full max-w-md my-auto">
             <h2 className="text-xl font-bold text-[var(--glass-text-primary)] mb-4">{t('editProject')}</h2>
             <form onSubmit={handleEditProject}>
               <div className="mb-4">
@@ -976,6 +979,7 @@ export default function WorkspacePage() {
                 </button>
               </div>
             </form>
+          </div>
           </div>
         </div>
       )}

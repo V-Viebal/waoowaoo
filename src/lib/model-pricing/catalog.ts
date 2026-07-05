@@ -221,6 +221,8 @@ export function listBuiltinPricingCatalog(): BuiltinPricingCatalogEntry[] {
  */
 const PROVIDER_ALIASES: Readonly<Record<string, string>> = {
   'gemini-compatible': 'google',
+  // starrouter 是 Gemini/Google 模型的中转渠道,复用 google 官方定价。
+  starrouter: 'google',
 }
 
 export function findBuiltinPricingCatalogEntry(

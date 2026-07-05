@@ -1,6 +1,10 @@
 import { prisma } from '@/lib/prisma'
+import { withPrismaRetry } from '@/lib/prisma-retry'
+import { createScopedLogger } from '@/lib/logging/core'
 import { selectRecoverableRun } from '@/lib/run-runtime/recovery'
 import { resolveRetryInvalidationStepKeys } from '@/lib/workflow-engine/dependencies'
+
+const runtimeLogger = createScopedLogger({ module: 'run-runtime.service' })
 import {
   RUN_EVENT_TYPE,
   RUN_STATE_MAX_BYTES,
@@ -708,9 +712,15 @@ export async function attachTaskToRun(runId: string, taskId: string) {
 }
 
 export async function getRunById(runId: string) {
-  const row = await runtimeClient.graphRun.findUnique({
-    where: { id: runId },
-  })
+  // ponytail: used by assertWorkflowRunActive (stream active-probes every
+  // 600ms during LLM calls). A transient MySQL disconnect here MUST NOT
+  // appear as "run not found → lease lost → TaskTerminatedError" — retry so
+  // probes only fail on a real lost lease, not a DB blip.
+  const row = await withPrismaRetry(() =>
+    runtimeClient.graphRun.findUnique({
+      where: { id: runId },
+    }),
+  )
   if (!row) return null
   return mapRunRow(row)
 }
@@ -785,20 +795,27 @@ export async function renewRunLease(params: {
 }) {
   const now = new Date()
   const leaseExpiresAt = new Date(now.getTime() + Math.max(5_000, Math.floor(params.leaseMs)))
-  const result = await runtimeClient.graphRun.updateMany({
-    where: {
-      id: params.runId,
-      userId: params.userId,
-      leaseOwner: params.workerId,
-      status: {
-        in: [RUN_STATUS.QUEUED, RUN_STATUS.RUNNING, RUN_STATUS.CANCELING],
+  // ponytail: lease renewals fire on a 10s interval during long LLM runs. A
+  // transient DB blip here MUST NOT let the lease expire (causing a false
+  // "lease lost" termination on the next active-probe). Retry the update;
+  // WHERE is guarded by (runId, leaseOwner, active status) so retries are
+  // idempotent.
+  const result = await withPrismaRetry(() =>
+    runtimeClient.graphRun.updateMany({
+      where: {
+        id: params.runId,
+        userId: params.userId,
+        leaseOwner: params.workerId,
+        status: {
+          in: [RUN_STATUS.QUEUED, RUN_STATUS.RUNNING, RUN_STATUS.CANCELING],
+        },
       },
-    },
-    data: {
-      leaseExpiresAt,
-      heartbeatAt: now,
-    },
-  })
+      data: {
+        leaseExpiresAt,
+        heartbeatAt: now,
+      },
+    }),
+  )
   if (result.count === 0) {
     return null
   }

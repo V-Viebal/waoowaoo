@@ -37,7 +37,10 @@ vi.mock('@/lib/llm-observe/internal-stream-context', () => ({
   withInternalLLMStreamCallbacks: vi.fn(async (_callbacks: unknown, fn: () => Promise<unknown>) => await fn()),
 }))
 vi.mock('@/lib/prompt-i18n', () => ({
-  PROMPT_IDS: { NP_CHARACTER_VOICE_RECOMMEND: 'np_character_voice_recommend' },
+  PROMPT_IDS: {
+    NP_CHARACTER_VOICE_RECOMMEND: 'np_character_voice_recommend',
+    NP_CHARACTER_VOICE_RECOMMEND_COSY: 'np_character_voice_recommend_cosy',
+  },
   buildPromptAsync: promptMock.buildPromptAsync,
 }))
 vi.mock('@/lib/workers/shared', () => ({ reportTaskProgress: workerMock.reportTaskProgress }))
@@ -105,14 +108,14 @@ describe('worker character-voice-recommend behavior', () => {
   })
 
   it('missing characterId -> explicit error', async () => {
-    await expect(handleCharacterVoiceRecommendTask(buildJob({}))).rejects.toThrow('characterId is required')
+    await expect(handleCharacterVoiceRecommendTask(buildJob({ engine: 'omnivoice' }))).rejects.toThrow('characterId is required')
     expect(prismaMock.novelPromotionProject.findUnique).not.toHaveBeenCalled()
   })
 
   it('character from another project -> CHARACTER_NOT_FOUND', async () => {
     prismaMock.novelPromotionCharacter.findFirst.mockResolvedValue(null)
 
-    await expect(handleCharacterVoiceRecommendTask(buildJob({ characterId: 'char-other' }))).rejects.toThrow('CHARACTER_NOT_FOUND')
+    await expect(handleCharacterVoiceRecommendTask(buildJob({ characterId: 'char-other', engine: 'omnivoice' }))).rejects.toThrow('CHARACTER_NOT_FOUND')
 
     expect(prismaMock.novelPromotionCharacter.findFirst).toHaveBeenCalledWith({
       where: { id: 'char-other', novelPromotionProjectId: 'np-project-1' },
@@ -120,13 +123,13 @@ describe('worker character-voice-recommend behavior', () => {
     })
   })
 
-  it('valid LLM output -> returns llm instruct', async () => {
+  it('valid omnivoice LLM output -> returns llm instruct', async () => {
     aiRuntimeMock.executeAiTextStep.mockResolvedValue({
       text: '男、青年、低音调',
       reasoning: '',
     })
 
-    const result = await handleCharacterVoiceRecommendTask(buildJob({ characterId: 'char-1' }))
+    const result = await handleCharacterVoiceRecommendTask(buildJob({ characterId: 'char-1', engine: 'omnivoice' }))
 
     expect(result).toEqual({
       success: true,
@@ -142,9 +145,37 @@ describe('worker character-voice-recommend behavior', () => {
     expect(streamMock.flush).toHaveBeenCalled()
   })
 
-  it('invalid LLM output -> falls back to profileData instruct', async () => {
+  it('invalid omnivoice LLM output -> falls back to profileData instruct', async () => {
     aiRuntimeMock.executeAiTextStep.mockResolvedValue({
       text: 'deep cinematic villain voice',
+      reasoning: '',
+    })
+
+    const result = await handleCharacterVoiceRecommendTask(buildJob({ characterId: 'char-1', engine: 'omnivoice' }))
+
+    expect(result).toEqual({
+      success: true,
+      instruct: '女、中年',
+      source: 'fallback',
+    })
+  })
+
+  it('cosyvoice engine default -> returns cleaned LLM natural-language prompt', async () => {
+    aiRuntimeMock.executeAiTextStep.mockResolvedValue({
+      text: '中年女性,声音低沉冷静,语速平稳,带有律师的威严感',
+      reasoning: '',
+    })
+
+    const result = await handleCharacterVoiceRecommendTask(buildJob({ characterId: 'char-1' }))
+
+    expect(result.success).toBe(true)
+    expect(result.source).toBe('llm')
+    expect(result.instruct).toContain('中年女性')
+  })
+
+  it('cosyvoice engine with garbage LLM output -> falls back to profile-based description', async () => {
+    aiRuntimeMock.executeAiTextStep.mockResolvedValue({
+      text: '...',
       reasoning: '',
     })
 
@@ -152,7 +183,7 @@ describe('worker character-voice-recommend behavior', () => {
 
     expect(result).toEqual({
       success: true,
-      instruct: '女、中年',
+      instruct: expect.stringContaining('女性'),
       source: 'fallback',
     })
   })

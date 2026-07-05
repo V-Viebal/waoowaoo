@@ -12,8 +12,9 @@ import { resolveTaskPresentationState } from '@/lib/task/presentation'
 import {
     DEFAULT_VOICE_SCHEME_COUNT,
     generateVoiceDesignOptions,
+    resolveDesignApiTarget,
     type GeneratedVoice,
-    type VoiceDesignProvider,
+    type VoiceDesignEngine,
 } from '@/components/voice/voice-design-shared'
 
 export interface VoiceCreationModalShellProps {
@@ -41,7 +42,8 @@ export function useVoiceCreation({ isOpen, folderId, onClose, onSuccess, initial
     const [voicePrompt, setVoicePrompt] = useState('')
     const [previewText, setPreviewText] = useState(tv('defaultPreviewText'))
     const [schemeCount, setSchemeCount] = useState(String(DEFAULT_VOICE_SCHEME_COUNT))
-    const [provider, setProvider] = useState<VoiceDesignProvider>('bailian')
+    // ponytail: 资产库创建音色默认使用 CosyVoice,与工作区弹窗保持一致。
+    const [engine] = useState<VoiceDesignEngine>('cosyvoice')
     const [isVoiceCreationSubmitting, setIsVoiceCreationSubmitting] = useState(false)
     const [isSaving, setIsSaving] = useState(false)
     const [error, setError] = useState<string | null>(null)
@@ -90,12 +92,17 @@ export function useVoiceCreation({ isOpen, folderId, onClose, onSuccess, initial
         setSelectedIndex(null)
 
         try {
+            const target = resolveDesignApiTarget(engine)
             const voices = await generateVoiceDesignOptions({
                 count: schemeCount,
                 voicePrompt,
                 previewText,
                 defaultPreviewText: tv('defaultPreviewText'),
-                provider,
+                provider: target.provider,
+                flavor: target.flavor,
+                cosyvoiceExtras: engine === 'cosyvoice'
+                    ? { prefix: 'assethub', targetModel: 'cosyvoice-v3.5-plus', languageHints: ['zh'] }
+                    : undefined,
                 onDesignVoice: (payload) => designVoiceMutation.mutateAsync(payload),
             })
             setGeneratedVoices(voices)
@@ -154,7 +161,7 @@ export function useVoiceCreation({ isOpen, folderId, onClose, onSuccess, initial
                 voiceName: voiceName.trim(),
                 folderId,
                 voicePrompt: voicePrompt.trim(),
-                provider,
+                provider: 'bailian',
             })
 
             onSuccess()
@@ -292,7 +299,6 @@ export function useVoiceCreation({ isOpen, folderId, onClose, onSuccess, initial
         setVoicePrompt('')
         setPreviewText(tv('defaultPreviewText'))
         setSchemeCount(String(DEFAULT_VOICE_SCHEME_COUNT))
-        setProvider('bailian')
         setError(null)
         setGeneratedVoices([])
         setSelectedIndex(null)
@@ -330,7 +336,6 @@ export function useVoiceCreation({ isOpen, folderId, onClose, onSuccess, initial
         voicePrompt,
         previewText,
         schemeCount,
-        provider,
         isVoiceCreationSubmitting,
         isSaving,
         error,
@@ -352,7 +357,6 @@ export function useVoiceCreation({ isOpen, folderId, onClose, onSuccess, initial
         setVoicePrompt,
         setPreviewText,
         setSchemeCount,
-        setProvider,
         setError,
         setGeneratedVoices,
         setSelectedIndex,

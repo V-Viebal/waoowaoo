@@ -12,11 +12,12 @@ import {
   COSYVOICE_TARGET_MODELS,
   DEFAULT_VOICE_SCHEME_COUNT,
   generateVoiceDesignOptions,
-  type BailianDesignFlavor,
+  resolveDesignApiTarget,
   type CloneEngine,
   type CosyVoiceLanguageHint,
   type CosyVoiceTargetModel,
   type GeneratedVoice,
+  type VoiceDesignEngine,
   type VoiceDesignMutationPayload,
   type VoiceDesignMutationResult,
   type VoiceDesignProvider,
@@ -36,7 +37,8 @@ interface VoiceDesignDialogBaseProps {
   onClose: () => void
   onSave: (voiceId: string, audioBase64: string | undefined, provider: VoiceDesignProvider) => void | Promise<void>
   onDesignVoice: (payload: VoiceDesignMutationPayload) => Promise<VoiceDesignMutationResult>
-  onRecommendInstruct?: () => Promise<{ instruct: string }>
+  /** AI 推荐声音描述。engine 标识当前使用的引擎,返回 instruct 写入 voicePrompt。 */
+  onRecommendInstruct?: (engine: VoiceDesignEngine) => Promise<{ instruct: string }>
   /**
    * Clone flow(s).
    * - omnivoice: legacy — file upload straight to the backend (already handled by parent)
@@ -86,8 +88,8 @@ export default function VoiceDesignDialogBase({
   const [voicePrompt, setVoicePrompt] = useState('')
   const [previewText, setPreviewText] = useState(tv('defaultPreviewText'))
   const [schemeCount, setSchemeCount] = useState(String(DEFAULT_VOICE_SCHEME_COUNT))
-  const [provider, setProvider] = useState<VoiceDesignProvider>('bailian')
-  const [bailianFlavor, setBailianFlavor] = useState<BailianDesignFlavor>('qwen')
+  // ponytail: 设计引擎只保留 OmniVoice / CosyVoice,QwenTTS 隐藏(legacy 仍可后端调用)。
+  const [engine, setEngine] = useState<VoiceDesignEngine>('cosyvoice')
   // CosyVoice design extras
   const [cosyPrefix, setCosyPrefix] = useState(randomPrefix())
   const [cosyTargetModel, setCosyTargetModel] = useState<CosyVoiceTargetModel>(DEFAULT_COSY_TARGET)
@@ -127,13 +129,16 @@ export default function VoiceDesignDialogBase({
 
   const showCloneTab = availableCloneEngines.length > 0
 
+  const isCosyDesign = engine === 'cosyvoice'
+  const resolvedApiTarget = resolveDesignApiTarget(engine)
+
   const handleGenerate = async () => {
     if (!voicePrompt.trim()) {
       setError(tv('pleaseSelectStyle'))
       return
     }
     // CosyVoice design prefix validation
-    if (provider === 'bailian' && bailianFlavor === 'cosyvoice-design') {
+    if (isCosyDesign) {
       if (!/^[A-Za-z0-9]{1,10}$/.test(cosyPrefix)) {
         setError(tvCreate('prefixInvalid'))
         return
@@ -151,9 +156,9 @@ export default function VoiceDesignDialogBase({
         voicePrompt,
         previewText,
         defaultPreviewText: tv('defaultPreviewText'),
-        provider,
-        flavor: provider === 'bailian' ? bailianFlavor : undefined,
-        cosyvoiceExtras: provider === 'bailian' && bailianFlavor === 'cosyvoice-design'
+        provider: resolvedApiTarget.provider,
+        flavor: resolvedApiTarget.flavor,
+        cosyvoiceExtras: isCosyDesign
           ? {
               prefix: cosyPrefix,
               targetModel: cosyTargetModel,
@@ -184,7 +189,7 @@ export default function VoiceDesignDialogBase({
         setIsRecommending(true)
         setError(null)
         try {
-          const { instruct } = await onRecommendInstruct()
+          const { instruct } = await onRecommendInstruct(engine)
           if (instruct) {
             setVoicePrompt(instruct)
             setGeneratedVoices([])
@@ -244,7 +249,7 @@ export default function VoiceDesignDialogBase({
     setIsSaving(true)
     setError(null)
     try {
-      await onSave(voice.voiceId, voice.audioBase64 || undefined, provider)
+      await onSave(voice.voiceId, voice.audioBase64 || undefined, resolvedApiTarget.provider)
       handleClose()
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'save failed')
@@ -258,8 +263,7 @@ export default function VoiceDesignDialogBase({
     setVoicePrompt('')
     setPreviewText(tv('defaultPreviewText'))
     setSchemeCount(String(DEFAULT_VOICE_SCHEME_COUNT))
-    setProvider('bailian')
-    setBailianFlavor('qwen')
+    setEngine('cosyvoice')
     setCosyPrefix(randomPrefix())
     setCosyTargetModel(DEFAULT_COSY_TARGET)
     setCosyLang(DEFAULT_COSY_LANG)
@@ -358,22 +362,20 @@ export default function VoiceDesignDialogBase({
 
           {tab === 'design' && (
             <>
-              {provider === 'bailian' && (
-                <SegmentedControl
-                  options={[
-                    { value: 'qwen' as const, label: tvCreate('bailianFlavorQwen') },
-                    { value: 'cosyvoice-design' as const, label: tvCreate('bailianFlavorCosy') },
-                  ]}
-                  value={bailianFlavor}
-                  onChange={(val) => {
-                    setBailianFlavor(val as BailianDesignFlavor)
-                    setVoicePrompt('')
-                    setError(null)
-                  }}
-                />
-              )}
+              <SegmentedControl
+                options={[
+                  { value: 'cosyvoice' as const, label: tvCreate('engineCosy') },
+                  { value: 'omnivoice' as const, label: tvCreate('engineOmni') },
+                ]}
+                value={engine}
+                onChange={(val) => {
+                  setEngine(val as VoiceDesignEngine)
+                  setVoicePrompt('')
+                  setError(null)
+                }}
+              />
 
-              {provider === 'bailian' && bailianFlavor === 'cosyvoice-design' && (
+              {isCosyDesign && (
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <label className="text-xs text-[var(--glass-text-tertiary)] block mb-1">{tvCreate('prefixLabel')}</label>
@@ -419,12 +421,7 @@ export default function VoiceDesignDialogBase({
                 onPreviewTextChange={setPreviewText}
                 schemeCount={schemeCount}
                 onSchemeCountChange={setSchemeCount}
-                provider={provider}
-                onProviderChange={(next) => {
-                  setProvider(next)
-                  setVoicePrompt('')
-                  setError(null)
-                }}
+                engine={engine}
                 isSubmitting={isDesignSubmitting}
                 submittingState={designSubmittingState}
                 error={error}

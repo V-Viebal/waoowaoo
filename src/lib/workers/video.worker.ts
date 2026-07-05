@@ -17,6 +17,7 @@ import {
 } from './utils'
 import { normalizeToBase64ForGeneration } from '@/lib/media/outbound-image'
 import { resolveBuiltinCapabilitiesByModelKey } from '@/lib/model-capabilities/lookup'
+import { resolveEffectiveVideoDurationSeconds } from '@/lib/model-capabilities/video-duration'
 import { parseModelKeyStrict } from '@/lib/model-config-contract'
 import { getProviderConfig } from '@/lib/api-config'
 import { isGridLayout } from '@/lib/storyboard-images/grid-video-prompt'
@@ -207,6 +208,9 @@ async function generateVideoForPanel(
             ...(resolved.duration ? { duration: resolved.duration } : {}),
           },
         })
+        if (resolved.duration) {
+          panel = { ...panel, duration: resolved.duration }
+        }
       }
     }
   }
@@ -281,6 +285,10 @@ async function generateVideoForPanel(
     }
   }
 
+  // 面板上持久化的时长（LLM 分析 / 用户手动编辑 / 宫格重写产出）优先于
+  // UI 全局默认值；按实际使用的模型（首/尾帧模式下取 flModel）做合法值对齐。
+  const panelDurationSeconds = resolveEffectiveVideoDurationSeconds(panel.duration, model)
+
   const generatedVideo = await resolveVideoSourceFromGeneration(job, {
     userId: job.data.userId,
     modelId: model,
@@ -290,6 +298,9 @@ async function generateVideoForPanel(
       ...(projectVideoRatio ? { aspectRatio: projectVideoRatio } : {}),
       ...generationOptions,
       generationMode,
+      // 面板上持久化的时长（LLM 分析 / 用户手动编辑 / 宫格重写产出）优先于
+      // UI 全局默认值；UI 下拉若未来要支持逐片覆盖，可在 payload 中加 _panelDurationOverride。
+      ...(typeof panelDurationSeconds === 'number' ? { duration: panelDurationSeconds } : {}),
       ...(typeof requestedGenerateAudio === 'boolean' ? { generateAudio: requestedGenerateAudio } : {}),
       ...(lastFrameImageBase64 ? { lastFrameImageUrl: lastFrameImageBase64 } : {}),
     },

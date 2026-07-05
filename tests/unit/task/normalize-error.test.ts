@@ -63,3 +63,31 @@ describe('normalizeAnyError provider-specific mapping', () => {
     expect(normalized.retryable).toBe(false)
   })
 })
+
+describe('normalizeAnyError database disconnect mapping', () => {
+  it('maps Prisma "Server has closed the connection" message to EXTERNAL_ERROR (retryable)', () => {
+    const msg = [
+      'Invalid `taskModel.update()` invocation in',
+      '/app/src/lib/task/service.ts:358:26',
+      '',
+      '  355 }',
+      '  356',
+      '  357 export async function updateTaskBillingInfo(taskId, billingInfo) {',
+      '→ 358   return await taskModel.update(',
+      'Server has closed the connection.',
+    ].join('\n')
+    const normalized = normalizeAnyError(new Error(msg))
+    expect(normalized.code).toBe('EXTERNAL_ERROR')
+    expect(normalized.retryable).toBe(true)
+  })
+
+  it('maps Prisma "Server has closed the connection" on error.cause to EXTERNAL_ERROR (retryable)', () => {
+    // Prisma sometimes puts the driver error on .cause with a shorter top message.
+    const cause = new Error('Server has closed the connection.')
+    const top = new Error('Unable to fetch from database')
+    ;(top as Error & { cause: unknown }).cause = cause
+    const normalized = normalizeAnyError(top)
+    expect(normalized.code).toBe('EXTERNAL_ERROR')
+    expect(normalized.retryable).toBe(true)
+  })
+})

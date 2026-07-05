@@ -436,21 +436,33 @@ export async function clearTaskExternalId(taskId: string) {
 }
 
 export async function touchTaskHeartbeat(taskId: string) {
-  const result = await taskModel.updateMany({
-    where: activeTaskWhere(taskId),
-    data: { heartbeatAt: new Date() },
-  })
+  // ponytail: best-effort heartbeat — retry transient DB disconnects (e.g.
+  // "Server has closed the connection"). A missed heartbeat must not kill a
+  // running task; the WHERE clause is already guarded by active status so
+  // retries are idempotent.
+  const result = await withPrismaRetry(() =>
+    taskModel.updateMany({
+      where: activeTaskWhere(taskId),
+      data: { heartbeatAt: new Date() },
+    }),
+  )
   return result.count > 0
 }
 
 export async function tryUpdateTaskProgress(taskId: string, progress: number, payload?: Record<string, unknown> | null) {
-  const result = await taskModel.updateMany({
-    where: activeTaskWhere(taskId),
-    data: {
-      progress,
-      ...(payload ? { payload: toNullableJson(payload) } : {}),
-    },
-  })
+  // ponytail: called on every LLM stream chunk (~128 chars per step, up to
+  // concurrency=3 parallel steps) during story_to_script runs. A transient
+  // MySQL disconnect here must not abort the in-flight LLM call — the WHERE
+  // on active status makes the UPDATE idempotent under retry.
+  const result = await withPrismaRetry(() =>
+    taskModel.updateMany({
+      where: activeTaskWhere(taskId),
+      data: {
+        progress,
+        ...(payload ? { payload: toNullableJson(payload) } : {}),
+      },
+    }),
+  )
   return result.count > 0
 }
 

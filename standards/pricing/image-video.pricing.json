@@ -477,6 +477,28 @@
     }
   },
   {
+    "apiType": "text",
+    "provider": "google",
+    "modelId": "gemini-2.5-flash-image",
+    "pricing": {
+      "mode": "capability",
+      "tiers": [
+        {
+          "when": {
+            "tokenType": "input"
+          },
+          "amount": 1.08
+        },
+        {
+          "when": {
+            "tokenType": "output"
+          },
+          "amount": 4.32
+        }
+      ]
+    }
+  },
+  {
     "apiType": "image",
     "provider": "google",
     "modelId": "gemini-2.5-flash-image",

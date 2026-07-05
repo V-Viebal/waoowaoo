@@ -35,6 +35,7 @@ export const PROMPT_IDS = {
   NP_STORYBOARD_EDIT: 'np_storyboard_edit',
   NP_VOICE_ANALYSIS: 'np_voice_analysis',
   NP_CHARACTER_VOICE_RECOMMEND: 'np_character_voice_recommend',
+  NP_CHARACTER_VOICE_RECOMMEND_COSY: 'np_character_voice_recommend_cosy',
   NP_PROJECT_COVER_GENERATION: 'np_project_cover_generation',
 } as const
 

@@ -1,8 +1,10 @@
+import { createScopedLogger } from '@/lib/logging/core'
 import { TaskTerminatedError } from '@/lib/task/errors'
 import { RUN_STATUS } from './types'
 import { claimRunLease, getRunById, releaseRunLease, renewRunLease } from './service'
 
 const DEFAULT_RUN_LEASE_MS = 30_000
+const leaseLogger = createScopedLogger({ module: 'run-runtime.lease' })
 
 export function getDefaultRunLeaseMs() {
   return DEFAULT_RUN_LEASE_MS
@@ -54,6 +56,20 @@ export async function withWorkflowRunLease<T>(params: {
       userId: params.userId,
       workerId: params.workerId,
       leaseMs,
+    }).catch((error) => {
+      // Surface the failure instead of silently dropping it. withPrismaRetry
+      // already handled transient DB disconnects; if renew still fails here
+      // the lease may expire and the next active-probe will terminate the
+      // task — visibility helps debug the real cause.
+      leaseLogger.warn({
+        action: 'lease.renew_failed',
+        message: 'workflow run lease renewal failed',
+        details: {
+          runId: params.runId,
+          workerId: params.workerId,
+          error: error instanceof Error ? error.message : String(error),
+        },
+      })
     })
   }, Math.max(5_000, Math.floor(leaseMs / 3)))
 

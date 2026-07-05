@@ -125,4 +125,53 @@ describe('worker episode-split', () => {
     expect(result.episodes[0]?.content).toContain('START_MARKER')
     expect(result.episodes[0]?.content).toContain('END_MARKER')
   })
+
+  it('falls back to next episode startMarker when endMarker is not locatable', async () => {
+    // LLM emits an endMarker that doesn't exist verbatim in the text (paraphrased/hallucinated).
+    // The matcher should cut episode N at episode N+1's startMarker instead.
+    llmClientMock.getCompletionContent.mockReturnValueOnce(JSON.stringify({
+      episodes: [
+        {
+          number: 1,
+          title: '第一集',
+          summary: '开端',
+          startMarker: 'EP1_START',
+          endMarker: 'PHANTOM_END_OF_EP1',
+        },
+        {
+          number: 2,
+          title: '第二集',
+          summary: '发展',
+          startMarker: 'EP2_START',
+          endMarker: 'EP2_END',
+        },
+      ],
+    }))
+    const content = [
+      '前置文字凑长度。前置文字凑长度。前置文字凑长度。前置文字凑长度。前置文字凑长度。',
+      '前置文字凑长度。前置文字凑长度。前置文字凑长度。前置文字凑长度。前置文字凑长度。',
+      'EP1_START',
+      '第一集正文，这里发生了很多事情，内容丰富，角色陆续登场，情节逐步展开。',
+      'EP2_START',
+      '第二集正文，承接上集的冲突继续推进，剧情进入高潮。',
+      'EP2_END',
+      '结尾补充一些文字以凑够字数和验证尾部裁切。结尾补充一些文字以凑够字数。',
+      '结尾补充一些文字以凑够字数和验证尾部裁切。结尾补充一些文字以凑够字数。',
+    ].join('')
+
+    const job = buildJob(content)
+    const result = await handleEpisodeSplitTask(job)
+
+    expect(result.success).toBe(true)
+    expect(result.episodes).toHaveLength(2)
+    expect(result.episodes[0]?.number).toBe(1)
+    expect(result.episodes[0]?.content).toContain('EP1_START')
+    expect(result.episodes[0]?.content).toContain('第一集正文')
+    // ep1 must NOT contain ep2 content
+    expect(result.episodes[0]?.content).not.toContain('第二集正文')
+    expect(result.episodes[1]?.number).toBe(2)
+    expect(result.episodes[1]?.content).toContain('EP2_START')
+    expect(result.episodes[1]?.content).toContain('EP2_END')
+    expect(result.episodes[1]?.content).toContain('第二集正文')
+  })
 })

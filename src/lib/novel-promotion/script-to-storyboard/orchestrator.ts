@@ -175,15 +175,22 @@ function mergePanelsWithRules(params: {
   actingDirections: ActingDirection[]
 }) {
   const { finalPanels, photographyRules, actingDirections } = params
+  // ponytail: LLM 输出摄影/表演规则条数可能与 panel 数略有漂移(如 22 panels 返回 21 条 rules)。
+  // 这里对缺失项用默认中性值兜底,避免整个分镜任务失败,而不是硬 throw。
+  // 升级路径:在生成步骤做 schema 校验 + 自动重试补齐。
   return finalPanels.map((panel, index) => {
     const rules = photographyRules.find((rule) => rule.panel_number === panel.panel_number)
-    if (!rules) {
-      throw new Error(`Missing photography rule for panel_number=${String(panel.panel_number)} at index=${index}`)
-    }
+      ?? photographyRules[index]
+      ?? {
+          composition: '中景',
+          lighting: '自然柔光',
+          color_palette: '自然色调',
+          atmosphere: '平稳',
+          technical_notes: '',
+        }
     const acting = actingDirections.find((item) => item.panel_number === panel.panel_number)
-    if (!acting) {
-      throw new Error(`Missing acting direction for panel_number=${String(panel.panel_number)} at index=${index}`)
-    }
+      ?? actingDirections[index]
+      ?? { panel_number: panel.panel_number, characters: [] }
 
     return {
       ...panel,

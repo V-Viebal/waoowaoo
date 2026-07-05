@@ -169,6 +169,18 @@ export async function handleEpisodeSplitTask(job: Job<TaskJobData>) {
         const resolved: EpisodeOutput[] = []
         let searchFrom = 0
 
+        // Pre-resolve start matches for all episodes first, so a missing endMarker
+        // can fall back to the next episode's startMarker (episode N ends where N+1 begins).
+        const startMatches: Array<{ startPos: number; startEnd: number } | null> = []
+        for (let idx = 0; idx < splitEpisodes.length; idx += 1) {
+          const ep = splitEpisodes[idx]
+          const startMarker = readBoundaryMarker(ep.startMarker)
+          const match = startMarker ? markerMatcher.matchMarker(startMarker, searchFrom) : null
+          startMatches.push(match ? { startPos: match.startIndex, startEnd: match.endIndex } : null)
+          if (match) searchFrom = match.endIndex
+        }
+
+        searchFrom = 0
         for (let idx = 0; idx < splitEpisodes.length; idx += 1) {
           await assertTaskActive(job, `episode_split_match:${idx + 1}`)
           const ep = splitEpisodes[idx]
@@ -187,30 +199,48 @@ export async function handleEpisodeSplitTask(job: Job<TaskJobData>) {
 
           const startMarker = readBoundaryMarker(ep.startMarker)
           const endMarker = readBoundaryMarker(ep.endMarker)
-          if (!startMarker || !endMarker) {
-            throw new Error(`episode_${idx + 1} 必须同时提供 startMarker/endMarker`)
+          if (!startMarker) {
+            throw new Error(`episode_${idx + 1} 缺少 startMarker`)
           }
 
-          const startMatch = markerMatcher.matchMarker(startMarker, searchFrom)
+          const startMatch = startMatches[idx]
           if (!startMatch) {
             throw new Error(`episode_${idx + 1} startMarker 无法定位`)
           }
-          const endMatch = markerMatcher.matchMarker(endMarker, startMatch.endIndex)
-          if (!endMatch) {
-            throw new Error(`episode_${idx + 1} endMarker 无法定位`)
+
+          // Resolve endPos: prefer endMarker match, fall back to next episode's start
+          // (episode N ends where N+1 begins), and for the last episode fall back to content end.
+          let endPos = -1
+          let usedEndFallback = false
+          if (endMarker) {
+            const endMatch = markerMatcher.matchMarker(endMarker, startMatch.startEnd)
+            const nextStart = startMatches[idx + 1]?.startPos
+            if (endMatch && (!nextStart || endMatch.endIndex <= nextStart)) {
+              endPos = endMatch.endIndex
+            } else {
+              usedEndFallback = true
+              endPos = nextStart ?? content.length
+            }
+          } else {
+            usedEndFallback = true
+            const nextStart = startMatches[idx + 1]?.startPos
+            endPos = nextStart ?? content.length
           }
 
           const rawStartIndex = toValidBoundaryIndex(ep.startIndex, content.length)
-          if (rawStartIndex !== null && Math.abs(rawStartIndex - startMatch.startIndex) > 200) {
+          if (rawStartIndex !== null && Math.abs(rawStartIndex - startMatch.startPos) > 200) {
             throw new Error(`episode_${idx + 1} startIndex 与 marker 偏差过大`)
           }
-          const rawEndIndex = toValidBoundaryIndex(ep.endIndex, content.length)
-          if (rawEndIndex !== null && Math.abs(rawEndIndex - endMatch.endIndex) > 200) {
-            throw new Error(`episode_${idx + 1} endIndex 与 marker 偏差过大`)
+          // ponytail: only cross-check endIndex when we matched the real endMarker;
+          // when falling back to next-start / EOF, the LLM's endIndex is expected to differ.
+          if (!usedEndFallback) {
+            const rawEndIndex = toValidBoundaryIndex(ep.endIndex, content.length)
+            if (rawEndIndex !== null && Math.abs(rawEndIndex - endPos) > 200) {
+              throw new Error(`episode_${idx + 1} endIndex 与 marker 偏差过大`)
+            }
           }
 
-          const startPos = startMatch.startIndex
-          const endPos = endMatch.endIndex
+          const startPos = startMatch.startPos
           if (startPos < searchFrom || endPos <= startPos || endPos > content.length) {
             throw new Error(`episode_${idx + 1} 边界区间无效`)
           }

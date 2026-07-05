@@ -13,7 +13,6 @@ export default function VoicePreviewSection({ runtime }: VoicePreviewSectionProp
     voicePrompt,
     previewText,
     schemeCount,
-    provider,
     isVoiceCreationSubmitting,
     isSaving,
     error,
@@ -32,7 +31,6 @@ export default function VoicePreviewSection({ runtime }: VoicePreviewSectionProp
     setVoicePrompt,
     setPreviewText,
     setSchemeCount,
-    setProvider,
     setSelectedIndex,
     setUploadFile,
     setUploadPreviewUrl,
@@ -60,13 +58,7 @@ export default function VoicePreviewSection({ runtime }: VoicePreviewSectionProp
           onPreviewTextChange={setPreviewText}
           schemeCount={schemeCount}
           onSchemeCountChange={setSchemeCount}
-          provider={provider}
-          onProviderChange={(next) => {
-            setProvider(next)
-            // 切换 provider 时清空描述:百炼自由文本与 OmniVoice 受控词表
-            // 语义不同,残留会触发 OmniVoice instruct 校验失败。
-            setVoicePrompt('')
-          }}
+          engine="cosyvoice"
           isSubmitting={isVoiceCreationSubmitting}
           submittingState={voiceCreationSubmittingState}
           error={error}

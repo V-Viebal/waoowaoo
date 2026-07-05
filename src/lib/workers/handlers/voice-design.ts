@@ -185,9 +185,18 @@ export async function handleVoiceDesignTask(job: Job<TaskJobData>) {
 
   if (flavor === 'cosyvoice-design') {
     const voicePrompt = readRequiredString(payload.voicePrompt, 'voicePrompt')
-    const previewText = readRequiredString(payload.previewText, 'previewText')
+    let previewText = readRequiredString(payload.previewText, 'previewText')
     const pv = validateVoicePrompt(voicePrompt); if (!pv.valid) throw new Error(pv.error || 'invalid voicePrompt')
     const tv = validatePreviewText(previewText); if (!tv.valid) throw new Error(tv.error || 'invalid previewText')
+    // ponytail: CosyVoice API 要求 preview_text ≥15 字符;用户默认文本「你好,很高兴认识你。」仅 9 字会失败。
+    // 在 worker 侧统一补齐,避免 UI 端校验扩散。按语言追加通用语气垫字,不影响试听效果。
+    const COSY_PREVIEW_MIN = 15
+    if (Array.from(previewText).length < COSY_PREVIEW_MIN) {
+      const pad = /[A-Za-z]/.test(previewText)
+        ? ', this is a voice preview sample for testing the timbre.'
+        : ',这是一段用于试听音色效果的示例文本。'
+      previewText = (previewText + pad).slice(0, 200)
+    }
     const prefix = readOptionalString(payload.prefix) || 'cv'
     const prefixCheck = validateVoicePrefix(prefix)
     if (!prefixCheck.valid) throw new Error(prefixCheck.error || 'invalid prefix')

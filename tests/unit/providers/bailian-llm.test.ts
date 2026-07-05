@@ -63,16 +63,21 @@ describe('bailian llm provider', () => {
     expect(completion.choices[0]?.message?.content).toBe('ok')
   })
 
-  it('fails fast when model is not in official bailian catalog', async () => {
-    await expect(
-      completeBailianLlm({
-        modelId: 'qwen-plus',
-        messages: [{ role: 'user', content: 'hello' }],
-        apiKey: 'bl-key',
-      }),
-    ).rejects.toThrow(/MODEL_NOT_REGISTERED/)
-
-    expect(openAiCtorMock).not.toHaveBeenCalled()
-    expect(createChatCompletionMock).not.toHaveBeenCalled()
+  it('forwards custom model ids verbatim (validation happens at selection time, not at call time)', async () => {
+    createChatCompletionMock.mockResolvedValueOnce({
+      id: 'chatcmpl_custom',
+      object: 'chat.completion',
+      created: 1,
+      model: 'custom-qwen',
+      choices: [{ index: 0, message: { role: 'assistant', content: 'ok' }, finish_reason: 'stop' }],
+      usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+    })
+    const completion = await completeBailianLlm({
+      modelId: 'custom-qwen',
+      messages: [{ role: 'user', content: 'hello' }],
+      apiKey: 'bl-key',
+    })
+    expect(createChatCompletionMock).toHaveBeenCalledWith(expect.objectContaining({ model: 'custom-qwen' }))
+    expect(completion.choices[0]?.message?.content).toBe('ok')
   })
 })

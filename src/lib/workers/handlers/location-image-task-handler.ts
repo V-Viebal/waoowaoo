@@ -1,6 +1,6 @@
 import { type Job } from 'bullmq'
 import { prisma } from '@/lib/prisma'
-import { LOCATION_IMAGE_RATIO, PROP_IMAGE_RATIO, addLocationPromptSuffix, addPropPromptSuffix, isArtStyleValue, type ArtStyleValue } from '@/lib/constants'
+import { PROP_IMAGE_RATIO, addLocationPromptSuffix, addPropPromptSuffix, isArtStyleValue, type ArtStyleValue } from '@/lib/constants'
 import { normalizeImageGenerationCount } from '@/lib/image-generation/count'
 import { type TaskJobData } from '@/lib/task/types'
 import { resolveWorkerArtStylePrompt } from '@/lib/workers/art-style'
@@ -163,7 +163,9 @@ export async function handleLocationImageTask(job: Job<TaskJobData>) {
       ? addPropPromptSuffix(promptCore)
       : addLocationPromptSuffix(promptCore)
     const prompt = artStyle ? `${promptWithSuffix}，${artStyle}` : promptWithSuffix
-    const aspectRatio = assetType === 'prop' ? PROP_IMAGE_RATIO : LOCATION_IMAGE_RATIO
+    // ponytail: 背景图比例跟随项目视频比例(16:9/9:16/1:1 等),道具仍是固定 3:2 资产图。
+    // videoRatio 已由 getProjectModelConfig 兜底为 '16:9',不会为空。
+    const aspectRatio = assetType === 'prop' ? PROP_IMAGE_RATIO : (models.videoRatio || '16:9')
     await reportTaskProgress(job, 20 + Math.floor((i / Math.max(locationImages.length, 1)) * 55), {
       stage: 'generate_location_image',
       imageId: item.id,

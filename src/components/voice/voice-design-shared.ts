@@ -15,8 +15,16 @@ export const COSYVOICE_LANGUAGE_HINTS = ['zh', 'en', 'ja', 'ko', 'fr', 'de', 'ru
 export type CosyVoiceLanguageHint = (typeof COSYVOICE_LANGUAGE_HINTS)[number]
 
 export type VoiceDesignProvider = 'bailian' | 'omnivoice'
+/** User-facing engine: only OmniVoice and CosyVoice. Qwen is legacy hidden from UI. */
+export type VoiceDesignEngine = 'omnivoice' | 'cosyvoice'
 export type BailianDesignFlavor = 'qwen' | 'cosyvoice-design' | 'cosyvoice-clone'
 export type CloneEngine = 'omnivoice' | 'cosyvoice'
+
+/** Map the user-facing design engine to (provider, flavor) for the API payload. */
+export function resolveDesignApiTarget(engine: VoiceDesignEngine): { provider: VoiceDesignProvider; flavor?: BailianDesignFlavor } {
+  if (engine === 'omnivoice') return { provider: 'omnivoice' }
+  return { provider: 'bailian', flavor: 'cosyvoice-design' }
+}
 
 export interface CosyVoiceDesignExtras {
   prefix?: string

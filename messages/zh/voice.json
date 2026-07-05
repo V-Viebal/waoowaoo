@@ -223,6 +223,8 @@
         "cloneNotAvailable": "当前未提供该克隆引擎",
         "cloneEngineOmni": "OmniVoice",
         "cloneEngineCosy": "CosyVoice",
+        "engineOmni": "OmniVoice",
+        "engineCosy": "CosyVoice",
         "bailianFlavorQwen": "QwenTTS 设计",
         "bailianFlavorCosy": "CosyVoice 设计",
         "prefixLabel": "音色前缀",

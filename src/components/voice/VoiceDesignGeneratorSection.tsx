@@ -14,7 +14,7 @@ import {
   MIN_VOICE_SCHEME_COUNT,
   normalizeVoiceSchemeCount,
   type GeneratedVoice,
-  type VoiceDesignProvider,
+  type VoiceDesignEngine,
 } from './voice-design-shared'
 
 const VOICE_PRESET_KEYS = [
@@ -58,8 +58,8 @@ interface VoiceDesignGeneratorSectionProps {
   onPreviewTextChange: (value: string) => void
   schemeCount: string
   onSchemeCountChange: (value: string) => void
-  provider?: VoiceDesignProvider
-  onProviderChange?: (value: VoiceDesignProvider) => void
+  /** Active design engine. Drives preset chip set and whether tag chips render. Defaults to 'cosyvoice'. */
+  engine?: VoiceDesignEngine
   isSubmitting: boolean
   submittingState: TaskPresentationState | null
   error: string | null
@@ -69,6 +69,7 @@ interface VoiceDesignGeneratorSectionProps {
   playingIndex: number | null
   onPlayVoice: (index: number) => void
   onGenerate: () => void
+  /** AI 推荐声音描述,对 Omni 和 Cosy 都可用(Cosy 返回自然语言 prompt)。 */
   onRecommendInstruct?: () => void
   isRecommending?: boolean
   footer?: ReactNode
@@ -81,8 +82,7 @@ export default function VoiceDesignGeneratorSection({
   onPreviewTextChange,
   schemeCount,
   onSchemeCountChange,
-  provider,
-  onProviderChange,
+  engine = 'cosyvoice',
   isSubmitting,
   submittingState,
   error,
@@ -98,7 +98,7 @@ export default function VoiceDesignGeneratorSection({
 }: VoiceDesignGeneratorSectionProps) {
   const tv = useTranslations('voice.voiceDesign')
   const normalizedSchemeCount = normalizeVoiceSchemeCount(schemeCount)
-  const isOmnivoice = (provider ?? 'bailian') === 'omnivoice'
+  const isOmnivoice = engine === 'omnivoice'
   // OmniVoice 的 instruct 是受控词表,预设按钮要填合法标签组合而非自然语言。
   const presetPromptNamespace = isOmnivoice ? 'presetsPromptsOmnivoice' : 'presetsPrompts'
   const selectedTags = isOmnivoice ? parseOmnivoiceTags(voicePrompt) : new Set<string>()
@@ -115,21 +115,6 @@ export default function VoiceDesignGeneratorSection({
 
   return (
     <>
-      {onProviderChange && (
-        <div>
-          <div className="text-sm text-[var(--glass-text-secondary)] mb-1">{tv('provider')}</div>
-          <select
-            value={provider ?? 'bailian'}
-            onChange={(event) => onProviderChange(event.target.value as VoiceDesignProvider)}
-            aria-label={tv('provider')}
-            className="glass-input-base w-full px-3 py-2 text-sm"
-          >
-            <option value="bailian" className="text-black">{tv('providerOptionBailian')}</option>
-            <option value="omnivoice" className="text-black">{tv('providerOptionOmnivoice')}</option>
-          </select>
-        </div>
-      )}
-
       <div>
         <div className="text-sm text-[var(--glass-text-secondary)] mb-2">{tv('selectStyle')}</div>
         <div className="flex flex-wrap gap-1.5">
@@ -152,7 +137,7 @@ export default function VoiceDesignGeneratorSection({
         </div>
       </div>
 
-      {isOmnivoice && onRecommendInstruct && (
+      {onRecommendInstruct && (
         <button
           type="button"
           onClick={onRecommendInstruct}
