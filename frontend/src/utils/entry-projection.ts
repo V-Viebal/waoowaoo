@@ -19,14 +19,8 @@ import type {
 // 过渡期通用条目识别（与后端 turn_grouper 同口径）
 // ---------------------------------------------------------------------------
 
-const SKILL_BASE_DIR_PREFIX = "Base directory for this skill:";
-const SKILL_CONTENT_PREFIX = "Skill content:";
 const INTERRUPT_ECHO_PREFIX = "[Request interrupted";
 const TASK_NOTIFICATION_RE = /<task-notification>\s*[\s\S]*?<\/task-notification>/;
-
-function isSkillContentText(text: string): boolean {
-  return text.startsWith(SKILL_BASE_DIR_PREFIX) || text.startsWith(SKILL_CONTENT_PREFIX);
-}
 
 function entryBlocks(entry: TimelineEntry): ContentBlock[] {
   const content = entry.content;
@@ -95,17 +89,6 @@ function attachToolResult(turnContent: ContentBlock[], entry: TimelineEntry): vo
   });
 }
 
-function attachSkillText(turnContent: ContentBlock[], text: string): void {
-  for (let i = turnContent.length - 1; i >= 0; i--) {
-    const block = turnContent[i];
-    if (block.type === "tool_use" && block.name === "Skill") {
-      block.skill_content = text;
-      return;
-    }
-  }
-  turnContent.push({ type: "skill_content", text });
-}
-
 function findTaskBlock(turn: Turn | null, taskId: string): ContentBlock | null {
   if (!turn) return null;
   for (const block of turn.content) {
@@ -144,6 +127,37 @@ function resolveStaleTaskBlocks(turns: Turn[]): void {
   }
 }
 
+/**
+ * task_progress 块折叠进同 turn 的锚点 tool_use：子任务卡片就地显示
+ * 状态与进度，不再渲染独立进度行。无锚点的 task 块保持原样。
+ */
+function foldTaskBlocksIntoAnchors(turns: Turn[]): void {
+  for (const turn of turns) {
+    const toolUseById = new Map<string, ContentBlock>();
+    for (const block of turn.content) {
+      if (block.type === "tool_use" && block.id) toolUseById.set(block.id, block);
+    }
+    if (toolUseById.size === 0) continue;
+    turn.content = turn.content.filter((block) => {
+      if (block.type !== "task_progress" || !block.tool_use_id) return true;
+      const anchor = toolUseById.get(block.tool_use_id);
+      if (!anchor) return true;
+      anchor.task_info = block;
+      return false;
+    });
+  }
+}
+
+/** 在既有 turns 中查找指定 id 的 tool_use 块（subagent 卡片锚点）。 */
+function findToolUseBlock(turns: Turn[], toolUseId: string): ContentBlock | null {
+  for (const turn of turns) {
+    for (const block of turn.content) {
+      if (block.type === "tool_use" && block.id === toolUseId) return block;
+    }
+  }
+  return null;
+}
+
 function cloneBlock(block: ContentBlock): ContentBlock {
   return structuredClone(block);
 }
@@ -171,7 +185,73 @@ export function mergeEntriesBySeq(
 // projectEntriesToTurns — 主投影
 // ---------------------------------------------------------------------------
 
+/**
+ * 按 parent_tool_use_id 归组 subagent 条目并投影为子时间线：
+ * 子组递归投影为 Turn[]，挂到锚点 tool_use 块的 sub_turns；
+ * 主时间线只保留单一卡片锚点，不平铺 subagent 内部消息。
+ *
+ * 锚点可能落在主时间线，也可能落在另一子组自己的子时间线内——subagent
+ * 自身再起 subagent 时，内层子组的锚点 tool_use 只存在于外层子组的
+ * 子时间线中。因此锚点定位在“主时间线 ∪ 全部子组”范围内查找，不限于
+ * 主时间线；子组各自独立投影、互不依赖顺序，任意嵌套深度一次收敛。
+ */
 export function projectEntriesToTurns(entries: TimelineEntry[]): Turn[] {
+  const subgroups = new Map<string, TimelineEntry[]>();
+  const mainEntries: TimelineEntry[] = [];
+  for (const entry of entries) {
+    if (entry.parent_tool_use_id) {
+      const group = subgroups.get(entry.parent_tool_use_id);
+      if (group) {
+        group.push(entry);
+      } else {
+        subgroups.set(entry.parent_tool_use_id, [entry]);
+      }
+    } else {
+      mainEntries.push(entry);
+    }
+  }
+
+  const turns = projectFlatEntries(mainEntries);
+
+  // 先独立投影并折叠每个子组自身的 task 进度，再统一定位锚点：折叠结果
+  // 与锚点搜索空间的构建互不依赖，任意处理顺序都收敛到同一结果。
+  const subTurnsByParent = new Map<string, Turn[]>();
+  for (const [parentId, group] of subgroups) {
+    const subTurns = projectFlatEntries(group.map(({ parent_tool_use_id: _omit, ...rest }) => rest));
+    resolveStaleTaskBlocks(subTurns);
+    foldTaskBlocksIntoAnchors(subTurns);
+    subTurnsByParent.set(parentId, subTurns);
+  }
+
+  const searchSpace = [turns, ...subTurnsByParent.values()];
+  for (const [parentId, subTurns] of subTurnsByParent) {
+    const anchor = findAnchorAcross(searchSpace, parentId);
+    if (anchor) {
+      anchor.sub_turns = subTurns;
+    } else {
+      // 全局仍无锚点（如懒生成残余组）：以合成锚点独立成卡，不丢子时间线
+      turns.push({
+        type: "system",
+        content: [{ type: "tool_use", id: parentId, name: "Agent", input: {}, sub_turns: subTurns }],
+        uuid: `subagent-${parentId}`,
+      });
+    }
+  }
+
+  resolveStaleTaskBlocks(turns);
+  foldTaskBlocksIntoAnchors(turns);
+  return turns;
+}
+
+function findAnchorAcross(turnsList: Turn[][], toolUseId: string): ContentBlock | null {
+  for (const turns of turnsList) {
+    const found = findToolUseBlock(turns, toolUseId);
+    if (found) return found;
+  }
+  return null;
+}
+
+function projectFlatEntries(entries: TimelineEntry[]): Turn[] {
   const turns: Turn[] = [];
   // 用持有器承载当前 turn：闭包内赋值会让 TS 把裸 let 收窄成 never
   const cursor: { current: Turn | null } = { current: null };
@@ -238,6 +318,23 @@ export function projectEntriesToTurns(entries: TimelineEntry[]): Turn[] {
     }
 
     if (entry.type === "system") {
+      if (entry.subtype === "skill_invocation") {
+        // 芯片渲染锚点是 Skill tool_use 块（input 即名与入参）；条目已在
+        // 当前 turn 有锚点时不再追加，避免同一调用出现两枚芯片
+        const anchored =
+          entry.tool_use_id != null &&
+          cursor.current !== null &&
+          cursor.current.content.some((b) => b.type === "tool_use" && b.id === entry.tool_use_id);
+        if (!anchored) {
+          attachSystemBlock(entry, {
+            type: "skill_invocation",
+            skill_name: entry.skill_name ?? undefined,
+            skill_args: entry.skill_args ?? undefined,
+            tool_use_id: entry.tool_use_id ?? undefined,
+          });
+        }
+        continue;
+      }
       if (entry.subtype !== "task_started" && entry.subtype !== "task_progress" && entry.subtype !== "task_notification") {
         continue;
       }
@@ -290,45 +387,10 @@ export function projectEntriesToTurns(entries: TimelineEntry[]): Turn[] {
       continue;
     }
 
-    if (entry.parent_tool_use_id) {
-      // subagent 内部注入：抑制纯文本（内部 prompt/遥测），其余块并入。
-      const filtered = blocks.filter((b) => b.type !== "text" || isSkillContentText((b.text ?? "").trim()));
-      if (filtered.length === 0) continue;
-      for (const block of filtered) {
-        if (block.type === "text") {
-          if (cursor.current && cursor.current.type === "assistant") {
-            attachSkillText(cursor.current.content, (block.text ?? "").trim());
-          } else {
-            attachSystemBlock(entry, { type: "skill_content", text: (block.text ?? "").trim() });
-          }
-        } else {
-          attachSystemBlock(entry, block);
-        }
-      }
-      continue;
-    }
-
-    const nonEmpty = blocks.filter((b) => b.type !== "text" || (b.text ?? "").trim() !== "");
-    const allSkillText = nonEmpty.length > 0 && nonEmpty.every(
-      (b) => b.type === "text" && isSkillContentText((b.text ?? "").trim()),
-    );
-    if (allSkillText) {
-      for (const block of nonEmpty) {
-        const text = (block.text ?? "").trim();
-        if (cursor.current && cursor.current.type === "assistant") {
-          attachSkillText(cursor.current.content, text);
-        } else {
-          attachSystemBlock(entry, { type: "skill_content", text });
-        }
-      }
-      continue;
-    }
-
     startTurn({ type: "user", content: blocks, uuid: entry.uuid, timestamp: entry.timestamp });
   }
 
   flush();
-  resolveStaleTaskBlocks(turns);
   return turns;
 }
 
@@ -345,6 +407,9 @@ export function projectDraftToTurn(
   entries: TimelineEntry[],
 ): Turn | null {
   if (!draft || !draft.message_id) return null;
+  // subagent 的流式草稿不进主时间线：主线只显示折叠卡片，
+  // 卡片内容随权威条目（近实时）更新
+  if (draft.parent_tool_use_id) return null;
   const replaced = entries.some(
     (e) => e.type === "assistant" && e.message_id != null && e.message_id === draft.message_id,
   );
