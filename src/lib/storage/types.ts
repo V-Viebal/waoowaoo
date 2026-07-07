@@ -23,7 +23,8 @@ export interface SignedUrlParams {
 }
 
 export interface GetObjectStreamOptions {
-  range?: { start: number; end?: number } | null
+  /** Raw Range header value, e.g. "bytes=0-1023". If omitted, fetches the whole object. */
+  rangeHeader?: string | null
 }
 
 export interface GetObjectStreamResult {

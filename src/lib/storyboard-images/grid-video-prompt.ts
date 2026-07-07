@@ -22,7 +22,6 @@ function formatGridLayoutText(
 
 /**
  * 判断面板是否为宫格布局。
- * 兼容多种来源：imageLayout 字段、gridSize 参数等。
  */
 export function isGridLayout(imageLayout: string | null | undefined): boolean {
   return imageLayout === 'grid'
@@ -36,34 +35,33 @@ export interface RewriteGridVideoPromptParams {
   locale: 'zh' | 'en'
   projectId: string | null
   userId: string
-  // Text path (fallback)
   model?: string
-  panelContext?: Record<string, unknown> // legacy: for panels without gridGenerationContext
-  // Vision path (preferred when available)
+  panelContext?: Record<string, unknown>
   visionModel?: string
   imageUrl?: string
-  gridGenerationContextJson?: string // saved context from image generation time
-  srtSegment?: string // 台词/字幕内容，重写后会追加到提示词末尾确保不丢失
+  gridGenerationContextJson?: string
+  srtSegment?: string
 }
 
-/** 解析模型返回的 JSON 响应，提取 prompt 和 duration 字段。
- *  先去除 markdown 代码块包裹并解析。JSON 解析失败时回退到纯文本提取。
- *  容错性强：即使格式不完全正确，也尽量提取有用信息。
- */
+const VISION_TIMEOUT_MS = 45_000
+
+function estimateDuration(gridSize: number): number {
+  return Math.max(3, Math.min(gridSize, 15))
+}
+
+function errMsg(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
+
+/** 解析模型返回的 JSON 响应，提取 prompt 和 duration 字段。 */
 export function parseGridVideoResponse(raw: string): { prompt: string; duration: number | null } {
   const trimmed = (raw || '').trim()
-  if (!trimmed) {
-    return { prompt: '', duration: null }
-  }
+  if (!trimmed) return { prompt: '', duration: null }
 
-  // 尝试去除 markdown 代码块包裹（支持多种格式）
   let jsonText = trimmed
   const fencedMatch = trimmed.match(/^```(?:json|jsonl|[a-zA-Z]*)?\s*\n?([\s\S]*?)\n?```$/i)
-  if (fencedMatch) {
-    jsonText = fencedMatch[1].trim()
-  }
+  if (fencedMatch) jsonText = fencedMatch[1].trim()
 
-  // 尝试从文本中提取 JSON 对象（即使 JSON 不是完整响应体）
   const jsonObjectMatch = jsonText.match(/\{[\s\S]*\}/)
   if (jsonObjectMatch) {
     try {
@@ -72,17 +70,12 @@ export function parseGridVideoResponse(raw: string): { prompt: string; duration:
       const duration = typeof parsed.duration === 'number' && parsed.duration >= 3 && parsed.duration <= 15
         ? Math.round(parsed.duration)
         : null
-
-      // 只要有 prompt 就返回，即使 duration 为空
-      if (prompt) {
-        return { prompt, duration }
-      }
+      if (prompt) return { prompt, duration }
     } catch {
-      // JSON 解析失败，继续尝试其他方式
+      // fall through
     }
   }
 
-  // 回退：从整个文本作为 prompt，尝试从文本中提取 duration
   const text = jsonText.toLowerCase()
   const patterns = [
     /(\d+(?:\.\d+)?)\s*(?:秒|second|seconds|sec|s)(?![a-z])/i,
@@ -102,43 +95,39 @@ export function parseGridVideoResponse(raw: string): { prompt: string; duration:
     }
   }
 
-  // 最后兜底：如果 duration 还是空，根据宫格大小估算默认值（4 格 = 4 秒，每格 1 秒）
   if (!duration) {
     const gridSizeMatch = text.match(/(?:grid|宫格|格子).*?(\d+)/i) || text.match(/(\d+).*?(?:grid|宫格|格子)/i)
     if (gridSizeMatch) {
-      const gridSize = parseInt(gridSizeMatch[1], 10)
-      if (gridSize > 0 && gridSize <= 64) {
-        duration = Math.max(3, Math.min(gridSize, 15))
-      }
+      const gs = parseInt(gridSizeMatch[1], 10)
+      if (gs > 0 && gs <= 64) duration = estimateDuration(gs)
     }
   }
 
   return { prompt: jsonText.trim(), duration }
 }
 
-/**
- * Normalize context for prompt template: prefer saved gridGenerationContextJson,
- * fall back to legacy panelContext assembly for older panels.
- */
 function getStoryboardContextJson(
   gridGenerationContextJson: string | undefined,
   panelContext: Record<string, unknown> | undefined,
 ): string {
-  if (gridGenerationContextJson) {
-    return gridGenerationContextJson
-  }
-  // Legacy backward compat: assemble from individual fields
+  if (gridGenerationContextJson) return gridGenerationContextJson
   return JSON.stringify(panelContext || {}, null, 2)
+}
+
+function fallbackResult(basePrompt: string, gridSize: number, promptTokens = 0, completionTokens = 0) {
+  return {
+    prompt: basePrompt || '',
+    promptTokens,
+    completionTokens,
+    duration: estimateDuration(gridSize),
+  }
 }
 
 /**
  * 用 LLM 把宫格分镜理解为同一连续镜头的关键帧序列，按 Seedance 规范重写成一条视频提示词。
- *
- * 双路径：
- * - Vision 优先：当 visionModel + imageUrl 同时存在时，直接看宫格图重写（更精准）；任何失败回退文本路径。
- * - Text 兜底：仅基于上下文文本重写。
- *
- * 失败/空返回 null，调用方应回退到原 basePrompt。
+ * Vision 优先（visionModel + imageUrl 同时存在时走视觉路径），失败回退到文本路径。
+ * Vision 路径包 45s 超时：卡住的视觉调用会在 45s 后放弃，让文本路径快速接管。
+ * 返回 null 表示无需重写（gridSize <= 1）。
  */
 export async function rewriteGridVideoPrompt(
   params: RewriteGridVideoPromptParams,
@@ -156,50 +145,26 @@ export async function rewriteGridVideoPrompt(
     visionModel,
     imageUrl,
     gridGenerationContextJson,
-    srtSegment,
   } = params
   if (gridSize <= 1) return null
 
-  const textModel = model || visionModel
-  // 没有任何可用模型时，直接返回原始提示词，根据宫格大小估算时长
-  if (!textModel && !visionModel) {
-    return {
-      prompt: basePrompt || '',
-      promptTokens: 0,
-      completionTokens: 0,
-      duration: Math.max(3, Math.min(gridSize, 15)),
-    }
-  }
+  const effectiveVisionModel = visionModel || model
+  const textModel = model || effectiveVisionModel
+  if (!textModel && !effectiveVisionModel) return fallbackResult(basePrompt, gridSize)
 
   const layout = buildStoryboardGridLayout('grid_auto', gridSize)
-  const gridLayoutText = formatGridLayoutText(layout, locale)
   const promptCommonVariables = {
     storyboard_context_json: getStoryboardContextJson(gridGenerationContextJson, panelContext),
     base_prompt: basePrompt || '',
-    grid_layout: gridLayoutText,
+    grid_layout: formatGridLayoutText(layout, locale),
     panel_grid_size: String(gridSize),
     shot_type: shotType || (locale === 'zh' ? '中景' : 'medium shot'),
     camera_move: cameraMove || (locale === 'zh' ? '平滑连贯运镜' : 'smooth continuous camera move'),
   }
 
-  // Vision path (preferred). Wrap in a tight timeout + no retries: a vision call
-  // that takes longer than VISION_TIMEOUT_MS is almost certainly going to 524/timeout,
-  // and retrying it multiplies the wait 3x before falling back to text path.
-  const VISION_TIMEOUT_MS = 500_000
-  const visionTimeoutSignal = AbortSignal.timeout(VISION_TIMEOUT_MS)
-  const effectiveVisionModel = visionModel || model
+  // Vision path (preferred)
   if (effectiveVisionModel && imageUrl) {
     try {
-      if (typeof console !== 'undefined') {
-        console.log('[rewriteGridVideoPrompt] 👁️ 使用视觉路径，图片:', {
-          visionModel,
-          effectiveVisionModel,
-          imageUrlPreview: imageUrl.substring(0, 100) + '...',
-          imageUrlLength: imageUrl.length,
-          gridSize,
-          timeoutMs: VISION_TIMEOUT_MS,
-        })
-      }
       const base64Image = await normalizeToBase64ForGeneration(imageUrl)
       const filledPrompt = await buildPromptAsync({
         promptId: PROMPT_IDS.NP_PANEL_GRID_VIDEO_VISION,
@@ -208,19 +173,6 @@ export async function rewriteGridVideoPrompt(
         variables: promptCommonVariables,
       })
 
-      if (typeof console !== 'undefined') {
-        console.log('[rewriteGridVideoPrompt] ✅ 图片已转换为 base64，准备调用视觉模型:', {
-          base64Length: base64Image.length,
-          base64Preview: base64Image.substring(0, 50) + '...',
-          promptLength: filledPrompt.length,
-        })
-      }
-
-      // Race against a 45s timeout so a stuck vision call fails fast instead of
-      // waiting for Cloudflare's 100s 524 (which with retries compounds to
-      // 5+ minutes before falling back to the text path). The timeout does not
-      // abort the underlying HTTP request (so the provider may still bill us),
-      // but the user-visible wait is bounded.
       const completion = await Promise.race([
         executeAiVisionStep({
           userId,
@@ -238,25 +190,11 @@ export async function rewriteGridVideoPrompt(
           },
         }),
         new Promise<never>((_, reject) => {
-          visionTimeoutSignal.addEventListener('abort', () => {
-            reject(new Error(`vision path timed out after ${VISION_TIMEOUT_MS}ms`))
-          }, { once: true })
+          setTimeout(() => reject(new Error(`vision path timed out after ${VISION_TIMEOUT_MS}ms`)), VISION_TIMEOUT_MS)
         }),
       ])
 
-      const completionText = completion.text || ''
-      if (typeof console !== 'undefined') {
-        console.log('[rewriteGridVideoPrompt] ✅ 视觉模型返回:', {
-          responseLength: completionText.length,
-          responsePreview: completionText.substring(0, 200) + '...',
-          promptTokens: completion.usage?.promptTokens || 0,
-          completionTokens: completion.usage?.completionTokens || 0,
-        })
-      }
-      const result = parseGridVideoResponse(completionText)
-      // 只要模型返回了响应，就尽量返回，即使需要用 basePrompt 兜底
-      // 台词处理完全交给 LLM：提示词模板要求 LLM 将台词融入时间分段
-      // 输出格式示例：「2-4秒：...台词：XXX...」
+      const result = parseGridVideoResponse(completion.text || '')
       const finalPrompt = result.prompt || basePrompt || ''
       if (finalPrompt) {
         return {
@@ -266,34 +204,13 @@ export async function rewriteGridVideoPrompt(
           duration: result.duration,
         }
       }
-      // 视觉路径空返回，回退文本路径
     } catch (error) {
-      if (typeof console !== 'undefined') {
-        console.error('[rewriteGridVideoPrompt] ❌ 视觉路径失败，回退到文本路径:', {
-          error: error instanceof Error ? error.message : String(error),
-          stack: error instanceof Error ? error.stack : undefined,
-        })
-      }
+      console.warn('[rewriteGridVideoPrompt] vision path failed, falling back to text:', errMsg(error))
     }
-  } else if (typeof console !== 'undefined') {
-    console.log('[rewriteGridVideoPrompt] ⚠️ 跳过视觉路径，使用文本路径:', {
-      visionModel: visionModel ? '已配置' : '未配置',
-      effectiveVisionModel: effectiveVisionModel ? '已配置' : '未配置',
-      imageUrl: imageUrl ? '已提供' : '未提供',
-    })
   }
 
   // Text path (fallback)
-  if (!textModel) {
-    // 没有模型，直接返回原始提示词，根据宫格大小估算时长（3-15秒）
-    const estimatedDuration = Math.max(3, Math.min(gridSize, 15))
-    return {
-      prompt: basePrompt || '',
-      promptTokens: 0,
-      completionTokens: 0,
-      duration: estimatedDuration,
-    }
-  }
+  if (!textModel) return fallbackResult(basePrompt, gridSize)
   try {
     const filledPrompt = await buildPromptAsync({
       promptId: PROMPT_IDS.NP_PANEL_GRID_VIDEO,
@@ -301,7 +218,6 @@ export async function rewriteGridVideoPrompt(
       projectId,
       variables: promptCommonVariables,
     })
-
     const completion = await executeAiTextStep({
       userId,
       model: textModel,
@@ -316,22 +232,9 @@ export async function rewriteGridVideoPrompt(
         stepTotal: 1,
       },
     })
-
-    const completionText = completion.text || ''
-    const result = parseGridVideoResponse(completionText)
-    // 只要模型返回了响应，就尽量返回，即使需要用 basePrompt 兜底
-    // 台词处理完全交给 LLM：提示词模板要求 LLM 将台词融入时间分段
-    // 输出格式示例：「2-4秒：...台词：XXX...」
+    const result = parseGridVideoResponse(completion.text || '')
     const finalPrompt = result.prompt || basePrompt || ''
-    if (!finalPrompt) {
-      // 极端情况：返回空，返回原始提示词，估算时长
-      return {
-        prompt: basePrompt || '',
-        promptTokens: 0,
-        completionTokens: 0,
-        duration: Math.max(3, Math.min(gridSize, 15)),
-      }
-    }
+    if (!finalPrompt) return fallbackResult(basePrompt, gridSize)
     return {
       prompt: finalPrompt,
       promptTokens: completion.usage?.promptTokens || 0,
@@ -339,16 +242,7 @@ export async function rewriteGridVideoPrompt(
       duration: result.duration,
     }
   } catch (error) {
-    // 模型调用失败（超时、网络错误等），返回原始提示词，不阻塞流程
-    if (typeof console !== 'undefined') {
-      console.warn('[rewriteGridVideoPrompt] 模型调用失败，使用原始提示词兜底:',
-        error instanceof Error ? error.message : String(error))
-    }
-    return {
-      prompt: basePrompt || '',
-      promptTokens: 0,
-      completionTokens: 0,
-      duration: Math.max(3, Math.min(gridSize, 15)), // 根据宫格数估算：每格约 1 秒，3-30 秒
-    }
+    console.warn('[rewriteGridVideoPrompt] text path failed, using base prompt:', errMsg(error))
+    return fallbackResult(basePrompt, gridSize)
   }
 }

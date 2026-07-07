@@ -161,22 +161,19 @@ export class OssStorageProvider implements StorageProvider {
     const client = await this.getClient()
     const normalizedKey = normalizeKey(key)
     const headers: Record<string, string> = {}
-    if (options?.range) {
-      const { start, end } = options.range
-      headers.Range = end != null ? `bytes=${start}-${end}` : `bytes=${start}-`
-    }
-    const result = await client.getStream(normalizedKey, Object.keys(headers).length ? { headers } : undefined)
+    if (options?.rangeHeader) headers.Range = options.rangeHeader
+    const result = await client.getStream(normalizedKey, { headers })
     const resHeaders = result.res?.headers ?? {}
-    const pickHeader = (name: string): string | undefined => {
+    const pick = (name: string): string | undefined => {
       const val = resHeaders[name]
       return Array.isArray(val) ? val[0] : (val as string | undefined)
     }
     return {
       body: result.stream,
-      contentType: pickHeader('content-type'),
-      contentLength: pickHeader('content-length') ? Number(pickHeader('content-length')) : undefined,
-      contentRange: pickHeader('content-range'),
-      acceptsRanges: pickHeader('accept-ranges') ?? 'bytes',
+      contentType: pick('content-type'),
+      contentLength: pick('content-length') ? Number(pick('content-length')) : undefined,
+      contentRange: pick('content-range'),
+      acceptsRanges: pick('accept-ranges') ?? 'bytes',
       statusCode: result.res?.status,
     }
   }
