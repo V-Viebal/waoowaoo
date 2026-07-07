@@ -41,10 +41,14 @@ export function usePanelHistory(
 
 export function usePanelHistoryActions(projectId: string) {
   const queryClient = useQueryClient()
-  const invalidate = () =>
-    invalidateQueryTemplates(queryClient, [
-      queryKeys.projectAssets.all(projectId),
-      queryKeys.projectData(projectId),
+  const invalidateForPanel = (panelId: string) =>
+    Promise.all([
+      invalidateQueryTemplates(queryClient, [
+        queryKeys.projectAssets.all(projectId),
+        queryKeys.projectData(projectId),
+      ]),
+      // Invalidate both media-type history keys for this panel
+      queryClient.invalidateQueries({ queryKey: ['panel-history', projectId, panelId] }),
     ])
 
   const useVersion = useMutation({
@@ -66,28 +70,36 @@ export function usePanelHistoryActions(projectId: string) {
         },
         'Failed to restore version',
       ),
-    onSuccess: invalidate,
+    onSuccess: (_data, variables) => invalidateForPanel(variables.panelId),
   })
 
   const downloadZip = async (
     panelId: string,
     mediaType: PanelHistoryMediaType,
   ) => {
-    const response = await apiFetch(
-      `/api/novel-promotion/${projectId}/panel/${panelId}/history-zip?type=${mediaType}`,
-    )
-    if (!response.ok) {
-      throw new Error(`Failed to download zip: ${response.status}`)
+    try {
+      const response = await apiFetch(
+        `/api/novel-promotion/${projectId}/panel/${panelId}/history-zip?type=${mediaType}`,
+      )
+      if (!response.ok) {
+        throw new Error(`Failed to download zip: ${response.status}`)
+      }
+      const blob = await response.blob()
+      const objectUrl = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      anchor.href = objectUrl
+      anchor.download = `panel-${mediaType}-history.zip`
+      document.body.appendChild(anchor)
+      anchor.click()
+      // Defer revoke to next tick so older browsers finish the download first
+      setTimeout(() => {
+        URL.revokeObjectURL(objectUrl)
+        anchor.remove()
+      }, 0)
+    } catch (error) {
+      // Surface failure to user via alert; matches sibling download error handling (usePanelImageDownload)
+      alert(error instanceof Error ? error.message : '下载失败')
     }
-    const blob = await response.blob()
-    const objectUrl = URL.createObjectURL(blob)
-    const anchor = document.createElement('a')
-    anchor.href = objectUrl
-    anchor.download = `panel-${mediaType}-history.zip`
-    document.body.appendChild(anchor)
-    anchor.click()
-    URL.revokeObjectURL(objectUrl)
-    anchor.remove()
   }
 
   return { useVersion, downloadZip }

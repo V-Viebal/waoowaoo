@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { isErrorResponse, requireProjectAuthLight } from '@/lib/api-auth'
 import { apiHandler, ApiError } from '@/lib/api-errors'
@@ -14,9 +13,6 @@ const URL_FIELD = { image: 'imageUrl', video: 'videoUrl' } as const
  *
  * Restores a previous version from history: archives the current URL back
  * into history and promotes the target URL as the current one.
- * NOTE: panel model has no imageErrorMessage/videoErrorMessage/*TaskRunning
- * columns (see prisma/schema.prisma NovelPromotionPanel), so we only swap
- * URL + history JSON.
  */
 export const POST = apiHandler(async (
   request: NextRequest,
@@ -48,6 +44,9 @@ export const POST = apiHandler(async (
   if (!entries.some((e) => e.url === targetUrl)) throw new ApiError('INVALID_PARAMS')
 
   const currentUrl = panelRow[urlField] as string | null
+  // No-op if target is already current (defensive against double-click / dirty state)
+  if (currentUrl === targetUrl) return NextResponse.json({ success: true })
+
   const remainingEntries = entries.filter((e) => e.url !== targetUrl)
   const newHistoryJson = currentUrl
     ? archiveToHistory(JSON.stringify(remainingEntries), currentUrl)
@@ -58,8 +57,7 @@ export const POST = apiHandler(async (
     data: {
       [urlField]: targetUrl,
       [historyField]: newHistoryJson,
-      updatedAt: new Date(),
-    } as Prisma.NovelPromotionPanelUpdateInput,
+    },
   })
 
   return NextResponse.json({ success: true })
