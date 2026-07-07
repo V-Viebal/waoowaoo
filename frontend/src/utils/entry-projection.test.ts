@@ -71,6 +71,70 @@ describe("projectEntriesToTurns", () => {
     expect(block.is_error).toBe(true);
   });
 
+  it("backfills tool_result into its tool_use across a turn boundary (turn flushed before the result arrived)", () => {
+    const turns = projectEntriesToTurns([
+      entry({
+        type: "assistant",
+        content: [{ type: "tool_use", id: "tu-1", name: "Bash", input: {} }],
+        uuid: "a-1",
+      }),
+      entry({ type: "system", subtype: "interrupt", uuid: "i-1" }),
+      entry({ type: "tool_result", tool_use_id: "tu-1", content: "迟到的结果", is_error: false, uuid: "tr-1" }),
+    ]);
+    expect(turns.map((t) => t.type)).toEqual(["assistant", "system"]);
+    const toolUse = turns[0].content[0];
+    expect(toolUse.result).toBe("迟到的结果");
+    expect(toolUse.is_error).toBe(false);
+    // 已回填锚点，不再另开孤儿 tool_result 块
+    expect(turns.flatMap((t) => t.content).filter((b) => b.type === "tool_result")).toHaveLength(0);
+  });
+
+  it("backfills question_answer into its tool_use across a turn boundary", () => {
+    const turns = projectEntriesToTurns([
+      entry({
+        type: "assistant",
+        content: [{ type: "tool_use", id: "ask-1", name: "AskUserQuestion", input: {} }],
+        uuid: "a-1",
+      }),
+      entry({ type: "system", subtype: "interrupt", uuid: "i-1" }),
+      entry({
+        type: "user",
+        subtype: "question_answer",
+        tool_use_id: "ask-1",
+        content: "选择 A",
+        answers: { question: "A" },
+        uuid: "u-1",
+      }),
+    ]);
+
+    const toolUse = turns[0].content[0];
+    expect(toolUse.result).toBe("选择 A");
+    expect(toolUse.is_error).toBe(false);
+    expect(toolUse.answers).toEqual({ question: "A" });
+    expect(turns.some((t) => t.type === "user")).toBe(true);
+  });
+
+  it("updates a task block in place across a turn boundary instead of duplicating it", () => {
+    const turns = projectEntriesToTurns([
+      entry({ type: "assistant", content: [{ type: "text", text: "启动后台任务" }], uuid: "a-1" }),
+      entry({ type: "system", subtype: "task_started", task_id: "t1", description: "分析", uuid: "s-1" }),
+      userEntry("继续下一个问题"),
+      entry({
+        type: "system",
+        subtype: "task_notification",
+        task_id: "t1",
+        summary: "完成",
+        task_status: "completed",
+        uuid: "s-2",
+      }),
+    ]);
+    const taskBlocks = turns.flatMap((t) => t.content).filter((b) => b.type === "task_progress");
+    expect(taskBlocks).toHaveLength(1);
+    expect(taskBlocks[0].status).toBe("task_notification");
+    expect(taskBlocks[0].task_status).toBe("completed");
+    expect(taskBlocks[0].summary).toBe("完成");
+  });
+
   it("renders typed interrupt entries as interrupt_notice system turns", () => {
     const turns = projectEntriesToTurns([
       userEntry("做点什么"),
