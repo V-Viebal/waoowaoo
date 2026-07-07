@@ -5,11 +5,7 @@ import { getSignedUrl, generateUniqueKey, downloadAndUploadImage, toFetchableUrl
 import { resolveStorageKeyFromMediaValue } from '@/lib/media/service'
 import { requireProjectAuthLight, isErrorResponse } from '@/lib/api-auth'
 import { apiHandler, ApiError } from '@/lib/api-errors'
-
-interface PanelHistoryEntry {
-  url: string
-  timestamp: string
-}
+import { archiveToHistory } from '@/lib/novel-promotion/panel-history'
 
 function parseUnknownArray(jsonValue: string | null): unknown[] {
   if (!jsonValue) return []
@@ -19,14 +15,6 @@ function parseUnknownArray(jsonValue: string | null): unknown[] {
   } catch {
     return []
   }
-}
-
-function parsePanelHistory(jsonValue: string | null): PanelHistoryEntry[] {
-  return parseUnknownArray(jsonValue).filter((entry): entry is PanelHistoryEntry => {
-    if (!entry || typeof entry !== 'object') return false
-    const candidate = entry as { url?: unknown; timestamp?: unknown }
-    return typeof candidate.url === 'string' && typeof candidate.timestamp === 'string'
-  })
 }
 
 /**
@@ -96,13 +84,7 @@ export const POST = apiHandler(async (
   }
 
   // 保存当前图片到历史记录
-  const currentHistory = parsePanelHistory(panel.imageHistory)
-  if (panel.imageUrl) {
-    currentHistory.push({
-      url: panel.imageUrl,
-      timestamp: new Date().toISOString()
-    })
-  }
+  const nextImageHistory = archiveToHistory(panel.imageHistory, panel.imageUrl)
 
   // 选择候选图时优先复用已存在的 COS key，避免重复下载上传（也避免 /m/* 相对URL被 Node fetch 解析失败）
   let finalImageKey = selectedCosKey as string
@@ -121,7 +103,7 @@ export const POST = apiHandler(async (
     where: { id: panelId },
     data: {
       imageUrl: finalImageKey,
-      imageHistory: JSON.stringify(currentHistory),
+      imageHistory: nextImageHistory,
       candidateImages: null
     }
   })

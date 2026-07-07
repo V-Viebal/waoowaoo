@@ -26,6 +26,7 @@ import {
 } from '@/lib/location-available-slots'
 import { buildStoryboardGridLayout } from '@/lib/storyboard-images/grid'
 import { buildGridInvalidationPatch } from './panel-image-grid-invalidate'
+import { archiveToHistory } from '@/lib/novel-promotion/panel-history'
 
 function formatPanelGridLayout(layout: ReturnType<typeof buildStoryboardGridLayout>, locale: TaskJobData['locale']) {
   if (locale === 'zh') {
@@ -388,6 +389,7 @@ export async function handlePanelImageTask(job: Job<TaskJobData>) {
     await prisma.novelPromotionPanel.update({
       where: { id: panel.id },
       data: {
+        imageHistory: archiveToHistory(panel.imageHistory, panel.imageUrl),
         previousImageUrl: panel.imageUrl,
         candidateImages: JSON.stringify(candidates),
         imageLayout,

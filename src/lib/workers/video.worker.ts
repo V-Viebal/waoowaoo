@@ -25,6 +25,7 @@ import { resolveGridVideoPrompt } from '@/lib/workers/grid-video-prompt-resolver
 import { resolveAnalysisModel } from './handlers/resolve-analysis-model'
 import { withTextBilling } from '@/lib/billing'
 import { handleEditorRenderTask } from './handlers/editor-render-task-handler'
+import { archiveToHistory } from '@/lib/novel-promotion/panel-history'
 
 type AnyObj = Record<string, unknown>
 type VideoOptionValue = string | number | boolean
@@ -361,6 +362,7 @@ async function handleVideoPanelTask(job: Job<TaskJobData>) {
   await prisma.novelPromotionPanel.update({
     where: { id: panel.id },
     data: {
+      videoHistory: archiveToHistory(panel.videoHistory, panel.videoUrl),
       videoUrl: cosKey,
       videoGenerationMode: generationMode,
     },

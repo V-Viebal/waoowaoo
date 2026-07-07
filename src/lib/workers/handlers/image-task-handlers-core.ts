@@ -33,6 +33,7 @@ import {
   generateModifiedAssetDescription,
   readIndexedDescription,
 } from './modify-description-sync'
+import { archiveToHistory } from '@/lib/novel-promotion/panel-history'
 
 const logger = createScopedLogger({ module: 'worker.modify-asset-image' })
 
@@ -280,6 +281,7 @@ export async function handleModifyAssetImageTask(job: Job<TaskJobData>) {
           panelIndex: true,
           imageUrl: true,
           previousImageUrl: true,
+          imageHistory: true,
         },
       })
       : null
@@ -297,6 +299,7 @@ export async function handleModifyAssetImageTask(job: Job<TaskJobData>) {
           panelIndex: true,
           imageUrl: true,
           previousImageUrl: true,
+          imageHistory: true,
         },
       })
     }
@@ -353,6 +356,7 @@ export async function handleModifyAssetImageTask(job: Job<TaskJobData>) {
     await prisma.novelPromotionPanel.update({
       where: { id: panel.id },
       data: {
+        imageHistory: archiveToHistory(panel.imageHistory, panel.imageUrl || panel.previousImageUrl || null),
         previousImageUrl: panel.imageUrl || panel.previousImageUrl || null,
         imageUrl: cosKey,
         candidateImages: null,
