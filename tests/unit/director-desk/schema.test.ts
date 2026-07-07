@@ -56,14 +56,18 @@ describe('director-desk schema', () => {
     project.scene.backdropImageUrl = 'https://example.com/bg.png'
     project.objects.push({
       id: 'obj-1',
-      kind: 'reference-image',
+      kind: 'prop',
       name: '参考图',
+      refId: 'media-1',
+      visible: true,
+      locked: false,
+      color: '#888',
+      mode: 'billboard',
       transform: {
         position: [0, 0, 0],
         rotation: [0, 0, 0],
         scale: [1, 1, 1],
       },
-      assetId: 'media-1',
       imageUrl: 'https://example.com/ref.png',
     })
 
