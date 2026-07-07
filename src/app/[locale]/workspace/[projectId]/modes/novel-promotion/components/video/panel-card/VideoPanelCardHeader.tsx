@@ -7,9 +7,11 @@ import { AppIcon } from '@/components/ui/icons'
 
 interface VideoPanelCardHeaderProps {
   runtime: VideoPanelRuntime
+  onOpenHistory?: () => void
+  historyCount?: number
 }
 
-export default function VideoPanelCardHeader({ runtime }: VideoPanelCardHeaderProps) {
+export default function VideoPanelCardHeader({ runtime, onOpenHistory, historyCount }: VideoPanelCardHeaderProps) {
   const {
     t,
     panel,
@@ -151,6 +153,22 @@ export default function VideoPanelCardHeader({ runtime }: VideoPanelCardHeaderPr
           className="absolute bottom-2 right-2 bg-[var(--glass-overlay)] hover:bg-[var(--glass-overlay-strong)] text-white p-2 rounded-full transition-all z-20 disabled:cursor-not-allowed disabled:opacity-50"
         >
           <AppIcon name="refresh" className="w-4 h-4" />
+        </button>
+      )}
+
+      {/* 历史视频按钮 */}
+      {onOpenHistory && !layout.isLinked && !layout.isLastFrame && hasVisibleBaseVideo && (
+        <button
+          onClick={onOpenHistory}
+          className="absolute bottom-2 right-12 bg-[var(--glass-overlay)] hover:bg-[var(--glass-overlay-strong)] text-white p-2 rounded-full transition-all z-20"
+          title="历史视频"
+        >
+          <AppIcon name="clock" className="w-4 h-4" />
+          {historyCount && historyCount > 0 ? (
+            <span className="absolute -top-1 -right-1 inline-flex items-center justify-center rounded-full bg-[var(--glass-tone-info-bg)] px-1 min-w-[16px] h-[16px] text-[10px] font-semibold text-[var(--glass-tone-info-fg)]">
+              {historyCount > 99 ? '99+' : historyCount}
+            </span>
+          ) : null}
         </button>
       )}
 

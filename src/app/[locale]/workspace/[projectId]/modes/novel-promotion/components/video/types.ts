@@ -90,6 +90,7 @@ export interface VideoPanel {
   imageUrl?: string
   imageLayout?: 'single' | 'grid'  // 图片布局：单镜头 | 宫格
   videoUrl?: string
+  videoHistory?: string | null  // 历史视频 JSON 数组
   videoGenerationMode?: VideoGenerationMode
   videoTaskRunning?: boolean
   videoErrorMessage?: string  // 视频生成错误消息

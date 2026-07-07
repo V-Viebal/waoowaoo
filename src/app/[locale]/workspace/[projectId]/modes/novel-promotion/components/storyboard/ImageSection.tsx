@@ -1,6 +1,7 @@
 'use client'
 import { useTranslations } from 'next-intl'
 import { useState } from 'react'
+import { useParams } from 'next/navigation'
 import './ImageSection.css'
 import { GlassButton } from '@/components/ui/primitives'
 import { MediaImageWithLoading } from '@/components/media/MediaImageWithLoading'
@@ -8,10 +9,12 @@ import TaskStatusOverlay from '@/components/task/TaskStatusOverlay'
 import { resolveTaskPresentationState } from '@/lib/task/presentation'
 import ImageSectionCandidateMode from './ImageSectionCandidateMode'
 import ImageSectionActionButtons from './ImageSectionActionButtons'
+import PanelHistoryDrawer from './PanelHistoryDrawer'
 import { AppIcon } from '@/components/ui/icons'
 import { useImageGenerationCount } from '@/lib/image-generation/use-image-generation-count'
 import { getImageGenerationCountOptions, normalizeImageGenerationCount } from '@/lib/image-generation/count'
 import { useWorkspaceStageRuntime } from '../../WorkspaceStageRuntimeContext'
+import { parsePanelHistory } from '@/lib/novel-promotion/panel-history'
 
 interface PanelCandidateData {
   candidates: string[]
@@ -21,6 +24,7 @@ interface PanelCandidateData {
 interface ImageSectionProps {
   panelId: string
   imageUrl: string | null
+  imageHistory?: string | null
   globalPanelNumber: number
   shotType: string
   videoRatio: string
@@ -44,6 +48,7 @@ interface ImageSectionProps {
 export default function ImageSection({
   panelId,
   imageUrl,
+  imageHistory,
   globalPanelNumber,
   shotType,
   videoRatio,
@@ -64,6 +69,10 @@ export default function ImageSection({
   onPreviewImage,
 }: ImageSectionProps) {
   const t = useTranslations('storyboard')
+  const params = useParams()
+  const projectId = (params?.projectId as string) || ''
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const historyCount = parsePanelHistory(imageHistory).length
   const { count: candidateCount, setCount: setCandidateCount } = useImageGenerationCount('storyboard-candidates')
   // 分镜宫格数：读写项目级配置（所有镜头共享、与项目配置同源），而非 localStorage
   const runtime = useWorkspaceStageRuntime()
@@ -226,9 +235,19 @@ export default function ImageSection({
           onOpenEditModal={onOpenEditModal}
           onOpenAIDataModal={onOpenAIDataModal}
           onUndo={onUndo}
+          onOpenHistory={historyCount > 0 ? () => setHistoryOpen(true) : undefined}
+          historyCount={historyCount}
           triggerPulse={triggerPulse}
         />
       )}
+
+      <PanelHistoryDrawer
+        projectId={projectId}
+        panelId={panelId}
+        mediaType="image"
+        open={historyOpen}
+        onOpenChange={setHistoryOpen}
+      />
     </div>
   )
 }

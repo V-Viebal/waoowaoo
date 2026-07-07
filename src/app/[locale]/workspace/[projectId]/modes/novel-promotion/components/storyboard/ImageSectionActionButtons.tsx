@@ -19,6 +19,8 @@ interface ImageSectionActionButtonsProps {
   onOpenEditModal: () => void
   onOpenAIDataModal: () => void
   onUndo?: (panelId: string) => void
+  onOpenHistory?: () => void
+  historyCount?: number
   triggerPulse: () => void
 }
 
@@ -32,6 +34,8 @@ export default function ImageSectionActionButtons({
   onOpenEditModal,
   onOpenAIDataModal,
   onUndo,
+  onOpenHistory,
+  historyCount,
   triggerPulse,
 }: ImageSectionActionButtonsProps) {
   const t = useTranslations('storyboard')
@@ -115,6 +119,25 @@ export default function ImageSectionActionButtons({
                   title={t('assets.image.undo')}
                 >
                   <span>{t('assets.image.undo')}</span>
+                </button>
+              </>
+            )}
+
+            {onOpenHistory && (
+              <>
+                <div className="w-px h-3 bg-[var(--glass-stroke-base)]" />
+                <button
+                  onClick={onOpenHistory}
+                  className="glass-btn-base glass-btn-secondary relative flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[10px] transition-all active:scale-95"
+                  title="历史图片"
+                >
+                  <AppIcon name="clock" className="w-2.5 h-2.5" />
+                  <span>历史</span>
+                  {historyCount && historyCount > 0 ? (
+                    <span className="ml-0.5 inline-flex items-center justify-center rounded-full bg-[var(--glass-tone-info-bg)] px-1 min-w-[14px] h-[14px] text-[9px] font-semibold text-[var(--glass-tone-info-fg)]">
+                      {historyCount > 99 ? '99+' : historyCount}
+                    </span>
+                  ) : null}
                 </button>
               </>
             )}
