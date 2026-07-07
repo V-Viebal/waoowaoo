@@ -60,6 +60,12 @@ export const queryKeys = {
         panels: (episodeId: string) => ['videos', episodeId, 'panels'] as const,
     },
 
+    // ============ 分镜面板历史版本 ============
+    panelHistory: {
+        list: (projectId: string, panelId: string, mediaType: string) =>
+            ['panel-history', projectId, panelId, mediaType] as const,
+    },
+
     // ============ 语音（Voice）============
     voiceLines: {
         all: (episodeId: string) => ['voice-lines', episodeId] as const,
