@@ -45,10 +45,15 @@ interface NovelProjectData {
   locations?: LocationLike[]
 }
 
+interface DirectorShotLike {
+  imageMedia?: { storageKey?: string | null } | null
+}
+
 interface PanelLike {
   sketchImageUrl?: string | null
   characters?: string | null
   location?: string | null
+  directorShotUrls?: string[] | null
 }
 
 export interface PanelCharacterReference {
@@ -228,6 +233,14 @@ export function findCharacterByName<T extends { name: string }>(characters: T[],
 
 export async function collectPanelReferenceImages(projectData: NovelProjectData, panel: PanelLike) {
   const refs: string[] = []
+
+  // Director shots first (active first, then other bound shots) — highest composition priority
+  if (panel.directorShotUrls) {
+    for (const url of panel.directorShotUrls) {
+      const signed = toSignedUrlIfCos(url, 3600)
+      if (signed) refs.push(signed)
+    }
+  }
 
   const sketch = toSignedUrlIfCos(panel.sketchImageUrl, 3600)
   if (sketch) refs.push(sketch)

@@ -34,6 +34,12 @@ Requirements:
     - End of speech: mouth closed or holding final expression
     Ensure lip movements match the emotion and rhythm of the dialogue content.
 
+[⚠️ Director-desk blocking — HIGHEST PRIORITY composition reference]
+- If storyboard data contains a `director_shot` field, you MUST follow its camera framing and character blocking precisely.
+- `director_shot.active_camera` is the primary shot; obey its FOV, camera position/target, and character positions/facing.
+- `director_shot.bound_shots` lists other camera angles bound to this panel (close-ups, over-shoulder, etc.). The first N reference images correspond to these shots (active first). Maintain character identity/lighting/style consistency; compose the frame to match the active camera.
+- Coordinate system: meters, y up, -z toward camera, x right.
+
 Panel JSON:
 {storyboard_text_json_input}
 

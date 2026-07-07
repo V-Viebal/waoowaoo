@@ -10,6 +10,12 @@ Absolute constraints:
 Aspect ratio (must be exact):
 {aspect_ratio}
 
+[⚠️ Director-desk blocking — HIGHEST PRIORITY composition reference]
+- If storyboard data contains a `director_shot` field, you MUST follow its camera framing and character blocking precisely.
+- `director_shot.active_camera` is the primary shot; obey its FOV, camera position/target, and character positions/facing for composition.
+- `director_shot.bound_shots` lists other camera angles bound to this panel (close-ups, over-shoulder, etc.). The first N reference images correspond to these shots (active camera shot first). Maintain character identity/lighting/style consistency across angles, but compose the actual frame to match the active camera.
+- Coordinate system (director_shot): meters, y up, -z toward camera, x right.
+
 Storyboard panel data:
 {storyboard_text_json_input}
 
