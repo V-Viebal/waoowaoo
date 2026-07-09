@@ -8,6 +8,7 @@ import {
   assertTaskActive,
   getProjectModels,
   resolveImageSourceFromGeneration,
+  toSignedUrlIfCos,
   uploadImageSourceToCos,
 } from '../utils'
 import { normalizeReferenceImagesForGeneration } from '@/lib/media/outbound-image'
@@ -26,6 +27,7 @@ import {
 } from '@/lib/location-available-slots'
 import { buildStoryboardGridLayout } from '@/lib/storyboard-images/grid'
 import { buildGridInvalidationPatch } from './panel-image-grid-invalidate'
+import { parseDirectorProject } from '@/lib/director-desk/schema'
 import { archiveToHistory } from '@/lib/novel-promotion/panel-history'
 
 function formatPanelGridLayout(layout: ReturnType<typeof buildStoryboardGridLayout>, locale: TaskJobData['locale']) {
@@ -135,6 +137,8 @@ function buildPanelPromptContext(params: {
     srtSegment: string | null
     photographyRules: string | null
     actingNotes: string | null
+    directorLayout: string | null
+    directorShots?: Array<{ cameraId: string; name: string; isActive: boolean; fov: number; posX: number; posY: number; posZ: number; targetX: number; targetY: number; targetZ: number; note: string | null }>
   }
   projectData: Awaited<ReturnType<typeof resolveNovelData>>
   neighborPanels?: NeighborPanelContext[]
@@ -178,6 +182,44 @@ function buildPanelPromptContext(params: {
     }
   })()
 
+  // Build director_shot metadata from saved director layout + bound shots
+  const directorShot = (() => {
+    if (!params.panel.directorLayout) return null
+    const parsed = parseDirectorProject(parseJsonUnknown(params.panel.directorLayout))
+    if (!parsed || parsed.version !== 1) return null
+    const dbShots = params.panel.directorShots ?? []
+    const activeDb = dbShots.find(s => s.isActive) ?? dbShots[0] ?? null
+    const activeCam = activeDb
+      ? { id: activeDb.cameraId, name: activeDb.name, fov: activeDb.fov, position: [activeDb.posX, activeDb.posY, activeDb.posZ] as [number, number, number], target: [activeDb.targetX, activeDb.targetY, activeDb.targetZ] as [number, number, number] }
+      : parsed.cameras.find(c => c.id === parsed.activeCameraId) ?? parsed.cameras[0] ?? null
+    if (!activeCam) return null
+    const round2 = (n: number) => Math.round(n * 100) / 100
+    return {
+      active_camera: {
+        camera_fov: activeCam.fov,
+        camera_position: { x: round2(activeCam.position[0]), y: round2(activeCam.position[1]), z: round2(activeCam.position[2]) },
+        camera_target: { x: round2(activeCam.target[0]), y: round2(activeCam.target[1]), z: round2(activeCam.target[2]) },
+      },
+      bound_shots: dbShots.map(s => ({
+        name: s.name,
+        is_active: !!s.isActive,
+        camera_fov: s.fov,
+        camera_position: { x: round2(s.posX), y: round2(s.posY), z: round2(s.posZ) },
+        camera_target: { x: round2(s.targetX), y: round2(s.targetY), z: round2(s.targetZ) },
+        note: s.note ?? null,
+      })),
+      characters: parsed.objects
+        .filter(o => o.kind === 'character' && o.visible !== false)
+        .map(o => ({
+          name: o.name,
+          position: { x: round2(o.transform.position[0]), y: round2(o.transform.position[1]), z: round2(o.transform.position[2]) },
+          facing_deg: Math.round(((o.facing ?? 0) * 180) / Math.PI),
+          posture: o.posePresetId ?? 'stand',
+          render_mode: o.mode,
+        })),
+    }
+  })()
+
   return {
     panel: {
       panel_id: params.panel.id,
@@ -189,6 +231,7 @@ function buildPanelPromptContext(params: {
       source_text: params.panel.srtSegment || '',
       photography_rules: parseJsonUnknown(params.panel.photographyRules),
       acting_notes: parseJsonUnknown(params.panel.actingNotes),
+      ...(directorShot ? { director_shot: directorShot } : {}),
     },
     context: {
       character_appearances: characterContexts,
@@ -229,6 +272,12 @@ export async function handlePanelImageTask(job: Job<TaskJobData>) {
 
   const panel = await prisma.novelPromotionPanel.findUnique({
     where: { id: panelId },
+    include: {
+      directorShots: {
+        orderBy: [{ isActive: 'desc' }, { createdAt: 'asc' }],
+        include: { imageMedia: true },
+      },
+    },
   })
 
   if (!panel) throw new Error('Panel not found')
@@ -242,7 +291,11 @@ export async function handlePanelImageTask(job: Job<TaskJobData>) {
   // 宫格数：payload 显式指定时优先，否则回退到项目级默认配置
   const defaultGridSize = clampCount(modelConfig.panelGridSize, 1, 16, 1)
   const panelGridSize = clampCount(payload.panelGridSize, 1, 16, defaultGridSize)
-  const refs = await collectPanelReferenceImages(projectData, panel)
+  // Pre-sign director shot URLs (active first) and pass as directorShotUrls
+  const directorShotUrls = (panel.directorShots ?? [])
+    .map(s => (s.imageMedia?.storageKey ? toSignedUrlIfCos(s.imageMedia.storageKey, 3600) : null))
+    .filter((u): u is string => !!u)
+  const refs = await collectPanelReferenceImages(projectData, { ...panel, directorShotUrls })
   const normalizedRefs = await normalizeReferenceImagesForGeneration(refs)
 
   const logger = createScopedLogger({
@@ -295,6 +348,13 @@ export async function handlePanelImageTask(job: Job<TaskJobData>) {
       srtSegment: panel.srtSegment,
       photographyRules: panel.photographyRules,
       actingNotes: panel.actingNotes,
+      directorLayout: panel.directorLayout,
+      directorShots: panel.directorShots.map(s => ({
+        cameraId: s.cameraId, name: s.name, isActive: s.isActive,
+        fov: s.fov, posX: s.posX, posY: s.posY, posZ: s.posZ,
+        targetX: s.targetX, targetY: s.targetY, targetZ: s.targetZ,
+        note: s.note,
+      })),
     },
     projectData,
     neighborPanels,

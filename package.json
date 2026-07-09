@@ -129,6 +129,8 @@
     "@omnivoice/sdk": "file:./vendor/omnivoice-sdk",
     "@openrouter/sdk": "^0.3.11",
     "@prisma/client": "^6.19.2",
+    "@react-three/drei": "^10.7.7",
+    "@react-three/fiber": "^9.6.1",
     "@remotion/cli": "^4.0.405",
     "@remotion/player": "^4.0.405",
     "@tanstack/react-query": "^5.90.20",
@@ -170,8 +172,10 @@
     "react-hot-toast": "^2.6.0",
     "remotion": "^4.0.405",
     "sharp": "^0.34.5",
+    "three": "^0.185.1",
     "undici": "^7.22.0",
-    "zod": "^3.25.76"
+    "zod": "^3.25.76",
+    "zustand": "^5.0.14"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
@@ -182,6 +186,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/testing-library__jest-dom": "^5.14.9",
+    "@types/three": "^0.185.0",
     "@vitest/coverage-v8": "^2.1.8",
     "concurrently": "^9.2.1",
     "cross-env": "^10.1.0",

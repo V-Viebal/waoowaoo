@@ -289,6 +289,8 @@ model NovelPromotionPanel {
   previousImageUrl  String?                   @db.Text
   previousImageMediaId String?
   previousImageMedia MediaObject?             @relation("NovelPromotionPanelPreviousImageMedia", fields: [previousImageMediaId], references: [id], onDelete: SetNull)
+  directorLayout    String?                   @db.Text
+  directorShots     NovelPromotionDirectorShot[]
   storyboard        NovelPromotionStoryboard  @relation(fields: [storyboardId], references: [id], onDelete: Cascade)
   matchedVoiceLines NovelPromotionVoiceLine[]
 
@@ -300,6 +302,29 @@ model NovelPromotionPanel {
   @@index([sketchImageMediaId])
   @@index([previousImageMediaId])
   @@map("novel_promotion_panels")
+}
+
+model NovelPromotionDirectorShot {
+  id            String   @id @default(uuid())
+  panelId       String
+  panel         NovelPromotionPanel @relation(fields: [panelId], references: [id], onDelete: Cascade)
+  cameraId      String
+  name          String   @default("机位")
+  isActive      Boolean  @default(false)
+  fov           Float    @default(50)
+  posX          Float    @default(0)
+  posY          Float    @default(1.55)
+  posZ          Float    @default(5.4)
+  targetX       Float    @default(0)
+  targetY       Float    @default(1.05)
+  targetZ       Float    @default(0)
+  imageMediaId  String
+  imageMedia    MediaObject @relation("NovelPromotionDirectorShotImage", fields: [imageMediaId], references: [id], onDelete: Cascade)
+  note          String?  @db.Text
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([panelId])
 }
 
 model NovelPromotionProject {
@@ -1189,6 +1214,7 @@ model MediaObject {
   novelPromotionPanelLipSyncVideos      NovelPromotionPanel[]       @relation("NovelPromotionPanelLipSyncVideoMedia")
   novelPromotionPanelSketchImages       NovelPromotionPanel[]       @relation("NovelPromotionPanelSketchMedia")
   novelPromotionPanelPreviousImages     NovelPromotionPanel[]       @relation("NovelPromotionPanelPreviousImageMedia")
+  novelPromotionDirectorShotImages      NovelPromotionDirectorShot[] @relation("NovelPromotionDirectorShotImage")
   novelPromotionShotImages              NovelPromotionShot[]        @relation("NovelPromotionShotImageMedia")
   supplementaryPanelImages              SupplementaryPanel[]        @relation("SupplementaryPanelImageMedia")
   novelPromotionVoiceLineAudios         NovelPromotionVoiceLine[]   @relation("NovelPromotionVoiceLineAudioMedia")
