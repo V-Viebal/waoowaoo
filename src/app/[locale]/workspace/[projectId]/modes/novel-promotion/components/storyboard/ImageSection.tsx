@@ -235,7 +235,7 @@ export default function ImageSection({
           onOpenEditModal={onOpenEditModal}
           onOpenAIDataModal={onOpenAIDataModal}
           onUndo={onUndo}
-          onOpenHistory={historyCount > 0 ? () => setHistoryOpen(true) : undefined}
+          onOpenHistory={() => setHistoryOpen(true)}
           historyCount={historyCount}
           triggerPulse={triggerPulse}
         />
