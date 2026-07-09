@@ -105,6 +105,7 @@ export function usePanelVariant({ projectId, episodeId, setLocalStoryboards }: U
                 imagePrompt: null,
                 media: null,
                 imageHistory: null,
+                videoHistory: null,
                 imageLayout: null,
                 videoUrl: null,
                 videoMedia: null,

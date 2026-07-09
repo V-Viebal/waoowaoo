@@ -49,6 +49,22 @@ export function usePanelHistoryActions(projectId: string) {
       ]),
       // Invalidate both media-type history keys for this panel
       queryClient.invalidateQueries({ queryKey: ['panel-history', projectId, panelId] }),
+      // ponytail: episode-scoped data feeds both the storyboard (image) stage
+      // and video stage. We don't know episodeId here, so invalidate
+      // episode-data keys for this project by prefix, and storyboards/videos
+      // keys by root (episodeId-keyed, small caches). Upgrade path: thread
+      // episodeId through from callers and target keys exactly.
+      queryClient.invalidateQueries({
+        predicate: (query) => {
+          const key = query.queryKey
+          if (!Array.isArray(key)) return false
+          if (key[0] === 'episode-data' && key[1] === projectId) return true
+          if (key[0] === 'storyboards' || key[0] === 'videos') return true
+          return false
+        },
+      }),
+      // Task overlays may also be cached against the panel
+      queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all(projectId) }),
     ])
 
   const useVersion = useMutation({

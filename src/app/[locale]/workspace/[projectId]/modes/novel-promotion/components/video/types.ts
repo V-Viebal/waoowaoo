@@ -44,9 +44,11 @@ export interface Panel {
   imagePrompt?: string | null
   imageUrl?: string | null  // 图片URL
   imageLayout?: 'single' | 'grid' | null  // 图片布局：单镜头 | 宫格
+  imageHistory?: string | null
   videoPrompt?: string | null
   firstLastFramePrompt?: string | null
   videoUrl?: string | null
+  videoHistory?: string | null  // 历史视频 JSON 数组
   videoGenerationMode?: VideoGenerationMode | null
   videoModel?: string | null
   linkedToNextPanel?: boolean | null

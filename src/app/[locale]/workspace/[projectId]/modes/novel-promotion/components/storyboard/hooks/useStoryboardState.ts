@@ -146,6 +146,8 @@ export function useStoryboardState({
         candidateImages: p.candidateImages || undefined,
         imageUrl: p.imageUrl,
         imageHistory: p.imageHistory,
+        videoHistory: p.videoHistory,
+        videoUrl: p.videoUrl,
         photographyRules: p.photographyRules,
         actingNotes: p.actingNotes,
         imageTaskRunning: p.imageTaskRunning || false

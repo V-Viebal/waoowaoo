@@ -179,6 +179,7 @@ export interface NovelPromotionPanel {
   candidateImages?: string | null
   media?: MediaRef | null
   imageHistory: string | null
+  videoHistory: string | null
   imageLayout: 'single' | 'grid' | null  // 图片布局：单镜头 | 宫格
   videoPrompt: string | null
   firstLastFramePrompt?: string | null

@@ -83,7 +83,7 @@ export function useVideoPanelsProjection({
           imageLayout: (panel.imageLayout as 'single' | 'grid' | undefined) || undefined,
           firstLastFramePrompt: panel.firstLastFramePrompt || undefined,
           videoUrl: panel.videoUrl || undefined,
-          videoHistory: (panel as { videoHistory?: string | null }).videoHistory ?? undefined,
+          videoHistory: panel.videoHistory ?? undefined,
           videoGenerationMode: panel.videoGenerationMode || undefined,
           videoTaskRunning: panelVideoState?.phase === 'queued' || panelVideoState?.phase === 'processing',
           videoErrorCode:
