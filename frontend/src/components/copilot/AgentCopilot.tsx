@@ -364,6 +364,22 @@ export function AgentCopilot() {
     textareaRef.current?.focus();
   }, [localInput]);
 
+  // 消费外部投递的一次性预填文本（如分集空态 CTA 经 store.input 投递）：
+  // 写入本地输入框后清空 store 字段，避免残留触发重复预填。
+  // 覆盖而非追加——预填来自用户的明确点击意图。
+  useEffect(() => {
+    return useAssistantStore.subscribe((state, prev) => {
+      if (!state.input || state.input === prev.input) return;
+      setLocalInput(state.input);
+      // 延后到微任务清空，避免在 zustand 订阅通知期间嵌套 dispatch
+      void Promise.resolve().then(() => {
+        useAssistantStore.getState().setInput("");
+      });
+      // 面板可能同帧刚被打开（inert 尚未移除），等一帧再聚焦
+      requestAnimationFrame(() => textareaRef.current?.focus());
+    });
+  }, []);
+
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
