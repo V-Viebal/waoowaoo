@@ -67,7 +67,7 @@ services:
       MINIO_ACCESS_KEY: "minioadmin"
       MINIO_SECRET_KEY: "${MINIO_PASSWORD}"
       MINIO_FORCE_PATH_STYLE: "true"
-      NEXTAUTH_URL: "https://z12lr60fgnhkt03ncjo7dx3y.100.77.205.126.sslip.io"
+      NEXTAUTH_URL: "https://f2p4dtcl1y28d5nozev23jdb.100.77.205.126.sslip.io"
       INTERNAL_APP_URL: "http://127.0.0.1:3000"
       NEXTAUTH_SECRET: "${NEXTAUTH_SECRET}"
       CRON_SECRET: "${CRON_SECRET}"
@@ -105,7 +105,7 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=coolify"
-      - "traefik.http.routers.studio360coolify.rule=Host(`z12lr60fgnhkt03ncjo7dx3y.100.77.205.126.sslip.io`)"
+      - "traefik.http.routers.studio360coolify.rule=Host(`f2p4dtcl1y28d5nozev23jdb.100.77.205.126.sslip.io`)"
       - "traefik.http.routers.studio360coolify.entrypoints=https"
       - "traefik.http.routers.studio360coolify.tls=true"
       - "traefik.http.routers.studio360coolify.tls.certresolver=letsencrypt"
