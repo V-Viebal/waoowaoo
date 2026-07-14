@@ -12,7 +12,7 @@ import shutil
 import tempfile
 import zipfile
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pyJianYingDraft as draft
 from pyJianYingDraft import (
@@ -287,9 +287,10 @@ class JianyingDraftService:
         draft_dir.parent.mkdir(parents=True, exist_ok=True)
         folder = draft.DraftFolder(str(draft_dir.parent))
         script_file = folder.create_draft(draft_name, width=width, height=height, allow_replace=True)
+        script_file_api = cast(Any, script_file)
 
         # 视频轨
-        script_file.add_track(TrackType.video)
+        script_file_api.add_track(TrackType.video)
 
         # 字幕轨：注册为字幕模式的内容模式生成（narration / ad 单字段、drama 从 utterances 派生 span）
         has_subtitle = _has_subtitle_track(content_mode)
@@ -299,7 +300,7 @@ class JianyingDraftService:
         subtitle_position: ClipSettings | None = None
         is_portrait = height > width
         if has_subtitle:
-            script_file.add_track(TrackType.text, "字幕")
+            script_file_api.add_track(TrackType.text, "字幕")
             text_style = TextStyle(
                 size=12.0 if is_portrait else 8.0,
                 color=(1.0, 1.0, 1.0),

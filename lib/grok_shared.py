@@ -59,9 +59,9 @@ def create_grok_client(*, api_key: str | None = None, base_url: str | None = Non
     """
     import xai_sdk
 
-    kwargs: dict[str, object] = {"api_key": resolve_grok_api_key(api_key)}
+    resolved_api_key = resolve_grok_api_key(api_key)
     if base_url:
         parsed = urlparse(base_url if "://" in base_url else f"https://{base_url}")
         if parsed.hostname:
-            kwargs["api_host"] = parsed.hostname
-    return xai_sdk.AsyncClient(**kwargs)
+            return xai_sdk.AsyncClient(api_key=resolved_api_key, api_host=parsed.hostname)
+    return xai_sdk.AsyncClient(api_key=resolved_api_key)
