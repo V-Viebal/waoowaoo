@@ -17,6 +17,7 @@ from lib.video_backends.base import (
     IMAGE_MIME_TYPES,
     VideoCapabilities,
     VideoCapability,
+    VideoCapabilityError,
     VideoGenerationRequest,
     VideoGenerationResult,
     download_video,
@@ -35,13 +36,13 @@ class GrokVideoBackend:
         *,
         api_key: str | None = None,
         model: str | None = None,
+        base_url: str | None = None,
     ):
-        self._client = create_grok_client(api_key=api_key)
+        self._client = create_grok_client(api_key=api_key, base_url=base_url)
         self._model = model or self.DEFAULT_MODEL
-        self._capabilities: set[VideoCapability] = {
-            VideoCapability.TEXT_TO_VIDEO,
-            VideoCapability.IMAGE_TO_VIDEO,
-        }
+        self._capabilities: set[VideoCapability] = {VideoCapability.IMAGE_TO_VIDEO}
+        if self._model != "grok-imagine-video-1.5":
+            self._capabilities.add(VideoCapability.TEXT_TO_VIDEO)
 
     @property
     def name(self) -> str:
@@ -57,9 +58,9 @@ class GrokVideoBackend:
 
     @property
     def video_capabilities(self) -> VideoCapabilities:
-        # _create_video 以独立 SDK 形参同时下传 image_url（首帧）与 reference_image_urls，
-        # 首帧语义保持，故声明首帧叠加参考能力。
-        return VideoCapabilities(reference_images=True, max_reference_images=7, reference_images_with_start_frame=True)
+        # xAI Imagine 的 image-to-video 与 reference-image generation 是互斥输入模式；
+        # SDK/API 不接受 image_url 与 reference_image_urls 同时出现。
+        return VideoCapabilities(reference_images=True, max_reference_images=7, reference_images_with_start_frame=False)
 
     async def resume_video(self, job_id: str, request: VideoGenerationRequest) -> VideoGenerationResult:
         # Grok 同步型 API，无 job_id 可接续；orphan handler 据 NotImplementedError 标 [resume_unsupported]
@@ -121,8 +122,16 @@ class GrokVideoBackend:
             b64 = base64.b64encode(path.read_bytes()).decode("ascii")
             return f"data:{mime_type};base64,{b64}"
 
-        if request.start_image and Path(request.start_image).exists():
-            image_path = Path(request.start_image)
+        has_start_image = bool(request.start_image and Path(request.start_image).exists())
+        has_reference_images = bool(request.reference_images)
+        if has_start_image and has_reference_images:
+            raise VideoCapabilityError(
+                "video_reference_images_with_frames_unsupported",
+                model=self._model,
+            )
+
+        if has_start_image:
+            image_path = Path(request.start_image)  # type: ignore[arg-type]
             generate_kwargs["image_url"] = await asyncio.to_thread(_encode_to_data_uri, image_path)
 
         if request.reference_images:

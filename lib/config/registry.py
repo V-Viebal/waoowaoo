@@ -763,6 +763,20 @@ PROVIDER_REGISTRY: dict[str, ProviderMeta] = {
                     currency="USD",
                 ),
             ),
+            "grok-imagine-video-1.5": ModelInfo(
+                display_name="Grok Imagine Video 1.5",
+                media_type="video",
+                capabilities=["image_to_video"],
+                supported_durations=list(range(1, 16)),
+                resolutions=["480p", "720p"],
+                max_reference_images=7,
+                pricing=PerSecondMatrix(
+                    rates={"grok-imagine-video-1.5": {("", None): 0.050}},
+                    default_model="grok-imagine-video-1.5",
+                    dimensions="flat",
+                    currency="USD",
+                ),
+            ),
         },
     ),
     "openai": ProviderMeta(

@@ -38,6 +38,18 @@ class TestGrokVideoBackend:
         assert VideoCapability.GENERATE_AUDIO not in backend.capabilities
         assert VideoCapability.NEGATIVE_PROMPT not in backend.capabilities
         assert VideoCapability.SEED_CONTROL not in backend.capabilities
+        assert backend.video_capabilities.reference_images is True
+        assert backend.video_capabilities.max_reference_images == 7
+        assert backend.video_capabilities.reference_images_with_start_frame is False
+
+    @patch("lib.video_backends.grok.create_grok_client")
+    def test_imagine_video_15_is_image_to_video_only(self, mock_create):
+        from lib.video_backends.grok import GrokVideoBackend
+
+        backend = GrokVideoBackend(api_key="test-key", model="grok-imagine-video-1.5")
+
+        assert VideoCapability.IMAGE_TO_VIDEO in backend.capabilities
+        assert VideoCapability.TEXT_TO_VIDEO not in backend.capabilities
 
     @patch("lib.video_backends.grok.create_grok_client")
     def test_custom_model(self, mock_create):
@@ -148,6 +160,66 @@ class TestGrokVideoBackend:
             call_kwargs = mock_video.generate.call_args[1]
             assert "image_url" in call_kwargs
             assert call_kwargs["image_url"].startswith("data:image/png;base64,")
+
+    async def test_reference_images_forwarded_as_data_uris(self, tmp_path: Path):
+        from lib.video_backends.grok import GrokVideoBackend
+
+        ref_a = tmp_path / "a.png"
+        ref_b = tmp_path / "b.jpg"
+        ref_a.write_bytes(b"png")
+        ref_b.write_bytes(b"jpg")
+
+        captured: dict = {}
+
+        async def fake_generate(**kwargs):
+            captured.update(kwargs)
+            raise RuntimeError("stop")
+
+        with patch("lib.video_backends.grok.create_grok_client") as mock_create:
+            mock_create.return_value.video.generate = fake_generate
+            backend = GrokVideoBackend(api_key="test-key", model="grok-imagine-video-1.5")
+            request = VideoGenerationRequest(
+                prompt="Keep the same characters while they wave",
+                output_path=tmp_path / "out.mp4",
+                duration_seconds=6,
+                aspect_ratio="9:16",
+                resolution="480p",
+                reference_images=[ref_a, ref_b],
+            )
+            with pytest.raises(RuntimeError, match="stop"):
+                await backend._create_video(request)
+
+        assert captured["model"] == "grok-imagine-video-1.5"
+        assert captured["duration"] == 6
+        assert captured["aspect_ratio"] == "9:16"
+        assert captured["resolution"] == "480p"
+        assert len(captured["reference_image_urls"]) == 2
+        assert captured["reference_image_urls"][0].startswith("data:image/png;base64,")
+        assert captured["reference_image_urls"][1].startswith("data:image/jpeg;base64,")
+        assert "image_url" not in captured
+
+    async def test_start_frame_and_reference_images_are_rejected(self, tmp_path: Path):
+        from lib.video_backends.base import VideoCapabilityError
+        from lib.video_backends.grok import GrokVideoBackend
+
+        start = tmp_path / "start.png"
+        ref = tmp_path / "ref.png"
+        start.write_bytes(b"start")
+        ref.write_bytes(b"ref")
+
+        with patch("lib.video_backends.grok.create_grok_client"):
+            backend = GrokVideoBackend(api_key="test-key")
+            request = VideoGenerationRequest(
+                prompt="Animate",
+                output_path=tmp_path / "out.mp4",
+                start_image=start,
+                reference_images=[ref],
+            )
+            with pytest.raises(VideoCapabilityError) as exc_info:
+                await backend._create_video(request)
+
+        assert exc_info.value.code == "video_reference_images_with_frames_unsupported"
+        assert exc_info.value.params == {"model": "grok-imagine-video"}
 
     @pytest.mark.parametrize(
         ("raw_duration", "expected"),

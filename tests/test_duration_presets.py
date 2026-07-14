@@ -42,6 +42,7 @@ from lib.custom_provider.duration_presets import (
         ("happyhorse-1.0", list(range(3, 16))),
         # Grok Imagine
         ("grok-imagine-video", list(range(1, 16))),
+        ("grok-imagine-video-1.5", list(range(1, 16))),
         # Vidu
         ("viduq3-pro", list(range(1, 17))),
         # PixVerse

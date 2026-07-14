@@ -1,11 +1,12 @@
 services:
   postgres:
     image: postgres:18-alpine
+    container_name: studio360-postgres
     environment:
       POSTGRES_USER: arcreel
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?请在 .env 中设置 POSTGRES_PASSWORD}
       POSTGRES_DB: arcreel
-      TZ: ${TZ:-Asia/Shanghai}
+      TZ: ${TZ:-Asia/Ho_Chi_Minh}
     volumes:
       - ./pgdata:/var/lib/postgresql
     restart: unless-stopped
@@ -14,19 +15,19 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - studio360-internal
 
   arcreel:
-    image: ghcr.io/arcreel/arcreel:latest
-    ports:
-      - "1241:1241"
+    image: studio360-arcreel:latest
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    container_name: studio360
     env_file: .env
     environment:
       DATABASE_URL: postgresql+asyncpg://arcreel:${POSTGRES_PASSWORD}@postgres:5432/arcreel
-      TZ: ${TZ:-Asia/Shanghai}
-    # Agent Bash 沙箱 (bwrap) 需要：
-    # 1) 非特权 user namespace → 放开 docker 默认 seccomp/apparmor profile
-    # 2) bwrap 嵌套出的 net namespace 内配置 loopback → 容器需要 NET_ADMIN cap
-    #    （否则报 "loopback: Failed RTM_NEWADDR: Operation not permitted"）
+      TZ: ${TZ:-Asia/Ho_Chi_Minh}
     security_opt:
       - seccomp:unconfined
       - apparmor:unconfined
@@ -47,3 +48,22 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
+    networks:
+      - studio360-internal
+      - coolify
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=coolify
+      - traefik.http.routers.studio360.rule=Host(`studio360.hmz.one`)
+      - traefik.http.routers.studio360.entrypoints=https
+      - traefik.http.routers.studio360.tls=true
+      - traefik.http.routers.studio360.tls.certresolver=letsencrypt
+      - traefik.http.services.studio360.loadbalancer.server.port=1241
+
+networks:
+  studio360-internal:
+    name: studio360-arcreel-internal
+    internal: true
+    driver: bridge
+  coolify:
+    external: true

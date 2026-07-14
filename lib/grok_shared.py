@@ -10,6 +10,8 @@ Grok (xAI) 共享工具模块
 
 from __future__ import annotations
 
+from urllib.parse import urlparse
+
 from lib.retry import BASE_RETRYABLE_ERRORS, _should_retry
 
 # gRPC 瞬态状态码（等价于 HTTP 429/500/502/503/504）
@@ -47,8 +49,19 @@ def resolve_grok_api_key(api_key: str | None = None) -> str:
     return api_key.strip()
 
 
-def create_grok_client(*, api_key: str | None = None):
-    """创建 xAI AsyncClient，统一校验和构造。"""
+def create_grok_client(*, api_key: str | None = None, base_url: str | None = None):
+    """创建 xAI AsyncClient，统一校验和构造。
+
+    The provider assembler passes ``base_url`` for every configured credential.
+    xai-sdk names the equivalent setting ``api_host`` and expects a hostname,
+    so normalize the configured OpenAI-style URL without leaking ``/v1`` into
+    the gRPC host setting.
+    """
     import xai_sdk
 
-    return xai_sdk.AsyncClient(api_key=resolve_grok_api_key(api_key))
+    kwargs: dict[str, object] = {"api_key": resolve_grok_api_key(api_key)}
+    if base_url:
+        parsed = urlparse(base_url if "://" in base_url else f"https://{base_url}")
+        if parsed.hostname:
+            kwargs["api_host"] = parsed.hostname
+    return xai_sdk.AsyncClient(**kwargs)
