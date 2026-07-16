@@ -16,7 +16,11 @@ from urllib.parse import quote
 
 import httpx
 
-from lib.audio_backends.base import AudioCapability, AudioSynthesisRequest, AudioSynthesisResult
+from lib.audio_backends.base import (
+    AudioCapability,
+    AudioSynthesisRequest,
+    AudioSynthesisResult,
+)
 from lib.providers import PROVIDER_ELEVENLABS
 
 logger = logging.getLogger(__name__)
@@ -104,7 +108,13 @@ class Llm360ElevenLabsAudioBackend:
         encoded_voice = quote(request.voice, safe="")
         url = f"{self._base_url}/api/elevenlabs/credentials/{self._credential_id}/text-to-speech/{encoded_voice}"
         headers = {"X-Service-Api-Key": self._service_api_key, "Accept": "audio/pcm"}
-        logger.info("调用 %s 语音合成 API model=%s voice=%s chars=%d", self.name, self._model, request.voice, len(request.text))
+        logger.info(
+            "调用 %s 语音合成 API model=%s voice=%s chars=%d",
+            self.name,
+            self._model,
+            request.voice,
+            len(request.text),
+        )
         async with httpx.AsyncClient(timeout=self._http_timeout) as client:
             response = await client.post(url, json=payload, headers=headers)
 
