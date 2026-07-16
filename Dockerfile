@@ -1,15 +1,4 @@
 # ============================================================
-# Stage 0: Claude Code CLI
-# ============================================================
-# The Agent SDK's bundled CLI can ignore a custom ANTHROPIC_BASE_URL. Build a
-# pinned, system-installed CLI so ArcReel can route authenticated assistant
-# requests through the configured Anthropic-compatible provider.
-FROM node:22-slim AS claude-code-cli
-ARG CLAUDE_CODE_VERSION=2.1.211
-RUN npm install --global --no-audit --no-fund "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}" \
-    && claude --version
-
-# ============================================================
 # Stage 1: 构建前端
 # ============================================================
 FROM node:22-slim AS frontend-builder
@@ -34,12 +23,6 @@ RUN pnpm build
 # Stage 2: 生产镜像
 # ============================================================
 FROM python:3.12-slim AS production
-
-# Prefer the independently installed CLI over the SDK's bundled binary. The
-# native CLI preserves custom ANTHROPIC_BASE_URL routing for proxy providers.
-COPY --from=claude-code-cli /usr/local/bin/node /usr/local/bin/node
-COPY --from=claude-code-cli /usr/local/bin/claude /usr/local/bin/claude
-COPY --from=claude-code-cli /usr/local/lib/node_modules/@anthropic-ai/claude-code /usr/local/lib/node_modules/@anthropic-ai/claude-code
 
 # 安装系统依赖
 RUN apt-get update && apt-get install -y --no-install-recommends \
