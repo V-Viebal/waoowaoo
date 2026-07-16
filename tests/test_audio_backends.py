@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import wave
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -17,18 +18,29 @@ from lib.audio_backends import (
     register_backend,
 )
 from lib.dashscope_shared import extract_audio_url
-from lib.providers import PROVIDER_DASHSCOPE
+from lib.providers import PROVIDER_DASHSCOPE, PROVIDER_ELEVENLABS
 
 
 class TestRegistry:
     def test_dashscope_auto_registered(self):
         assert PROVIDER_DASHSCOPE in get_registered_backends()
+        assert PROVIDER_ELEVENLABS in get_registered_backends()
 
     def test_create_dashscope(self):
         from lib.audio_backends.dashscope import DashScopeAudioBackend
 
         backend = create_backend(PROVIDER_DASHSCOPE, api_key="sk")
         assert isinstance(backend, DashScopeAudioBackend)
+
+    def test_create_elevenlabs(self, monkeypatch):
+        from lib.audio_backends.llm360_elevenlabs import Llm360ElevenLabsAudioBackend
+
+        monkeypatch.setenv("LLM360_SERVICE_API_KEY", "svc")
+        backend = create_backend(
+            PROVIDER_ELEVENLABS,
+            api_key="11111111-1111-4111-8111-111111111111",
+        )
+        assert isinstance(backend, Llm360ElevenLabsAudioBackend)
 
     def test_unknown_backend_raises(self):
         with pytest.raises(ValueError, match="Unknown audio backend"):
@@ -374,3 +386,131 @@ class TestOpenAIAudioBackend:
                     await b.synthesize(req)
 
         assert mock_client.audio.speech.create.call_count == 1, "写盘失败不得重跑计费的合成调用"
+
+
+def _mock_post_client(post_resp: httpx.Response | MagicMock) -> AsyncMock:
+    client = AsyncMock()
+    client.post = AsyncMock(return_value=post_resp)
+    client.__aenter__ = AsyncMock(return_value=client)
+    client.__aexit__ = AsyncMock(return_value=None)
+    return client
+
+
+class TestLlm360ElevenLabsAudioBackend:
+    def test_metadata_and_required_credentials(self, monkeypatch):
+        monkeypatch.delenv("LLM360_SERVICE_API_KEY", raising=False)
+        from lib.audio_backends.llm360_elevenlabs import Llm360ElevenLabsAudioBackend
+
+        with pytest.raises(ValueError, match="credential id"):
+            Llm360ElevenLabsAudioBackend(api_key="")
+        with pytest.raises(ValueError, match="credential UUID"):
+            Llm360ElevenLabsAudioBackend(api_key="not-a-uuid", service_api_key="svc")
+        with pytest.raises(ValueError, match="service API key"):
+            Llm360ElevenLabsAudioBackend(api_key="11111111-1111-4111-8111-111111111111")
+
+        backend = Llm360ElevenLabsAudioBackend(
+            api_key="11111111-1111-4111-8111-111111111111",
+            service_api_key="svc",
+        )
+        assert backend.name == PROVIDER_ELEVENLABS
+        assert backend.model == "eleven_multilingual_v2"
+        assert backend.capabilities == {AudioCapability.TEXT_TO_SPEECH}
+
+    async def test_synthesize_posts_to_gateway_and_wraps_pcm_as_wav(self, tmp_path: Path):
+        pcm = b"\x01\x00\x02\x00" * 120
+        resp = httpx.Response(
+            200,
+            content=pcm,
+            headers={"content-type": "audio/pcm"},
+            request=httpx.Request("POST", "https://api-llm360.hmz.one"),
+        )
+        client = _mock_post_client(resp)
+        with patch("httpx.AsyncClient", return_value=client):
+            from lib.audio_backends.llm360_elevenlabs import Llm360ElevenLabsAudioBackend
+
+            backend = Llm360ElevenLabsAudioBackend(
+                api_key="11111111-1111-4111-8111-111111111111",
+                service_api_key="svc",
+                base_url="https://llm.example.com/",
+            )
+            out = tmp_path / "vi.wav"
+            result = await backend.synthesize(
+                AudioSynthesisRequest(text="Xin chao Viet Nam", output_path=out, voice="Rachel")
+            )
+
+        assert client.post.call_args.args[0] == (
+            "https://llm.example.com/api/elevenlabs/credentials/"
+            "11111111-1111-4111-8111-111111111111/text-to-speech/Rachel"
+        )
+        assert client.post.call_args.kwargs["json"] == {
+            "text": "Xin chao Viet Nam",
+            "model_id": "eleven_multilingual_v2",
+            "output_format": "pcm_24000",
+        }
+        assert client.post.call_args.kwargs["headers"]["X-Service-Api-Key"] == "svc"
+        assert client.post.call_args.kwargs["headers"]["Accept"] == "audio/pcm"
+
+        with wave.open(str(out), "rb") as wav:
+            assert wav.getnchannels() == 1
+            assert wav.getsampwidth() == 2
+            assert wav.getframerate() == 24000
+            assert wav.readframes(240) == pcm
+        assert result.provider == PROVIDER_ELEVENLABS
+        assert result.model == "eleven_multilingual_v2"
+        assert result.characters == len("Xin chao Viet Nam")
+        assert result.output_path == out
+
+    async def test_gateway_wav_response_written_directly(self, tmp_path: Path):
+        wav_bytes = b"RIFFfake-wav"
+        resp = httpx.Response(
+            200,
+            content=wav_bytes,
+            headers={"content-type": "audio/wav"},
+            request=httpx.Request("POST", "https://api-llm360.hmz.one"),
+        )
+        client = _mock_post_client(resp)
+        with patch("httpx.AsyncClient", return_value=client):
+            from lib.audio_backends.llm360_elevenlabs import Llm360ElevenLabsAudioBackend
+
+            backend = Llm360ElevenLabsAudioBackend(
+                api_key="11111111-1111-4111-8111-111111111111",
+                service_api_key="svc",
+            )
+            out = tmp_path / "out.wav"
+            await backend.synthesize(AudioSynthesisRequest(text="hi", output_path=out, voice="Rachel"))
+        assert out.read_bytes() == wav_bytes
+
+    async def test_gateway_error_and_empty_response_do_not_write_file(self, tmp_path: Path):
+        error_resp = httpx.Response(
+            429,
+            text="quota exhausted",
+            request=httpx.Request("POST", "https://api-llm360.hmz.one"),
+        )
+        client = _mock_post_client(error_resp)
+        with patch("httpx.AsyncClient", return_value=client):
+            from lib.audio_backends.llm360_elevenlabs import Llm360ElevenLabsAudioBackend
+
+            backend = Llm360ElevenLabsAudioBackend(
+                api_key="11111111-1111-4111-8111-111111111111",
+                service_api_key="svc",
+            )
+            out = tmp_path / "err.wav"
+            with pytest.raises(RuntimeError, match="HTTP 429"):
+                await backend.synthesize(AudioSynthesisRequest(text="hi", output_path=out, voice="Rachel"))
+        assert not out.exists()
+
+        empty_resp = httpx.Response(
+            200,
+            content=b"",
+            request=httpx.Request("POST", "https://api-llm360.hmz.one"),
+        )
+        client = _mock_post_client(empty_resp)
+        with patch("httpx.AsyncClient", return_value=client):
+            backend = Llm360ElevenLabsAudioBackend(
+                api_key="11111111-1111-4111-8111-111111111111",
+                service_api_key="svc",
+            )
+            with pytest.raises(RuntimeError, match="empty audio"):
+                await backend.synthesize(
+                    AudioSynthesisRequest(text="hi", output_path=tmp_path / "empty.wav", voice="Rachel")
+                )

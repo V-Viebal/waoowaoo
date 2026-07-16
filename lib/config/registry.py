@@ -321,6 +321,11 @@ def _agnes_text_pricing(model_id: str, input_rate: float, output_rate: float) ->
     )
 
 
+# LLM360 网关侧 ElevenLabs 费用由网关凭证/账单承担，Studio360 不重复计费。
+def _elevenlabs_audio_pricing(model_id: str) -> PerCharacter:
+    return PerCharacter(rates={model_id: 0.0}, default_model=model_id, currency="USD")
+
+
 # Agnes 视频费率（美元/秒），flat 按秒、与分辨率/音频无关；官方原价，当前促销 $0 不建模。
 def _agnes_video_pricing(model_id: str, per_second: float) -> PerSecondMatrix:
     return PerSecondMatrix(
@@ -1255,6 +1260,23 @@ PROVIDER_REGISTRY: dict[str, ProviderMeta] = {
         # 国内调用域名官方已由 api.klingai.com 迁移至 api-beijing.klingai.com（旧域名仍可用，
         # 未强制下线）；仅影响未显式配置 base_url 的新用户，存量显式配置不受影响。
         default_base_url="https://api-beijing.klingai.com/v1",
+    ),
+    "elevenlabs": ProviderMeta(
+        display_name="ElevenLabs (LLM360)",
+        description="ElevenLabs TTS through the LLM360 credential gateway; Studio360 stores the LLM360 credential UUID.",
+        required_keys=["api_key"],
+        optional_keys=["base_url", "service_api_key", "audio_max_workers"],
+        secret_keys=["api_key", "service_api_key"],
+        models={
+            "eleven_multilingual_v2": ModelInfo(
+                display_name="Eleven Multilingual v2",
+                media_type="audio",
+                capabilities=["text_to_speech"],
+                default=True,
+                pricing=_elevenlabs_audio_pricing("eleven_multilingual_v2"),
+            ),
+        },
+        default_base_url="https://api-llm360.hmz.one",
     ),
     "agnes": ProviderMeta(
         display_name="Agnes",

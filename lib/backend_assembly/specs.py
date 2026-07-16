@@ -83,6 +83,17 @@ def _build_simple(config: LoadedConfig, model_id: str | None, *, media_type: str
     return _media_create_backend(media_type)(registry_backend, **kwargs)
 
 
+def _build_llm360_elevenlabs(config: LoadedConfig, model_id: str | None) -> Any:
+    from lib.audio_backends.llm360_elevenlabs import Llm360ElevenLabsAudioBackend
+
+    kwargs: dict[str, Any] = {"model": model_id}
+    for key in ("api_key", "base_url", "service_api_key"):
+        value = config.credentials.get(key)
+        if value:
+            kwargs[key] = value
+    return Llm360ElevenLabsAudioBackend(**kwargs)
+
+
 def _simple_spec(provider_id: str, media_type: str) -> ProviderSpec:
     """登记一条简单族 spec：registry_backend 即 provider_id 自身（媒体侧无别名映射）。"""
     return ProviderSpec(
@@ -358,6 +369,13 @@ PROVIDER_SPEC_REGISTRY[("agnes", "video")] = _simple_spec("agnes", "video")
 # agnes_shared），故归简单文本族（registry_backend = "agnes"），不并入 OpenAI-compat 别名映射。
 _TEXT_SIMPLE_PROVIDERS = ("ark", "ark-agent-plan", "grok", "agnes")
 PROVIDER_SPEC_REGISTRY.update({(p, "text"): _text_simple_spec(p) for p in _TEXT_SIMPLE_PROVIDERS})
+PROVIDER_SPEC_REGISTRY[("elevenlabs", "audio")] = ProviderSpec(
+    provider_id="elevenlabs",
+    media_type="audio",
+    registry_backend="elevenlabs",
+    build_backend=_build_llm360_elevenlabs,
+)
+
 PROVIDER_SPEC_REGISTRY.update(
     {
         ("gemini-aistudio", "text"): _text_gemini_spec("gemini-aistudio", build=_build_text_gemini_aistudio),

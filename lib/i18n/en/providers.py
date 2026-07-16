@@ -13,6 +13,7 @@ MESSAGES: dict[str, str] = {
     "provider_name_minimax": "MiniMax",
     "provider_name_kling": "Kling",
     "provider_name_agnes": "Agnes",
+    "provider_name_elevenlabs": "ElevenLabs (LLM360)",
     # Provider descriptions
     "provider_desc_gemini-aistudio": "Google AI Studio provides Gemini models with image and video generation, ideal for rapid prototyping and personal projects.",
     "provider_desc_gemini-vertex": "Google Cloud Vertex AI enterprise platform supporting Gemini and Imagen models with higher quotas and audio generation.",
@@ -24,6 +25,7 @@ MESSAGES: dict[str, str] = {
     "provider_desc_dashscope": "Alibaba Cloud Model Studio (DashScope) full-modality platform supporting Qwen text, Qwen-Image / Wan images, and HappyHorse / Wan video (including reference-to-video).",
     "provider_desc_minimax": "MiniMax (Hailuo) multimodal platform with text, image and video generation. Connects to the domestic site by default; set base_url to the international site for overseas access.",
     "provider_desc_kling": "Kuaishou Kling video and image generation platform. API Key authentication works with all models; Access Key + Secret Key (JWT) only supports 3.0-and-earlier models. Choose either — when both are set, API Key takes priority.",
+    "provider_desc_elevenlabs": "ElevenLabs text-to-speech through the LLM360 credential gateway.",
     "provider_desc_agnes": "Agnes multimodal platform (OpenAI-style), authenticated with a Bearer API key; currently supports image, text and video generation.",
     # Agent preset notes (lib/agent_provider_catalog.py)
     "preset_notes_deepseek": "DeepSeek official Anthropic-compat endpoint; needs sk- prefixed key.",
