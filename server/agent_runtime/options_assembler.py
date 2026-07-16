@@ -12,6 +12,8 @@ policy，装配天职是开会话时现场读 DB / 扫盘则允许 I/O 归本类
 
 import json
 import logging
+import os
+import shutil
 from collections.abc import Awaitable, Callable, Sequence
 from pathlib import Path
 from typing import Any
@@ -34,6 +36,18 @@ from claude_agent_sdk import ClaudeAgentOptions
 from claude_agent_sdk.types import HookMatcher, SystemPromptPreset
 
 SDK_AVAILABLE = True
+
+
+def resolve_claude_cli_path() -> str | None:
+    """Return the explicit or system-installed Claude Code CLI when available.
+
+    The Agent SDK otherwise prefers its bundled executable. That executable can
+    bypass a custom ``ANTHROPIC_BASE_URL`` for proxy providers, so production
+    images install a pinned native CLI and ArcReel selects it deliberately.
+    Local environments without one retain the SDK bundled-CLI fallback.
+    """
+    configured = os.getenv("ARCREEL_CLAUDE_CLI_PATH", "").strip()
+    return configured or shutil.which("claude")
 
 
 async def load_provider_env_overrides() -> dict[str, str]:
@@ -271,6 +285,7 @@ class OptionsAssembler:
 
         return ClaudeAgentOptions(
             cwd=str(project_cwd),
+            cli_path=resolve_claude_cli_path(),
             setting_sources=self._setting_sources,  # type: ignore[arg-type]
             allowed_tools=allowed_tools,
             max_turns=self._max_turns_provider(),

@@ -16,6 +16,7 @@ from server.agent_runtime.agent_access_policy import AgentAccessPolicy
 from server.agent_runtime.options_assembler import (
     OptionsAssembler,
     load_provider_env_overrides,
+    resolve_claude_cli_path,
 )
 
 _ALLOWED_TOOLS = ["Skill", "Task", "Bash", "BashOutput", "KillBash", "Read", "Write", "Edit"]
@@ -158,3 +159,28 @@ async def test_build_sandbox_disabled_strips_bash(tmp_path: Path) -> None:
         assert tool not in options.allowed_tools
     assert "Read" in options.allowed_tools
     assert options.sandbox == {"enabled": False}
+
+
+def test_resolve_claude_cli_path_prefers_explicit_override(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("ARCREEL_CLAUDE_CLI_PATH", "/opt/claude/bin/claude")
+    monkeypatch.setattr("server.agent_runtime.options_assembler.shutil.which", lambda _name: "/usr/local/bin/claude")
+
+    assert resolve_claude_cli_path() == "/opt/claude/bin/claude"
+
+
+def test_resolve_claude_cli_path_uses_system_cli(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("ARCREEL_CLAUDE_CLI_PATH", raising=False)
+    monkeypatch.setattr("server.agent_runtime.options_assembler.shutil.which", lambda _name: "/usr/local/bin/claude")
+
+    assert resolve_claude_cli_path() == "/usr/local/bin/claude"
+
+
+@pytest.mark.asyncio
+async def test_build_uses_resolved_system_claude_cli(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    async def fake_loader():
+        return {"ANTHROPIC_API_KEY": "sk"}
+
+    monkeypatch.setattr("server.agent_runtime.options_assembler.shutil.which", lambda _name: "/usr/local/bin/claude")
+    assembler = _make_assembler(tmp_path, provider_env_loader=fake_loader)
+
+    assert (await assembler.build("demo")).cli_path == "/usr/local/bin/claude"
