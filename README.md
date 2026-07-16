@@ -299,6 +299,48 @@ uv run pre-commit install
 
 安装 pre-commit 钩子（ruff check + format、frontend eslint、workflow tripwire），避免把可被自动修复的问题推到 CI。
 
+## Studio360 downstream synchronization / Studio360 下游同步
+
+This repository keeps Studio360-specific changes on `main` and preserves an unmodified ArcReel upstream baseline on `raw`.
+
+本仓库将 Studio360 定制改动保留在 `main`，并在 `raw` 分支保留未修改的 ArcReel 上游基线。
+
+- ArcReel upstream remote / 上游远程：`arcreel` → `https://github.com/ArcReel/ArcReel.git`
+- Upstream branch / 上游分支：`arcreel/main`
+- Raw mirror / 原始镜像：`raw` → `origin/raw`
+- Studio360 downstream branch / Studio360 下游分支：`main`
+
+### Refresh raw and rebase Studio360 main / 更新 raw 并变基 main
+
+Run this only after checking that `raw` has no local-only commits / 仅在确认 `raw` 没有本地独有提交后执行：
+
+```powershell
+git fetch arcreel main
+git switch raw
+git reset --hard arcreel/main
+git push --force-with-lease origin raw
+
+git switch main
+git rebase raw
+```
+
+Resolve conflicts, run the required backend/frontend checks, and verify the live Studio360 runtime and provider configuration before pushing `main`.
+
+解决冲突后，运行必要的后端/前端检查，并在推送 `main` 前验证 Studio360 线上运行时与供应商配置。
+
+### Deployment and live smoke test / 部署与线上冒烟测试
+
+The Docker workflow is push-triggered for runtime changes. Documentation-only changes are ignored by `.github/workflows/docker.yml`; use a workflow dispatch or an explicit deployment path when a README update must also trigger a deployment.
+
+After deployment, verify at minimum:
+
+```powershell
+curl.exe -fsS https://studio360.hmz.one/health
+```
+
+Then verify the assistant/provider path in the live UI and check the exact deployed commit/image before declaring the rollout complete.
+
+部署完成后，至少验证健康端点、线上助手/供应商路径，以及实际部署的 commit/image；全部通过后才能视为完成。
 ## 📜 许可证
 
 本项目采用 [GNU Affero 通用公共许可证 v3.0 (AGPL-3.0)](./LICENSE) 授权，
