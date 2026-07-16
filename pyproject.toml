@@ -82,7 +82,7 @@ exclude_lines = [
 
 [tool.ruff]
 line-length = 120
-exclude = [".worktrees", ".claude/worktrees"]
+exclude = [".venv", ".worktrees", ".claude/worktrees"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP"]
