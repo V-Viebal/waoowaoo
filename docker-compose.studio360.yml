@@ -18,9 +18,7 @@ services:
       - studio360-stage-internal
 
   arcreel:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: studio360-arcreel:20260717-c980a9f
     restart: unless-stopped
     environment:
       DATABASE_URL: postgresql+asyncpg://arcreel:${POSTGRES_PASSWORD}@postgres:5432/arcreel
