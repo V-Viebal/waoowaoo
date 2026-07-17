@@ -176,20 +176,25 @@ class TestGeminiSpec:
         )
 
     @patch("lib.video_backends.registry.create_backend")
-    def test_vertex_video_backend_type_vertex(self, mock_create):
+    def test_vertex_video_passes_active_credentials_path(self, mock_create):
         spec = get_provider_spec("gemini-vertex", "video")
         config = LoadedConfig(
-            credentials={"api_key": None, "base_url": None},
+            credentials={
+                "api_key": None,
+                "base_url": None,
+                "credentials_path": "C:/active/vertex-credential.json",
+            },
             provider_meta=PROVIDER_REGISTRY.get("gemini-vertex"),
             rate_limiter=None,
         )
         spec.build_backend(config, "veo-3.1-generate-preview")
-        # vertex 无 api_key/base_url：仍无条件透传 None（与 vertex image 对称，backend 内结构性忽略）
+        # 生成侧必须使用当前激活凭证，而不是凭证目录中碰巧排在第一的旧 JSON。
         mock_create.assert_called_once_with(
             "gemini",
             backend_type="vertex",
             api_key=None,
             base_url=None,
+            credentials_path="C:/active/vertex-credential.json",
             rate_limiter=None,
             video_model="veo-3.1-generate-preview",
         )
@@ -428,15 +433,22 @@ class TestTextGeminiSpec:
         )
 
     @patch("lib.text_backends.registry.create_backend")
-    def test_vertex_uses_gcs_bucket_no_api_key(self, mock_create):
+    def test_vertex_uses_active_credentials_path(self, mock_create):
         spec = get_provider_spec("gemini-vertex", "text")
         assert spec.registry_backend == "gemini"
-        config = _loaded(credentials={"gcs_bucket": "my-bucket"}, provider_id="gemini-vertex")
+        config = _loaded(
+            credentials={
+                "gcs_bucket": "my-bucket",
+                "credentials_path": "C:/active/vertex-credential.json",
+            },
+            provider_id="gemini-vertex",
+        )
         spec.build_backend(config, "gemini-3-flash-preview")
         mock_create.assert_called_once_with(
             "gemini",
             model="gemini-3-flash-preview",
             backend="vertex",
+            credentials_path="C:/active/vertex-credential.json",
             gcs_bucket="my-bucket",
         )
 

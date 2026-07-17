@@ -40,6 +40,7 @@ class GeminiVideoBackend(ProviderJobIdPersistenceMixin):
         rate_limiter: RateLimiter | None = None,
         video_model: str | None = None,
         base_url: str | None = None,
+        credentials_path: str | Path | None = None,
     ):
         from google import genai as _genai
         from google.genai import types as _types
@@ -59,7 +60,12 @@ class GeminiVideoBackend(ProviderJobIdPersistenceMixin):
 
             from google.oauth2 import service_account
 
-            credentials_file = resolve_vertex_credentials_path()
+            # The active provider credential is selected by ConfigResolver and
+            # passed through the backend assembly layer. Falling back to the
+            # legacy directory scan is kept for direct callers and old data,
+            # but generation must not silently use a different (possibly
+            # revoked) JSON file when an active credential was configured.
+            credentials_file = Path(credentials_path) if credentials_path else resolve_vertex_credentials_path()
             if credentials_file is None:
                 raise ValueError("未找到 Vertex AI 凭证文件")
 

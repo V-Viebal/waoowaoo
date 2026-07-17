@@ -60,17 +60,20 @@ class TestGeminiVideoBackendProperties:
             patch("google.genai.types"),
             patch(
                 "lib.video_backends.gemini.resolve_vertex_credentials_path",
-                return_value=creds_file,
+                return_value=tmp_path / "legacy-first.json",
             ),
-            patch("google.oauth2.service_account.Credentials.from_service_account_file"),
+            patch("google.oauth2.service_account.Credentials.from_service_account_file") as from_service_account_file,
         ):
             from lib.video_backends.gemini import GeminiVideoBackend
 
             b = GeminiVideoBackend(
                 backend_type="vertex",
+                credentials_path=creds_file,
                 rate_limiter=mock_rate_limiter,
             )
             assert VideoCapability.GENERATE_AUDIO in b.capabilities
+            from_service_account_file.assert_called_once()
+            assert from_service_account_file.call_args.args[0] == str(creds_file)
 
 
 # ── 生成测试 ──────────────────────────────────────────────

@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import replace
+from pathlib import Path
 
 from google import genai
 from PIL import Image
@@ -105,6 +106,7 @@ class GeminiTextBackend:
         backend: str = "aistudio",
         base_url: str | None = None,
         gcs_bucket: str | None = None,
+        credentials_path: str | None = None,
     ):
         self._model = model or DEFAULT_MODEL
         raw_backend = backend or "aistudio"
@@ -117,7 +119,10 @@ class GeminiTextBackend:
 
             from ..system_config import resolve_vertex_credentials_path
 
-            credentials_file = resolve_vertex_credentials_path()
+            # Use the active provider credential when it was configured.
+            # The directory scan remains a compatibility fallback for direct
+            # callers and legacy installations.
+            credentials_file = Path(credentials_path) if credentials_path else resolve_vertex_credentials_path()
             if credentials_file is None:
                 raise ValueError("未找到 Vertex AI 凭证文件\n请将服务账号 JSON 文件放入 vertex_keys/ 目录")
 

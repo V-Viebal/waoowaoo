@@ -115,25 +115,31 @@ _GEMINI_REGISTRY_BACKEND = "gemini"
 
 
 def _build_gemini_image(config: LoadedConfig, model_id: str | None, *, backend_type: str) -> Any:
-    return _media_create_backend("image")(
-        _GEMINI_REGISTRY_BACKEND,
-        backend_type=backend_type,
-        api_key=config.credentials.get("api_key"),
-        base_url=config.credentials.get("base_url"),
-        rate_limiter=config.rate_limiter,
-        image_model=model_id,
-    )
+    kwargs: dict[str, Any] = {
+        "backend_type": backend_type,
+        "api_key": config.credentials.get("api_key"),
+        "base_url": config.credentials.get("base_url"),
+        "rate_limiter": config.rate_limiter,
+        "image_model": model_id,
+    }
+    credentials_path = config.credentials.get("credentials_path")
+    if credentials_path:
+        kwargs["credentials_path"] = credentials_path
+    return _media_create_backend("image")(_GEMINI_REGISTRY_BACKEND, **kwargs)
 
 
 def _build_gemini_video(config: LoadedConfig, model_id: str | None, *, backend_type: str) -> Any:
-    return _media_create_backend("video")(
-        _GEMINI_REGISTRY_BACKEND,
-        backend_type=backend_type,
-        api_key=config.credentials.get("api_key"),
-        base_url=config.credentials.get("base_url"),
-        rate_limiter=config.rate_limiter,
-        video_model=model_id,
-    )
+    kwargs: dict[str, Any] = {
+        "backend_type": backend_type,
+        "api_key": config.credentials.get("api_key"),
+        "base_url": config.credentials.get("base_url"),
+        "rate_limiter": config.rate_limiter,
+        "video_model": model_id,
+    }
+    credentials_path = config.credentials.get("credentials_path")
+    if credentials_path:
+        kwargs["credentials_path"] = credentials_path
+    return _media_create_backend("video")(_GEMINI_REGISTRY_BACKEND, **kwargs)
 
 
 def _gemini_spec(provider_id: str, media_type: str, *, backend_type: str) -> ProviderSpec:
@@ -248,13 +254,16 @@ def _build_text_gemini_aistudio(config: LoadedConfig, model_id: str | None) -> A
 
 
 def _build_text_gemini_vertex(config: LoadedConfig, model_id: str | None) -> Any:
-    # vertex 走服务账号凭证文件 + gcs_bucket，不传 api_key/base_url（保留迁移前命令式分支）。
-    return _media_create_backend("text")(
-        _TEXT_GEMINI_REGISTRY_BACKEND,
-        model=model_id,
-        backend="vertex",
-        gcs_bucket=config.credentials.get("gcs_bucket"),
-    )
+    # vertex 走活跃凭证文件 + gcs_bucket，不传 api_key/base_url。
+    kwargs: dict[str, Any] = {
+        "model": model_id,
+        "backend": "vertex",
+        "gcs_bucket": config.credentials.get("gcs_bucket"),
+    }
+    credentials_path = config.credentials.get("credentials_path")
+    if credentials_path:
+        kwargs["credentials_path"] = credentials_path
+    return _media_create_backend("text")(_TEXT_GEMINI_REGISTRY_BACKEND, **kwargs)
 
 
 def _text_gemini_spec(provider_id: str, *, build: Callable[[LoadedConfig, str | None], Any]) -> ProviderSpec:
