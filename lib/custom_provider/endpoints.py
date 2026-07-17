@@ -36,6 +36,7 @@ from lib.video_backends.dashscope import DashScopeVideoBackend
 from lib.video_backends.kling import KlingVideoBackend
 from lib.video_backends.minimax import MiniMaxVideoBackend
 from lib.video_backends.newapi import NewAPIVideoBackend
+from lib.video_backends.grok import GrokVideoBackend
 from lib.video_backends.openai import OpenAIVideoBackend
 from lib.video_backends.v2_video_generations import V2VideoGenerationsBackend
 from lib.video_backends.vidu import ViduVideoBackend
@@ -137,7 +138,20 @@ def _build_openai_tts(provider, model_id: str) -> CustomAudioBackend:
 
 def _build_openai_video(provider, model_id: str) -> CustomVideoBackend:
     base_url = ensure_openai_base_url(provider.base_url)
-    delegate = OpenAIVideoBackend(api_key=provider.api_key, base_url=base_url, model=model_id)
+    parsed = urlsplit(base_url or "")
+    hostname = (parsed.hostname or "").lower()
+
+    # xAI exposes Grok Imagine through its native video.generate API. It is
+    # intentionally not routed through the OpenAI-compatible /v1/videos path:
+    # that path does not preserve the native audio-capable response contract.
+    # Keep the endpoint key stable for existing custom-provider records, but
+    # select the native backend when the configured host is xAI itself.
+    if model_id.lower().startswith("grok-imagine-video") and (
+        hostname == "api.x.ai" or hostname.endswith(".x.ai")
+    ):
+        delegate = GrokVideoBackend(api_key=provider.api_key, base_url=base_url, model=model_id)
+    else:
+        delegate = OpenAIVideoBackend(api_key=provider.api_key, base_url=base_url, model=model_id)
     return CustomVideoBackend(provider_id=provider.provider_id, delegate=delegate, model=model_id)
 
 

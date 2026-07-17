@@ -66,6 +66,22 @@ class TestEndpointDispatch:
         assert isinstance(result, CustomVideoBackend)
         mock_cls.assert_called_once_with(api_key="sk-test", base_url="https://api.example.com/v1", model="sora-2")
 
+    @patch("lib.custom_provider.endpoints.GrokVideoBackend")
+    def test_xai_grok_video_uses_native_backend(self, mock_cls):
+        provider = _make_provider(base_url="https://api.x.ai/v1")
+        result = create_custom_backend(
+            provider=provider,
+            model_id="grok-imagine-video-1.5",
+            endpoint="openai-video",
+        )
+        assert isinstance(result, CustomVideoBackend)
+        mock_cls.assert_called_once_with(
+            api_key="sk-test",
+            base_url="https://api.x.ai/v1",
+            model="grok-imagine-video-1.5",
+        )
+
+
     @patch("lib.custom_provider.endpoints.NewAPIVideoBackend")
     def test_newapi_video(self, mock_cls):
         provider = _make_provider()
